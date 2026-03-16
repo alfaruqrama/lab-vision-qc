@@ -1,0 +1,16 @@
+{
+  "name": "LabQC Petrokimia",
+  "short_name": "LabQC",
+  "description": "Sistem Pemantapan Mutu Internal Laboratorium RS Petrokimia Gresik",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0B1F3A",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
