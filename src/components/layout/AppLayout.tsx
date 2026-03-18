@@ -1,26 +1,56 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LineChart, FileText, Settings, Plus } from 'lucide-react';
+import { LayoutDashboard, LineChart, FileText, Settings, Plus, ChevronLeft, FlaskConical, Sun, Moon } from 'lucide-react';
+import { useTheme } from '@/hooks/use-theme';
+import { useQCStore } from '@/hooks/use-qc-store';
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/chart', label: 'L-J Chart', icon: LineChart },
-  { path: '/report', label: 'Laporan', icon: FileText },
-  { path: '/config', label: 'Konfigurasi', icon: Settings },
+  { path: '/qc', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/qc/chart', label: 'L-J Chart', icon: LineChart },
+  { path: '/qc/report', label: 'Laporan', icon: FileText },
+  { path: '/qc/config', label: 'Konfigurasi', icon: Settings },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, toggle } = useTheme();
+  const { connected } = useQCStore();
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-[220px] flex-col bg-navy z-40">
-        <div className="p-5 border-b border-sidebar-border">
-          <h1 className="text-lg font-bold text-navy-foreground">LabQC</h1>
-          <p className="text-xs text-navy-foreground/60 mt-0.5">RS Petrokimia Gresik</p>
+      {/* Top navbar */}
+      <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-[860px] mx-auto flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/')}
+              className="p-1.5 -ml-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
+              <FlaskConical size={14} className="text-accent-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">Lab QC</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">RS Petrokimia Gresik</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-success animate-pulse-dot' : 'bg-muted-foreground/40'}`} />
+              {connected ? 'LIVE' : 'OFFLINE'}
+            </div>
+            <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+          </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+      </header>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex fixed left-0 top-14 bottom-0 w-[220px] flex-col bg-navy z-40">
+        <nav className="flex-1 p-3 space-y-1 pt-4">
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             return (
@@ -41,8 +71,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="p-3">
           <button
-            onClick={() => navigate('/input')}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90`}
+            onClick={() => navigate('/qc/input')}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus size={18} />
             Input QC
@@ -76,9 +106,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {/* Center FAB */}
           <button
-            onClick={() => navigate('/input')}
+            onClick={() => navigate('/qc/input')}
             className="nav-fab -mt-5 w-14 h-14 flex items-center justify-center"
           >
             <Plus size={26} />
