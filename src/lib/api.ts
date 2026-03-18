@@ -1,6 +1,6 @@
 import type { LotConfig, QCRecord } from './types';
 
-const APPS_SCRIPT_URL = '';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3obd6r4nhhXJDNu-anTwnYeG8Bzy7DQR5oWf4kyqm-Fpgzxj1CJNNEEeI-8LPKf0saQ/exec';
 
 export function isConnected(): boolean {
   return APPS_SCRIPT_URL.length > 0;
