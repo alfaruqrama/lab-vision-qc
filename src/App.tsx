@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import PortalHome from "@/pages/PortalHome";
-import KunjunganPlaceholder from "@/pages/KunjunganPlaceholder";
+import KunjunganDashboard from "@/pages/KunjunganDashboard";
 import SuhuPlaceholder from "@/pages/SuhuPlaceholder";
 import Dashboard from "@/pages/Dashboard";
 import InputQC from "@/pages/InputQC";
@@ -28,7 +28,7 @@ const App = () => (
             <Routes>
               {/* Portal pages with top navbar */}
               <Route path="/" element={<PortalLayout><PortalHome /></PortalLayout>} />
-              <Route path="/kunjungan" element={<PortalLayout><KunjunganPlaceholder /></PortalLayout>} />
+              <Route path="/kunjungan" element={<PortalLayout><KunjunganDashboard /></PortalLayout>} />
               <Route path="/suhu" element={<PortalLayout><SuhuPlaceholder /></PortalLayout>} />
 
               {/* QC module with sidebar/bottom nav */}
