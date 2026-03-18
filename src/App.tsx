@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import PortalHome from "@/pages/PortalHome";
-import KunjunganPlaceholder from "@/pages/KunjunganPlaceholder";
+import KunjunganDashboard from "@/pages/KunjunganDashboard";
 import SuhuPlaceholder from "@/pages/SuhuPlaceholder";
 import Dashboard from "@/pages/Dashboard";
 import InputQC from "@/pages/InputQC";
