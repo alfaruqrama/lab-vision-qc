@@ -9,14 +9,14 @@ export default {
       center: true,
       padding: "1rem",
       screens: {
-        "2xl": "860px",
+        "2xl": "1024px",
       },
     },
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        sans: ['"Plus Jakarta Sans"', '"DM Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Plus Jakarta Sans"', '"DM Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"DM Mono"', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -43,6 +43,10 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
+        },
+        accent2: {
+          DEFAULT: "hsl(var(--accent2))",
+          foreground: "hsl(var(--accent2-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
