@@ -28,7 +28,7 @@ const App = () => (
             <Routes>
               {/* Portal pages with top navbar */}
               <Route path="/" element={<PortalLayout><PortalHome /></PortalLayout>} />
-              <Route path="/kunjungan" element={<PortalLayout><KunjunganPlaceholder /></PortalLayout>} />
+              <Route path="/kunjungan" element={<PortalLayout><KunjunganDashboard /></PortalLayout>} />
               <Route path="/suhu" element={<PortalLayout><SuhuPlaceholder /></PortalLayout>} />
 
               {/* QC module with sidebar/bottom nav */}
