@@ -1,18 +1,14 @@
 // Kunjungan Google Sheets API integration
 import { type KunjunganData, normalizeMonthKeys } from './kunjungan-types';
 
-const LS_KEY = 'gs-url-kunjungan';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbw3obd6r4nhhXJDNu-anTwnYeG8Bzy7DQR5oWf4kyqm-Fpgzxj1CJNNEEeI-8LPKf0saQ/exec';
 
 export function getGsUrl(): string {
-  return localStorage.getItem(LS_KEY) || '';
-}
-
-export function setGsUrl(url: string): void {
-  localStorage.setItem(LS_KEY, url.trim());
+  return GS_URL;
 }
 
 export function isKunjunganConnected(): boolean {
-  return getGsUrl().length > 0;
+  return GS_URL.length > 0;
 }
 
 async function gsGet(action: string): Promise<any> {
