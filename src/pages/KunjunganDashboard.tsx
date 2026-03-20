@@ -509,7 +509,6 @@ export default function KunjunganDashboard() {
           )}
           {error && <span className="text-[9px] text-destructive">{error}</span>}
         </div>
-        <GsConfigDialog onSave={refresh} />
       </div>
 
       {/* Tab bar */}
