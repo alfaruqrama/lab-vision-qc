@@ -10,7 +10,7 @@ import {
   normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
-import { getGsUrl, setGsUrl } from '@/lib/kunjungan-api';
+import { toast } from 'sonner';
 import { toast } from 'sonner';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
