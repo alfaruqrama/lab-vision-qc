@@ -1,22 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
 } from 'recharts';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Wifi, WifiOff, Settings2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import embeddedRaw from '@/lib/kunjungan-data.json';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
   normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
 } from '@/lib/kunjungan-types';
-
-// Normalize month keys
-const EMBEDDED: KunjunganData = {
-  omzet: normalizeMonthKeys(embeddedRaw.omzet),
-  kunjungan: normalizeMonthKeys(embeddedRaw.kunjungan),
-  mcu: normalizeMonthKeys(embeddedRaw.mcu || {}),
-};
+import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
+import { getGsUrl, setGsUrl } from '@/lib/kunjungan-api';
+import { toast } from 'sonner';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
 
