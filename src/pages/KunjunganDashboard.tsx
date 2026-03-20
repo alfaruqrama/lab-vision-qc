@@ -3,14 +3,13 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
 } from 'recharts';
-import { ChevronLeft, RefreshCw, Wifi, WifiOff, Settings2 } from 'lucide-react';
+import { ChevronLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
   normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
-import { getGsUrl, setGsUrl } from '@/lib/kunjungan-api';
 import { toast } from 'sonner';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
@@ -454,48 +453,6 @@ function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
   );
 }
 
-// ─── GS URL Config Dialog ───
-function GsConfigDialog({ onSave }: { onSave: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState(getGsUrl);
-
-  const handleSave = () => {
-    setGsUrl(url);
-    setOpen(false);
-    toast.success('URL Google Sheets disimpan');
-    onSave();
-  };
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Konfigurasi Google Sheets">
-        <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
-      </button>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
-      <div className="card-clinical p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 className="text-sm font-bold">Konfigurasi Google Sheets</h3>
-        <p className="text-[11px] text-muted-foreground">
-          Paste URL Apps Script Web App untuk koneksi real-time ke Google Sheets.
-        </p>
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="https://script.google.com/macros/s/..."
-          className="w-full text-xs bg-background border border-border rounded-lg px-3 py-2 font-mono-data focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-        <div className="flex gap-2 justify-end">
-          <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-muted transition-colors">Batal</button>
-          <button onClick={handleSave} className="px-3 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors font-medium">Simpan & Refresh</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
@@ -551,7 +508,6 @@ export default function KunjunganDashboard() {
           )}
           {error && <span className="text-[9px] text-destructive">{error}</span>}
         </div>
-        <GsConfigDialog onSave={refresh} />
       </div>
 
       {/* Tab bar */}
