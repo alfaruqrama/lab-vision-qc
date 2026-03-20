@@ -39,6 +39,7 @@ export interface GsSummaryResponse {
   allOmzet: Record<string, any[]>;
   allKunjungan: Record<string, any[]>;
   allMcu: Record<string, any[]>;
+  error?: string;
 }
 
 export async function fetchSummary(): Promise<KunjunganData & { lastUpdated: string; currentMonth: string }> {
