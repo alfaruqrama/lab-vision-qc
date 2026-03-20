@@ -423,30 +423,113 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
+// ─── Connection Status Badge ───
+function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
+  status: ConnectionStatus; lastUpdated: string | null; onRefresh: () => void; refreshing: boolean;
+}) {
+  const isLive = status === 'live';
+  const isLoading = status === 'loading' || refreshing;
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={onRefresh}
+        disabled={isLoading}
+        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+        title="Refresh data"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${isLoading ? 'animate-spin' : ''}`} />
+      </button>
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
+        isLive ? 'bg-success/10 text-success border-success/20' :
+        status === 'error' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+        'bg-muted text-muted-foreground border-border'
+      }`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${
+          isLive ? 'bg-success animate-pulse' :
+          status === 'error' ? 'bg-destructive' : 'bg-muted-foreground'
+        }`} />
+        {isLive ? 'REALTIME' : status === 'error' ? 'ERROR' : status === 'loading' ? 'LOADING...' : 'EMBEDDED'}
+      </span>
+    </div>
+  );
+}
+
+// ─── GS URL Config Dialog ───
+function GsConfigDialog({ onSave }: { onSave: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState(getGsUrl);
+
+  const handleSave = () => {
+    setGsUrl(url);
+    setOpen(false);
+    toast.success('URL Google Sheets disimpan');
+    onSave();
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Konfigurasi Google Sheets">
+        <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
+      <div className="card-clinical p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 className="text-sm font-bold">Konfigurasi Google Sheets</h3>
+        <p className="text-[11px] text-muted-foreground">
+          Paste URL Apps Script Web App untuk koneksi real-time ke Google Sheets.
+        </p>
+        <input
+          type="url"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          placeholder="https://script.google.com/macros/s/..."
+          className="w-full text-xs bg-background border border-border rounded-lg px-3 py-2 font-mono-data focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-muted transition-colors">Batal</button>
+          <button onClick={handleSave} className="px-3 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors font-medium">Simpan & Refresh</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
   const navigate = useNavigate();
+  const { data, status, lastUpdated, error, refresh, availableMonths } = useKunjunganData();
   const [tab, setTab] = useState<TabType>('omzet');
+  const [refreshing, setRefreshing] = useState(false);
+
   const [month, setMonth] = useState(() => {
-    const months = sortMonths(Object.keys(EMBEDDED.omzet));
+    const months = availableMonths('omzet');
     return months[months.length - 1] || 'JANUARI';
   });
   const [mcuMonth, setMcuMonth] = useState(() => {
-    const months = sortMonths(Object.keys(EMBEDDED.mcu));
+    const months = availableMonths('mcu');
     return months[months.length - 1] || 'JANUARI';
   });
 
-  const activeMonths = useMemo(() => {
-    if (tab === 'mcu') return sortMonths(Object.keys(EMBEDDED.mcu));
-    if (tab === 'kunjungan') return sortMonths(Object.keys(EMBEDDED.kunjungan));
-    return sortMonths(Object.keys(EMBEDDED.omzet));
-  }, [tab]);
+  // Update months when data changes
+  const activeMonthsList = useMemo(() => {
+    return availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
+  }, [tab, availableMonths]);
 
   const activeMonth = tab === 'mcu' ? mcuMonth : month;
   const setActiveMonth = (m: string) => {
     if (tab === 'mcu') setMcuMonth(m);
     else setMonth(m);
   };
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+    toast.success('Data di-refresh');
+  }, [refresh]);
 
   const tabs: { key: TabType; label: string; emoji: string }[] = [
     { key: 'omzet', label: 'Omzet', emoji: '💰' },
@@ -457,6 +540,20 @@ export default function KunjunganDashboard() {
 
   return (
     <div className="space-y-0">
+      {/* Status bar */}
+      <div className="flex items-center justify-between gap-2 pb-2">
+        <div className="flex items-center gap-2">
+          <StatusBadge status={status} lastUpdated={lastUpdated} onRefresh={handleRefresh} refreshing={refreshing} />
+          {lastUpdated && (
+            <span className="text-[9px] text-muted-foreground font-mono-data">
+              {new Date(lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {error && <span className="text-[9px] text-destructive">{error}</span>}
+        </div>
+        <GsConfigDialog onSave={refresh} />
+      </div>
+
       {/* Tab bar */}
       <div className="bg-card border-b border-border -mx-4 px-4 flex items-center gap-1 overflow-x-auto">
         {tabs.map(t => (
@@ -474,13 +571,13 @@ export default function KunjunganDashboard() {
         ))}
 
         {/* Month selector inline */}
-        {tab !== 'laporan' && activeMonths.length > 0 && (
+        {tab !== 'laporan' && activeMonthsList.length > 0 && (
           <select
             value={activeMonth}
             onChange={e => setActiveMonth(e.target.value)}
             className="ml-auto text-xs bg-card border border-border rounded-lg px-3 py-1.5 font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
           >
-            {activeMonths.map(m => (
+            {activeMonthsList.map(m => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
@@ -489,9 +586,9 @@ export default function KunjunganDashboard() {
 
       {/* Content */}
       <div className="pt-4">
-        {tab === 'omzet' && <OmzetTab month={activeMonth} data={EMBEDDED.omzet[activeMonth] || []} />}
-        {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={EMBEDDED.kunjungan[activeMonth] || []} />}
-        {tab === 'mcu' && <McuTab month={activeMonth} data={EMBEDDED.mcu[activeMonth] || []} />}
+        {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
+        {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
+        {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
         {tab === 'laporan' && <LaporanTab />}
       </div>
     </div>
