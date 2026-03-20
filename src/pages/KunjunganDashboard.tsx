@@ -3,7 +3,7 @@ import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
 } from 'recharts';
-import { ChevronLeft, RefreshCw, Wifi, WifiOff, Settings2 } from 'lucide-react';
+import { ChevronLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
