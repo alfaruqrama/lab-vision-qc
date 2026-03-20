@@ -1,30 +1,26 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ComposedChart
+  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
 } from 'recharts';
-import { ChevronLeft, RefreshCw, Clock } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
 import embeddedRaw from '@/lib/kunjungan-data.json';
-import { fetchKunjunganSummary } from '@/lib/api';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
   normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
 } from '@/lib/kunjungan-types';
 
-const REFRESH_INTERVAL = 15 * 60; // 15 minutes in seconds
-
+// Normalize month keys
 const EMBEDDED: KunjunganData = {
-  omzet: normalizeMonthKeys(embeddedRaw.omzet || {}),
-  kunjungan: normalizeMonthKeys(embeddedRaw.kunjungan || {}),
+  omzet: normalizeMonthKeys(embeddedRaw.omzet),
+  kunjungan: normalizeMonthKeys(embeddedRaw.kunjungan),
   mcu: normalizeMonthKeys(embeddedRaw.mcu || {}),
 };
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
 
-// ─── KOMPONEN KECIL ───
+// ─── KPI Card ───
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
     <div className="card-clinical flex-shrink-0 min-w-[150px] p-4 relative overflow-hidden">
@@ -36,16 +32,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
   );
 }
 
-function KpiSkeleton() {
-  return (
-    <div className="card-clinical flex-shrink-0 min-w-[150px] p-4">
-      <Skeleton className="h-3 w-20 mb-3" />
-      <Skeleton className="h-6 w-24 mb-2" />
-      <Skeleton className="h-3 w-16" />
-    </div>
-  );
-}
-
+// ─── Badge ───
 function PctBadge({ pct }: { pct: number }) {
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass(pct)}`}>
@@ -54,55 +41,137 @@ function PctBadge({ pct }: { pct: number }) {
   );
 }
 
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-      <p className="text-sm font-medium">{text}</p>
-    </div>
-  );
-}
-
 // ─── TAB: OMZET ───
-function OmzetTab({ month, data, isRefreshing }: { month: string; data: OmzetRow[]; isRefreshing: boolean }) {
-  if (!data || !data.length) return <EmptyState text="Belum ada data omzet" />;
+function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
+  if (!data.length) return <EmptyState text="Belum ada data omzet" />;
 
   const tot = data.reduce((s, r) => s + r.total, 0);
   const dHit = data.filter(r => r.pct >= 100).length;
-  const best = [...data].sort((a, b) => b.pct - a.pct)[0];
+  const best = data.reduce((a, b) => (b.pct > a.pct ? b : a));
   const avgPct = Math.round(data.reduce((s, r) => s + r.pct, 0) / data.length);
+  const avgTgt = data.reduce((s, r) => s + r.target, 0) / data.length;
+
+  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct }));
+  const payerTotals = PAYERS.map(p => ({
+    name: p.l,
+    value: data.reduce((s, r) => s + ((r as any)[p.k] || 0), 0),
+    color: p.c,
+  }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {isRefreshing ? (
-          <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
-        ) : (
-          <>
-            <KpiCard label="Total Omzet" value={fmtRpFull(tot)} sub={`${dHit} hari capai target`} color="var(--primary)" />
-            <KpiCard label="Rata-rata Capaian" value={`${avgPct}%`} sub="Dari target harian" color={avgPct >= 100 ? "var(--success)" : "var(--warning)"} />
-            <KpiCard label="Kinerja Terbaik" value={`Hari ${best?.d || '-'}`} sub={`Capaian ${best?.pct || 0}%`} color="var(--accent)" />
-          </>
-        )}
+    <div className="space-y-4 page-transition">
+      {/* KPIs */}
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+        <KpiCard label={`Total Omzet ${month}`} value={fmtRp(tot)} sub={`${data.length} hari tercatat`} color="#0a9e87" />
+        <KpiCard label="Avg Target / Hari" value={fmtRp(avgTgt)} sub="Target rata-rata harian" color="#3b82f6" />
+        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
+        <KpiCard label="Capaian Tertinggi" value={`${best.pct}%`} sub={`Tgl ${best.d} ${month}`} color="#e11d48" />
+        <KpiCard label="Avg Capaian" value={`${avgPct}%`} sub="Rata-rata per hari" color="#8b5cf6" />
       </div>
-      <div className="card-clinical p-4 lg:p-6 overflow-hidden">
-        <h3 className="text-sm font-bold mb-4 font-display">Tren Omzet Harian - {month}</h3>
-        <div className="h-[250px] lg:h-[300px] w-full ml-[-15px]">
+
+      {/* Payer grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+        {payerTotals.map(p => (
+          <div key={p.name} className="card-clinical p-3 hover:shadow-md transition-shadow">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{p.name}</p>
+            <p className="text-sm font-bold font-display" style={{ color: p.color }}>{fmtRp(p.value)}</p>
+            <p className="text-[10px] text-muted-foreground">{((p.value / tot) * 100).toFixed(1)}% dari total</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart: Daily vs Target */}
+      <div className="card-clinical p-4">
+        <h3 className="text-sm font-bold mb-1">Omzet Harian vs Target — {month}</h3>
+        <p className="text-[11px] text-muted-foreground mb-3">Hijau = melampaui target · Biru = di bawah target · Garis oranye = target</p>
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-              <XAxis dataKey="d" fontSize={10} tickLine={false} axisLine={false} tickMargin={8} minTickGap={10} />
-              <YAxis yAxisId="left" tickFormatter={v => `${v / 1000000}M`} fontSize={10} tickLine={false} axisLine={false} dx={-5} />
-              <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} fontSize={10} tickLine={false} axisLine={false} dx={5} domain={[0, 'dataMax + 20']} />
-              <Tooltip
-                contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', fontSize: '12px', padding: '12px' }}
-                formatter={(v: any, n: string) => [n === 'pct' ? `${v}%` : fmtRpFull(v as number), n === 'total' ? 'Omzet' : 'Capaian']}
-                labelFormatter={l => `Tanggal ${l}`}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
-              <Bar yAxisId="left" dataKey="total" fill="var(--primary)" name="Total Omzet" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Line yAxisId="right" type="monotone" dataKey="pct" stroke="var(--warning)" name="% Capaian" strokeWidth={2} dot={{ r: 3, fill: "var(--warning)" }} />
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
+              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
+              <Bar dataKey="total" name="Omzet Aktual" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
+                ))}
+              </Bar>
+              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart row: Capaian % + Pie */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="card-clinical p-4">
+          <h3 className="text-sm font-bold mb-3">Capaian % per Hari</h3>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                <Tooltip formatter={(v: number) => `${v}%`} />
+                <Bar dataKey="pct" name="Capaian" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={
+                      entry.pct >= 150 ? 'rgba(139,92,246,0.7)' :
+                      entry.pct >= 100 ? 'rgba(10,158,135,0.7)' :
+                      entry.pct >= 80 ? 'rgba(245,158,11,0.7)' : 'rgba(240,78,55,0.65)'
+                    } />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="card-clinical p-4">
+          <h3 className="text-sm font-bold mb-3">Komposisi Payer — {month}</h3>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={payerTotals} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="45%" outerRadius="75%">
+                  {payerTotals.map((p, i) => <Cell key={i} fill={p.color + '40'} stroke={p.color} strokeWidth={2} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => fmtRpFull(v)} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card-clinical p-4 overflow-hidden">
+        <h3 className="text-sm font-bold mb-3">Detail Data Harian — {month}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] font-mono-data">
+            <thead>
+              <tr className="bg-muted">
+                <th className="px-2 py-2 text-left">Tgl</th>
+                {PAYERS.map(p => <th key={p.k} className="px-2 py-2 text-right whitespace-nowrap">{p.l}</th>)}
+                <th className="px-2 py-2 text-right font-bold">Total</th>
+                <th className="px-2 py-2 text-right">Target</th>
+                <th className="px-2 py-2 text-center">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map(r => (
+                <tr key={r.d} className="border-b border-border hover:bg-muted/50 transition-colors">
+                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
+                  {PAYERS.map(p => (
+                    <td key={p.k} className="px-2 py-1.5 text-right text-muted-foreground">
+                      {(r as any)[p.k] ? fmtRp((r as any)[p.k]) : '—'}
+                    </td>
+                  ))}
+                  <td className="px-2 py-1.5 text-right font-semibold">{fmtRp(r.total)}</td>
+                  <td className="px-2 py-1.5 text-right text-muted-foreground">{fmtRp(r.target)}</td>
+                  <td className="px-2 py-1.5 text-center"><PctBadge pct={r.pct} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -110,44 +179,136 @@ function OmzetTab({ month, data, isRefreshing }: { month: string; data: OmzetRow
 }
 
 // ─── TAB: KUNJUNGAN ───
-function KunjunganTab({ month, data, isRefreshing }: { month: string; data: KunjunganRow[]; isRefreshing: boolean }) {
-  if (!data || !data.length) return <EmptyState text="Belum ada data kunjungan" />;
+function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) {
+  if (!data.length) return <EmptyState text="Belum ada data kunjungan" />;
 
-  const tot = data.reduce((s, r) => s + r.total, 0);
-  const rj = data.reduce((s, r) => s + (r.rjTotal || 0), 0);
-  const ri = data.reduce((s, r) => s + (r.riTotal || 0), 0);
-  const igd = data.reduce((s, r) => s + (r.igdTotal || 0), 0);
-  const mcu = data.reduce((s, r) => s + (r.mcuTotal || 0), 0);
+  const totK = data.reduce((s, r) => s + r.total, 0);
+  const dHit = data.filter(r => r.pct >= 100).length;
+  const bestK = data.reduce((a, b) => (b.total > a.total ? b : a));
+  const avgK = Math.round(totK / data.length);
+  const totRJ = data.reduce((s, r) => s + r.rjTotal, 0);
+  const totRI = data.reduce((s, r) => s + r.riTotal, 0);
+  const totIGD = data.reduce((s, r) => s + r.igdTotal, 0);
+  const totMCU = data.reduce((s, r) => s + r.mcuTotal, 0);
+
+  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct, rj: r.rjTotal, ri: r.riTotal, igd: r.igdTotal, mcu: r.mcuTotal }));
+  const unitData = [
+    { name: 'Rawat Jalan', value: totRJ, color: '#3b82f6', emoji: '🚶' },
+    { name: 'Rawat Inap', value: totRI, color: '#8b5cf6', emoji: '🛏️' },
+    { name: 'IGD', value: totIGD, color: '#e11d48', emoji: '🚨' },
+    { name: 'MCU', value: totMCU, color: '#f59e0b', emoji: '🩺' },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {isRefreshing ? (
-          <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
-        ) : (
-          <>
-            <KpiCard label="Total Pasien" value={`${tot}`} sub="Kunjungan bulan ini" color="var(--primary)" />
-            <KpiCard label="Rawat Jalan" value={`${rj}`} sub={`${tot > 0 ? Math.round((rj / tot) * 100) : 0}% dari total`} color="var(--success)" />
-            <KpiCard label="IGD" value={`${igd}`} sub={`RI: ${ri} · MCU: ${mcu}`} color="var(--warning)" />
-          </>
-        )}
+    <div className="space-y-4 page-transition">
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+        <KpiCard label={`Total Kunjungan ${month}`} value={totK.toLocaleString('id-ID')} sub={`${data.length} hari tercatat`} color="#0a9e87" />
+        <KpiCard label="Avg per Hari" value={String(avgK)} sub="Pasien rata-rata harian" color="#3b82f6" />
+        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
+        <KpiCard label="Kunjungan Terbanyak" value={String(bestK.total)} sub={`Tgl ${bestK.d} ${month}`} color="#e11d48" />
       </div>
-      <div className="card-clinical p-4 lg:p-6 overflow-hidden">
-        <h3 className="text-sm font-bold mb-4 font-display">Tren Kunjungan - {month}</h3>
-        <div className="h-[250px] lg:h-[300px] w-full ml-[-15px]">
+
+      {/* Unit breakdown cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {unitData.map(u => (
+          <div key={u.name} className="card-clinical p-4 text-center hover:shadow-md transition-shadow">
+            <p className="text-xl mb-1">{u.emoji}</p>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{u.name}</p>
+            <p className="text-xl font-bold font-display" style={{ color: u.color }}>{u.value.toLocaleString()}</p>
+            <p className="text-[10px] text-muted-foreground">{((u.value / totK) * 100).toFixed(1)}% dari total</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Daily chart */}
+      <div className="card-clinical p-4">
+        <h3 className="text-sm font-bold mb-3">Total Kunjungan Harian — {month}</h3>
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-              <XAxis dataKey="d" fontSize={10} tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis fontSize={10} tickLine={false} axisLine={false} dx={-5} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', fontSize: '12px' }} />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-              <Line type="monotone" dataKey="total" stroke="var(--primary)" name="Total" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="rjTotal" stroke="var(--success)" name="RJ" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="riTotal" stroke="var(--warning)" name="RI" strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="igdTotal" stroke="var(--destructive)" name="IGD" strokeWidth={1.5} dot={false} />
-            </LineChart>
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="total" name="Total" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
+                ))}
+              </Bar>
+              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+            </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Stacked + Pie */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="card-clinical p-4">
+          <h3 className="text-sm font-bold mb-3">Breakdown per Unit Harian</h3>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="rj" name="RJ" stackId="a" fill="rgba(59,130,246,0.65)" />
+                <Bar dataKey="ri" name="RI" stackId="a" fill="rgba(139,92,246,0.65)" />
+                <Bar dataKey="igd" name="IGD" stackId="a" fill="rgba(225,29,72,0.6)" />
+                <Bar dataKey="mcu" name="MCU" stackId="a" fill="rgba(245,158,11,0.65)" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="card-clinical p-4">
+          <h3 className="text-sm font-bold mb-3">Komposisi Unit Layanan</h3>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={unitData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="42%" outerRadius="72%">
+                  {unitData.map((u, i) => <Cell key={i} fill={u.color + '33'} stroke={u.color} strokeWidth={2} />)}
+                </Pie>
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card-clinical p-4">
+        <h3 className="text-sm font-bold mb-3">Detail Kunjungan Harian — {month}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] font-mono-data">
+            <thead>
+              <tr className="bg-muted">
+                <th className="px-2 py-2 text-left">Tgl</th>
+                <th className="px-2 py-2 text-right">RJ</th>
+                <th className="px-2 py-2 text-right">RI</th>
+                <th className="px-2 py-2 text-right">IGD</th>
+                <th className="px-2 py-2 text-right">MCU</th>
+                <th className="px-2 py-2 text-right font-bold">Total</th>
+                <th className="px-2 py-2 text-right">Target</th>
+                <th className="px-2 py-2 text-center">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map(r => (
+                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
+                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
+                  <td className="px-2 py-1.5 text-right">{r.rjTotal}</td>
+                  <td className="px-2 py-1.5 text-right">{r.riTotal}</td>
+                  <td className="px-2 py-1.5 text-right">{r.igdTotal}</td>
+                  <td className="px-2 py-1.5 text-right">{r.mcuTotal}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold">{r.total}</td>
+                  <td className="px-2 py-1.5 text-right text-muted-foreground">{r.target ? Math.round(r.target) : '—'}</td>
+                  <td className="px-2 py-1.5 text-center">{r.pct ? <PctBadge pct={r.pct} /> : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -155,41 +316,87 @@ function KunjunganTab({ month, data, isRefreshing }: { month: string; data: Kunj
 }
 
 // ─── TAB: MCU ───
-function McuTab({ month, data, isRefreshing }: { month: string; data: McuRow[]; isRefreshing: boolean }) {
-  if (!data || !data.length) return <EmptyState text="Belum ada data MCU" />;
+function McuTab({ month, data }: { month: string; data: McuRow[] }) {
+  const rows = data.filter(r => r.omzet > 0);
+  if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} />;
 
-  const tot = data.reduce((s, r) => s + r.omzet, 0);
-  const daysWithMcu = data.filter(r => r.omzet > 0).length;
-  const avg = daysWithMcu > 0 ? Math.round(tot / daysWithMcu) : 0;
+  const total = rows.reduce((s, r) => s + r.omzet, 0);
+  const avg = total / rows.length;
+  const maxRow = rows.reduce((a, b) => (b.omzet > a.omzet ? b : a));
+  const minRow = rows.reduce((a, b) => (b.omzet < a.omzet ? b : a));
+
+  const chartData = rows.map(r => ({ name: String(r.d), omzet: r.omzet, avg }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {isRefreshing ? (
-          <><KpiSkeleton /><KpiSkeleton /><KpiSkeleton /></>
-        ) : (
-          <>
-            <KpiCard label="Total Omzet MCU" value={fmtRpFull(tot)} sub={`${daysWithMcu} hari ada MCU`} color="var(--primary)" />
-            <KpiCard label="Rata-rata/Hari" value={fmtRp(avg)} sub="Hari dengan MCU" color="var(--accent)" />
-          </>
-        )}
+    <div className="space-y-4 page-transition">
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+        <KpiCard label={`Total MCU ${month}`} value={fmtRp(total)} sub={`${rows.length} hari tercatat`} color="#0a9e87" />
+        <KpiCard label="Rata-rata / Hari" value={fmtRp(avg)} sub="per hari aktif" color="#3b82f6" />
+        <KpiCard label="Tertinggi" value={fmtRp(maxRow.omzet)} sub={`Tgl ${maxRow.d} ${month}`} color="#f59e0b" />
+        <KpiCard label="Terendah" value={fmtRp(minRow.omzet)} sub={`Tgl ${minRow.d} ${month}`} color="#e11d48" />
       </div>
-      <div className="card-clinical p-4 lg:p-6 overflow-hidden">
-        <h3 className="text-sm font-bold mb-4 font-display">Omzet MCU Harian - {month}</h3>
-        <div className="h-[250px] lg:h-[300px] w-full ml-[-15px]">
+
+      <div className="card-clinical p-4">
+        <h3 className="text-sm font-bold mb-3">Omzet MCU Harian — {month}</h3>
+        <div className="h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
-              <XAxis dataKey="d" fontSize={10} tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis tickFormatter={v => `${v / 1000000}M`} fontSize={10} tickLine={false} axisLine={false} dx={-5} />
-              <Tooltip
-                contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', fontSize: '12px' }}
-                formatter={(v: any) => [fmtRpFull(v as number), 'Omzet MCU']}
-                labelFormatter={l => `Tanggal ${l}`}
-              />
-              <Bar dataKey="omzet" fill="var(--accent)" name="Omzet MCU" radius={[4, 4, 0, 0]} maxBarSize={40} />
-            </BarChart>
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
+              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
+              <Bar dataKey="omzet" name="Omzet MCU" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.omzet >= avg ? 'rgba(13,158,132,0.75)' : 'rgba(245,158,11,0.65)'} />
+                ))}
+              </Bar>
+              <Line dataKey="avg" name="Rata-rata" stroke="#e11d48" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+            </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="card-clinical p-4">
+        <h3 className="text-sm font-bold mb-3">Detail Harian MCU — {month}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] font-mono-data">
+            <thead>
+              <tr className="bg-muted">
+                <th className="px-3 py-2 text-left">Tgl</th>
+                <th className="px-3 py-2 text-right">Omzet MCU</th>
+                <th className="px-3 py-2 text-right">Kontribusi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
+                  <td className="px-3 py-1.5 font-semibold text-muted-foreground">{r.d}</td>
+                  <td className="px-3 py-1.5 text-right font-bold">{fmtRpFull(r.omzet)}</td>
+                  <td className="px-3 py-1.5 text-right">
+                    <div className="flex items-center gap-2 justify-end">
+                      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, (r.omzet / maxRow.omzet) * 100).toFixed(0)}%`,
+                            background: r.omzet >= avg ? 'hsl(var(--accent))' : 'hsl(var(--warning))',
+                          }}
+                        />
+                      </div>
+                      <span className="text-muted-foreground min-w-[36px] text-right">{((r.omzet / total) * 100).toFixed(1)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-border bg-muted">
+                <td className="px-3 py-2 font-bold">TOTAL</td>
+                <td className="px-3 py-2 text-right font-extrabold text-accent">{fmtRpFull(total)}</td>
+                <td className="px-3 py-2 text-right font-semibold text-muted-foreground">100%</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
@@ -198,182 +405,98 @@ function McuTab({ month, data, isRefreshing }: { month: string; data: McuRow[]; 
 
 // ─── TAB: LAPORAN ───
 function LaporanTab() {
-  return <EmptyState text="Fitur laporan akan segera hadir" />;
+  return (
+    <div className="space-y-4 page-transition">
+      <div className="card-clinical p-8 flex flex-col items-center justify-center text-center gap-3">
+        <p className="text-3xl">📋</p>
+        <h2 className="font-bold text-lg">Input Laporan Harian</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Fitur input laporan harian dan kirim via WhatsApp sedang dalam pengembangan.
+        </p>
+        <span className="text-[10px] px-3 py-1 rounded-full bg-warning/10 text-warning font-medium">Segera Hadir</span>
+      </div>
+    </div>
+  );
 }
 
-// ─── HALAMAN UTAMA ───
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="card-clinical p-12 text-center text-muted-foreground">
+      <p className="text-3xl mb-3">📊</p>
+      <p className="font-semibold">{text}</p>
+    </div>
+  );
+}
+
+// ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabType>('omzet');
-  const [data, setData] = useState<KunjunganData>(EMBEDDED);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState('');
-  const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
-  const countdownRef = useRef(REFRESH_INTERVAL);
+  const [month, setMonth] = useState(() => {
+    const months = sortMonths(Object.keys(EMBEDDED.omzet));
+    return months[months.length - 1] || 'JANUARI';
+  });
+  const [mcuMonth, setMcuMonth] = useState(() => {
+    const months = sortMonths(Object.keys(EMBEDDED.mcu));
+    return months[months.length - 1] || 'JANUARI';
+  });
 
-  const months = useMemo(() => {
-    const all = new Set([
-      ...Object.keys(data.omzet),
-      ...Object.keys(data.kunjungan),
-      ...Object.keys(data.mcu),
-    ]);
-    return sortMonths([...all]);
-  }, [data]);
+  const activeMonths = useMemo(() => {
+    if (tab === 'mcu') return sortMonths(Object.keys(EMBEDDED.mcu));
+    if (tab === 'kunjungan') return sortMonths(Object.keys(EMBEDDED.kunjungan));
+    return sortMonths(Object.keys(EMBEDDED.omzet));
+  }, [tab]);
 
-  const [selectedMonth, setSelectedMonth] = useState('');
-
-  useEffect(() => {
-    if (months.length && !selectedMonth) setSelectedMonth(months[months.length - 1]);
-  }, [months, selectedMonth]);
-
-  // ─── FETCH ───
-  const fetchSummary = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const res = await fetchKunjunganSummary();
-      if (res && typeof res === 'object') {
-        const normalized: KunjunganData = {
-          omzet: normalizeMonthKeys(res.omzet || {}),
-          kunjungan: normalizeMonthKeys(res.kunjungan || {}),
-          mcu: normalizeMonthKeys(res.mcu || {}),
-        };
-        setData(normalized);
-        setIsConnected(true);
-      }
-    } catch {
-      if (isFirstLoad) setData(EMBEDDED);
-      setIsConnected(false);
-    } finally {
-      setIsRefreshing(false);
-      setIsFirstLoad(false);
-      setLastUpdated(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      countdownRef.current = REFRESH_INTERVAL;
-      setCountdown(REFRESH_INTERVAL);
-    }
-  }, [isFirstLoad]);
-
-  // Initial fetch + polling
-  useEffect(() => {
-    fetchSummary();
-    const interval = setInterval(fetchSummary, REFRESH_INTERVAL * 1000);
-    return () => clearInterval(interval);
-  }, [fetchSummary]);
-
-  // Visibility API
-  useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible') fetchSummary();
-    };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, [fetchSummary]);
-
-  // Countdown timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      countdownRef.current -= 1;
-      if (countdownRef.current <= 0) countdownRef.current = REFRESH_INTERVAL;
-      setCountdown(countdownRef.current);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleManualRefresh = async () => {
-    await fetchSummary();
-    toast({ title: '✅ Data berhasil diperbarui' });
+  const activeMonth = tab === 'mcu' ? mcuMonth : month;
+  const setActiveMonth = (m: string) => {
+    if (tab === 'mcu') setMcuMonth(m);
+    else setMonth(m);
   };
 
-  const formatCountdown = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  const tabs: { key: TabType; label: string }[] = [
-    { key: 'omzet', label: 'Omzet' },
-    { key: 'kunjungan', label: 'Kunjungan' },
-    { key: 'mcu', label: 'MCU' },
-    { key: 'laporan', label: 'Laporan' },
+  const tabs: { key: TabType; label: string; emoji: string }[] = [
+    { key: 'omzet', label: 'Omzet', emoji: '💰' },
+    { key: 'kunjungan', label: 'Kunjungan', emoji: '👥' },
+    { key: 'mcu', label: 'Omzet MCU', emoji: '🔬' },
+    { key: 'laporan', label: 'Laporan', emoji: '📋' },
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={() => navigate('/')} className="p-1.5 rounded-xl hover:bg-muted transition-colors">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-base font-bold font-display">Dashboard Kunjungan</h1>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {isRefreshing ? (
-                    <span className="text-[10px] font-mono-data text-muted-foreground flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3 animate-spin" /> MEMPERBARUI…
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] font-mono-data flex items-center gap-1 ${isConnected ? 'text-success' : 'text-muted-foreground'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-success animate-pulse' : 'bg-muted-foreground'}`} />
-                      {isConnected ? 'REALTIME' : 'EMBEDDED'}
-                    </span>
-                  )}
-                  {lastUpdated && (
-                    <span className="text-[10px] font-mono-data text-muted-foreground">· {lastUpdated}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono-data text-muted-foreground hidden sm:flex items-center gap-1">
-                <Clock className="w-3 h-3" /> {formatCountdown(countdown)}
-              </span>
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="p-2 rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-0">
+      {/* Tab bar */}
+      <div className="bg-card border-b border-border -mx-4 px-4 flex items-center gap-1 overflow-x-auto">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-3 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+              tab === t.key
+                ? 'border-accent text-accent font-semibold'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t.emoji} {t.label}
+          </button>
+        ))}
+
+        {/* Month selector inline */}
+        {tab !== 'laporan' && activeMonths.length > 0 && (
+          <select
+            value={activeMonth}
+            onChange={e => setActiveMonth(e.target.value)}
+            className="ml-auto text-xs bg-card border border-border rounded-lg px-3 py-1.5 font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            {activeMonths.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        )}
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
-        {/* Month selector + Tabs */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="text-sm bg-muted border border-border rounded-xl px-3 py-1.5 font-medium"
-          >
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <div className="flex gap-1 overflow-x-auto scrollbar-none">
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
-                  tab === t.key
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab content */}
-        {tab === 'omzet' && <OmzetTab month={selectedMonth} data={data.omzet[selectedMonth] || []} isRefreshing={isRefreshing && !isFirstLoad} />}
-        {tab === 'kunjungan' && <KunjunganTab month={selectedMonth} data={data.kunjungan[selectedMonth] || []} isRefreshing={isRefreshing && !isFirstLoad} />}
-        {tab === 'mcu' && <McuTab month={selectedMonth} data={data.mcu[selectedMonth] || []} isRefreshing={isRefreshing && !isFirstLoad} />}
+      {/* Content */}
+      <div className="pt-4">
+        {tab === 'omzet' && <OmzetTab month={activeMonth} data={EMBEDDED.omzet[activeMonth] || []} />}
+        {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={EMBEDDED.kunjungan[activeMonth] || []} />}
+        {tab === 'mcu' && <McuTab month={activeMonth} data={EMBEDDED.mcu[activeMonth] || []} />}
         {tab === 'laporan' && <LaporanTab />}
       </div>
     </div>
