@@ -1,15 +1,16 @@
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQCStore } from '@/hooks/use-qc-store';
-import { evaluateWestgard, getStatusLabel } from '@/lib/westgard';
+import { evaluateWestgard } from '@/lib/westgard';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
-import { Camera, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import * as api from '@/lib/api';
+import { Camera, ArrowLeft, Loader2, Sparkles, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InputQC() {
   const navigate = useNavigate();
-  const { config, addRecord } = useQCStore();
+  const { config, addRecord, connected } = useQCStore();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [alat, setAlat] = useState<InstrumentType | null>(null);
@@ -22,7 +23,10 @@ export default function InputQC() {
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<api.ReadStrukResult | null>(null);
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
+  // Store full Easylite AI data for switching levels without re-photo
+  const [easyliteAIData, setEasyliteAIData] = useState<api.ReadStrukResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const lots = useMemo(() => {
@@ -51,6 +55,8 @@ export default function InputQC() {
     setValues({});
     setPhotoPreview(null);
     setAiConfidence(null);
+    setAiResult(null);
+    setEasyliteAIData(null);
     if (instrument === 'CA660') {
       setLevel('Kontrol');
       setStep(3);
@@ -65,6 +71,22 @@ export default function InputQC() {
   function handleLevelSelect(lvl: ControlLevel) {
     setLevel(lvl);
     setStep(3);
+    // If we have Easylite AI data from photo, auto-fill the selected level
+    if (easyliteAIData && easyliteAIData[lvl as 'NORMAL' | 'HIGH']) {
+      setTimeout(() => {
+        const levelData = easyliteAIData[lvl as 'NORMAL' | 'HIGH'] as any;
+        if (levelData) {
+          const newValues: Partial<Record<ParamName, string>> = {};
+          (['Na', 'K', 'Cl'] as ParamName[]).forEach(p => {
+            if (levelData[p] !== null && levelData[p] !== undefined) {
+              newValues[p] = String(levelData[p]);
+            }
+          });
+          setValues(newValues);
+          toast.success(`Data ${lvl} dari foto sudah terisi`);
+        }
+      }, 100);
+    }
   }
 
   function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
@@ -74,14 +96,89 @@ export default function InputQC() {
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
       setPhotoPreview(dataUrl);
-      simulateAIExtraction(dataUrl);
+      sendToAI(dataUrl);
     };
     reader.readAsDataURL(file);
   }
 
-  function simulateAIExtraction(_dataUrl: string) {
+  async function sendToAI(dataUrl: string) {
+    if (!alat) return;
     setAiLoading(true);
     setAiConfidence(null);
+    setAiResult(null);
+
+    try {
+      const [meta, base64Data] = dataUrl.split(',');
+      const mediaType = meta.match(/:(.*?);/)?.[1] || 'image/jpeg';
+
+      if (!connected) {
+        // Demo mode: simulate
+        simulateAIExtraction();
+        return;
+      }
+
+      const response = await api.readStruk(base64Data, mediaType, alat);
+
+      if (response.status === 'ok' && response.data && !response.data.parseError) {
+        applyAIResult(response.data);
+      } else {
+        toast.error('AI gagal baca otomatis, isi manual ya');
+        setAiLoading(false);
+      }
+    } catch (err) {
+      console.error('AI extraction error:', err);
+      toast.error('Koneksi ke Apps Script gagal');
+      setAiLoading(false);
+    }
+  }
+
+  function applyAIResult(data: api.ReadStrukResult) {
+    setAiResult(data);
+    const params = getParamsForInstrument(alat!);
+
+    // For Easylite: AI returns both NORMAL and HIGH in one response
+    let values_to_set = data;
+    if (alat === 'EASYLITE' && data.NORMAL && data.HIGH) {
+      setEasyliteAIData(data);
+      // Use current level's data
+      const levelData = data[level as 'NORMAL' | 'HIGH'];
+      if (levelData) {
+        values_to_set = { ...data, ...levelData };
+      }
+    }
+
+    // Calculate accuracy
+    const filled = params.filter(p => {
+      const val = (values_to_set as any)[p];
+      return val !== null && val !== undefined;
+    }).length;
+    const acc = Math.round((filled / params.length) * 100);
+    setAiConfidence(acc);
+
+    // Auto-fill form
+    const newValues: Partial<Record<ParamName, string>> = {};
+    params.forEach(p => {
+      const val = (values_to_set as any)[p];
+      if (val !== null && val !== undefined) {
+        newValues[p] = String(val);
+      }
+    });
+    setValues(newValues);
+
+    // Auto-fill lot and tanggal if available
+    if (data.lot) setLotNumber(data.lot);
+    if (data.tanggal) setTanggal(data.tanggal);
+
+    setAiLoading(false);
+
+    if (alat === 'EASYLITE' && data.NORMAL && data.HIGH) {
+      toast.success('AI baca kedua level sekaligus! Switch Normal/High untuk isi level lainnya.');
+    } else {
+      toast.success('AI berhasil baca struk! Periksa sebelum simpan.');
+    }
+  }
+
+  function simulateAIExtraction() {
     const params = getParamsForInstrument(alat!);
     setTimeout(() => {
       const extracted: Partial<Record<ParamName, string>> = {};
@@ -95,8 +192,16 @@ export default function InputQC() {
       setValues(extracted);
       setAiConfidence(Math.round(85 + Math.random() * 12));
       setAiLoading(false);
-      toast.success('Nilai berhasil diekstrak dari foto');
+      toast.success('Nilai berhasil diekstrak dari foto (demo)');
     }, 2000);
+  }
+
+  function handleRetakePhoto() {
+    setPhotoPreview(null);
+    setAiConfidence(null);
+    setAiResult(null);
+    setEasyliteAIData(null);
+    fileRef.current?.click();
   }
 
   function handleValueChange(param: ParamName, val: string) {
@@ -142,7 +247,7 @@ export default function InputQC() {
     try {
       await addRecord(record);
       toast.success('Data QC berhasil disimpan!');
-      navigate('/');
+      navigate('/qc');
     } catch {
       toast.error('Gagal menyimpan data');
     } finally {
@@ -206,6 +311,85 @@ export default function InputQC() {
         <p className="text-sm text-muted-foreground">Level: {level}</p>
       </div>
 
+      {/* Photo upload */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Foto Struk</label>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
+        {photoPreview ? (
+          <div className="mt-1 relative">
+            <img src={photoPreview} alt="Preview struk" className="w-full max-h-48 object-contain rounded-md border border-border" />
+            {aiLoading && (
+              <div className="absolute inset-0 bg-card/80 flex flex-col items-center justify-center rounded-md">
+                <Loader2 className="animate-spin text-primary" size={32} />
+                <p className="text-xs text-muted-foreground mt-2">AI membaca struk... (3–8 detik)</p>
+              </div>
+            )}
+            {aiConfidence !== null && (
+              <div className="absolute top-2 right-2 flex items-center gap-1 bg-card/90 px-2 py-1 rounded-full text-xs font-medium">
+                <Sparkles size={12} className="text-primary" />
+                {aiConfidence}% akurasi
+              </div>
+            )}
+            <button
+              onClick={handleRetakePhoto}
+              className="absolute bottom-2 right-2 flex items-center gap-1 bg-card/90 px-2 py-1 rounded-full text-xs font-medium hover:bg-card transition-colors"
+            >
+              <RotateCcw size={12} /> Ulang
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => fileRef.current?.click()} className="w-full mt-1 border-2 border-dashed border-border rounded-md p-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+            <Camera size={32} />
+            <span className="text-sm">Tap untuk foto struk</span>
+            <span className="text-xs">Semua parameter terbaca sekaligus</span>
+          </button>
+        )}
+      </div>
+
+      {/* AI Result Panel (Easylite both levels) */}
+      {aiResult && alat === 'EASYLITE' && aiResult.NORMAL && aiResult.HIGH && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">🤖 AI Vision</span>
+            <span className="text-xs text-muted-foreground">Akurasi: <b className="text-green-600">{aiConfidence}%</b></span>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            <div className="bg-green-50 dark:bg-green-950/30 rounded-md p-2 border border-green-200 dark:border-green-800">
+              <div className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase">NORMAL — Na / K / Cl</div>
+              <div className="text-sm font-mono font-bold">
+                {aiResult.NORMAL.Na} / {aiResult.NORMAL.K} / {aiResult.NORMAL.Cl} <span className="text-xs text-muted-foreground">mmol/L</span>
+              </div>
+            </div>
+            <div className="bg-orange-50 dark:bg-orange-950/30 rounded-md p-2 border border-orange-200 dark:border-orange-800">
+              <div className="text-[10px] font-bold text-orange-700 dark:text-orange-400 uppercase">HIGH — Na / K / Cl</div>
+              <div className="text-sm font-mono font-bold">
+                {aiResult.HIGH.Na} / {aiResult.HIGH.K} / {aiResult.HIGH.Cl} <span className="text-xs text-muted-foreground">mmol/L</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Result Panel (CA660 single) */}
+      {aiResult && alat === 'CA660' && !aiResult.parseError && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">🤖 AI Vision</span>
+            <span className="text-xs text-muted-foreground">Akurasi: <b className="text-green-600">{aiConfidence}%</b></span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(['PT', 'APTT', 'INR'] as ParamName[]).map(p => (
+              <div key={p} className="bg-card rounded-md p-2 border border-border">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase">{p}</div>
+                <div className="text-sm font-mono font-bold">
+                  {(aiResult as any)[p] ?? '—'} <span className="text-xs text-muted-foreground">{PARAM_UNITS[p]}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Meta fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
@@ -222,34 +406,6 @@ export default function InputQC() {
           <label className="text-xs font-medium text-muted-foreground">Nama Analis</label>
           <input type="text" value={analis} onChange={e => setAnalis(e.target.value)} placeholder="Masukkan nama analis" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm" />
         </div>
-      </div>
-
-      {/* Photo upload */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground">Foto Struk</label>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
-        {photoPreview ? (
-          <div className="mt-1 relative">
-            <img src={photoPreview} alt="Preview struk" className="w-full max-h-48 object-contain rounded-md border border-border" />
-            {aiLoading && (
-              <div className="absolute inset-0 bg-card/80 flex flex-col items-center justify-center rounded-md">
-                <Loader2 className="animate-spin text-primary" size={32} />
-                <p className="text-xs text-muted-foreground mt-2 animate-pulse-ai">AI membaca struk...</p>
-              </div>
-            )}
-            {aiConfidence !== null && (
-              <div className="absolute top-2 right-2 flex items-center gap-1 bg-card/90 px-2 py-1 rounded-full text-xs font-medium">
-                <Sparkles size={12} className="text-primary" />
-                {aiConfidence}% confidence
-              </div>
-            )}
-          </div>
-        ) : (
-          <button onClick={() => fileRef.current?.click()} className="w-full mt-1 border-2 border-dashed border-border rounded-md p-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-            <Camera size={32} />
-            <span className="text-sm">Tap untuk foto struk</span>
-          </button>
-        )}
       </div>
 
       {/* Parameter inputs */}
@@ -316,10 +472,16 @@ export default function InputQC() {
         <textarea value={catatan} onChange={e => setCatatan(e.target.value)} rows={2} placeholder="Opsional" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm resize-none" />
       </div>
 
+      {/* Connection indicator */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+        {connected ? 'Data tersimpan ke Google Sheets' : 'Mode demo — data tersimpan lokal'}
+      </div>
+
       {/* Save */}
       <button onClick={handleSave} disabled={saving} className="w-full py-3 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
         {saving && <Loader2 className="animate-spin" size={16} />}
-        {saving ? 'Menyimpan...' : 'Simpan Data QC'}
+        {saving ? 'Menyimpan...' : '💾 Simpan Data QC'}
       </button>
     </div>
   );
