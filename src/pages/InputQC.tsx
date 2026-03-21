@@ -354,14 +354,14 @@ export default function InputQC() {
             <span className="text-xs text-muted-foreground">Akurasi: <b className="text-green-600">{aiConfidence}%</b></span>
           </div>
           <div className="grid grid-cols-1 gap-2">
-            <div className="bg-green-50 dark:bg-green-950/30 rounded-md p-2 border border-green-200 dark:border-green-800">
-              <div className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase">NORMAL — Na / K / Cl</div>
+            <div className="rounded-md p-2 border border-border bg-accent/50">
+              <div className="text-[10px] font-bold text-accent-foreground uppercase">NORMAL — Na / K / Cl</div>
               <div className="text-sm font-mono font-bold">
                 {aiResult.NORMAL.Na} / {aiResult.NORMAL.K} / {aiResult.NORMAL.Cl} <span className="text-xs text-muted-foreground">mmol/L</span>
               </div>
             </div>
-            <div className="bg-orange-50 dark:bg-orange-950/30 rounded-md p-2 border border-orange-200 dark:border-orange-800">
-              <div className="text-[10px] font-bold text-orange-700 dark:text-orange-400 uppercase">HIGH — Na / K / Cl</div>
+            <div className="rounded-md p-2 border border-border bg-secondary/50">
+              <div className="text-[10px] font-bold text-secondary-foreground uppercase">HIGH — Na / K / Cl</div>
               <div className="text-sm font-mono font-bold">
                 {aiResult.HIGH.Na} / {aiResult.HIGH.K} / {aiResult.HIGH.Cl} <span className="text-xs text-muted-foreground">mmol/L</span>
               </div>
