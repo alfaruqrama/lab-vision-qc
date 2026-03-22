@@ -1,551 +1,276 @@
-import { useState, useMemo, useCallback } from 'react';
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
-} from 'recharts';
-import { ChevronLeft, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import {
-  type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
-} from '@/lib/kunjungan-types';
-import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
-import { toast } from 'sonner';
-
-type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
-
-// ─── KPI Card ───
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
-  return (
-    <div className="card-clinical flex-shrink-0 min-w-[150px] p-4 relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl" style={{ background: color }} />
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-2">{label}</p>
-      <p className="text-lg font-bold font-display" style={{ color }}>{value}</p>
-      <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>
-    </div>
-  );
-}
-
-// ─── Badge ───
-function PctBadge({ pct }: { pct: number }) {
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass(pct)}`}>
-      {pct}%
-    </span>
-  );
-}
-
-// ─── TAB: OMZET ───
-function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data omzet" />;
-
-  const tot = data.reduce((s, r) => s + r.total, 0);
-  const dHit = data.filter(r => r.pct >= 100).length;
-  const best = data.reduce((a, b) => (b.pct > a.pct ? b : a));
-  const avgPct = Math.round(data.reduce((s, r) => s + r.pct, 0) / data.length);
-  const avgTgt = data.reduce((s, r) => s + r.target, 0) / data.length;
-
-  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct }));
-  const payerTotals = PAYERS.map(p => ({
-    name: p.l,
-    value: data.reduce((s, r) => s + ((r as any)[p.k] || 0), 0),
-    color: p.c,
-  }));
-
-  return (
-    <div className="space-y-4 page-transition">
-      {/* KPIs */}
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total Omzet ${month}`} value={fmtRp(tot)} sub={`${data.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Avg Target / Hari" value={fmtRp(avgTgt)} sub="Target rata-rata harian" color="#3b82f6" />
-        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
-        <KpiCard label="Capaian Tertinggi" value={`${best.pct}%`} sub={`Tgl ${best.d} ${month}`} color="#e11d48" />
-        <KpiCard label="Avg Capaian" value={`${avgPct}%`} sub="Rata-rata per hari" color="#8b5cf6" />
-      </div>
-
-      {/* Payer grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-        {payerTotals.map(p => (
-          <div key={p.name} className="card-clinical p-3 hover:shadow-md transition-shadow">
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{p.name}</p>
-            <p className="text-sm font-bold font-display" style={{ color: p.color }}>{fmtRp(p.value)}</p>
-            <p className="text-[10px] text-muted-foreground">{((p.value / tot) * 100).toFixed(1)}% dari total</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart: Daily vs Target */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-1">Omzet Harian vs Target — {month}</h3>
-        <p className="text-[11px] text-muted-foreground mb-3">Hijau = melampaui target · Biru = di bawah target · Garis oranye = target</p>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
-              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-              <Bar dataKey="total" name="Omzet Aktual" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
-                ))}
-              </Bar>
-              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Chart row: Capaian % + Pie */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Capaian % per Hari</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
-                <Tooltip formatter={(v: number) => `${v}%`} />
-                <Bar dataKey="pct" name="Capaian" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={
-                      entry.pct >= 150 ? 'rgba(139,92,246,0.7)' :
-                      entry.pct >= 100 ? 'rgba(10,158,135,0.7)' :
-                      entry.pct >= 80 ? 'rgba(245,158,11,0.7)' : 'rgba(240,78,55,0.65)'
-                    } />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Komposisi Payer — {month}</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={payerTotals} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="45%" outerRadius="75%">
-                  {payerTotals.map((p, i) => <Cell key={i} fill={p.color + '40'} stroke={p.color} strokeWidth={2} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card-clinical p-4 overflow-hidden">
-        <h3 className="text-sm font-bold mb-3">Detail Data Harian — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left">Tgl</th>
-                {PAYERS.map(p => <th key={p.k} className="px-2 py-2 text-right whitespace-nowrap">{p.l}</th>)}
-                <th className="px-2 py-2 text-right font-bold">Total</th>
-                <th className="px-2 py-2 text-right">Target</th>
-                <th className="px-2 py-2 text-center">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50 transition-colors">
-                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
-                  {PAYERS.map(p => (
-                    <td key={p.k} className="px-2 py-1.5 text-right text-muted-foreground">
-                      {(r as any)[p.k] ? fmtRp((r as any)[p.k]) : '—'}
-                    </td>
-                  ))}
-                  <td className="px-2 py-1.5 text-right font-semibold">{fmtRp(r.total)}</td>
-                  <td className="px-2 py-1.5 text-right text-muted-foreground">{fmtRp(r.target)}</td>
-                  <td className="px-2 py-1.5 text-center"><PctBadge pct={r.pct} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: KUNJUNGAN ───
-function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data kunjungan" />;
-
-  const totK = data.reduce((s, r) => s + r.total, 0);
-  const dHit = data.filter(r => r.pct >= 100).length;
-  const bestK = data.reduce((a, b) => (b.total > a.total ? b : a));
-  const avgK = Math.round(totK / data.length);
-  const totRJ = data.reduce((s, r) => s + r.rjTotal, 0);
-  const totRI = data.reduce((s, r) => s + r.riTotal, 0);
-  const totIGD = data.reduce((s, r) => s + r.igdTotal, 0);
-  const totMCU = data.reduce((s, r) => s + r.mcuTotal, 0);
-
-  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct, rj: r.rjTotal, ri: r.riTotal, igd: r.igdTotal, mcu: r.mcuTotal }));
-  const unitData = [
-    { name: 'Rawat Jalan', value: totRJ, color: '#3b82f6', emoji: '🚶' },
-    { name: 'Rawat Inap', value: totRI, color: '#8b5cf6', emoji: '🛏️' },
-    { name: 'IGD', value: totIGD, color: '#e11d48', emoji: '🚨' },
-    { name: 'MCU', value: totMCU, color: '#f59e0b', emoji: '🩺' },
-  ];
-
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total Kunjungan ${month}`} value={totK.toLocaleString('id-ID')} sub={`${data.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Avg per Hari" value={String(avgK)} sub="Pasien rata-rata harian" color="#3b82f6" />
-        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
-        <KpiCard label="Kunjungan Terbanyak" value={String(bestK.total)} sub={`Tgl ${bestK.d} ${month}`} color="#e11d48" />
-      </div>
-
-      {/* Unit breakdown cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {unitData.map(u => (
-          <div key={u.name} className="card-clinical p-4 text-center hover:shadow-md transition-shadow">
-            <p className="text-xl mb-1">{u.emoji}</p>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{u.name}</p>
-            <p className="text-xl font-bold font-display" style={{ color: u.color }}>{u.value.toLocaleString()}</p>
-            <p className="text-[10px] text-muted-foreground">{((u.value / totK) * 100).toFixed(1)}% dari total</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Daily chart */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Total Kunjungan Harian — {month}</h3>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="total" name="Total" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
-                ))}
-              </Bar>
-              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Stacked + Pie */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Breakdown per Unit Harian</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="rj" name="RJ" stackId="a" fill="rgba(59,130,246,0.65)" />
-                <Bar dataKey="ri" name="RI" stackId="a" fill="rgba(139,92,246,0.65)" />
-                <Bar dataKey="igd" name="IGD" stackId="a" fill="rgba(225,29,72,0.6)" />
-                <Bar dataKey="mcu" name="MCU" stackId="a" fill="rgba(245,158,11,0.65)" radius={[4, 4, 0, 0]} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Komposisi Unit Layanan</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={unitData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="42%" outerRadius="72%">
-                  {unitData.map((u, i) => <Cell key={i} fill={u.color + '33'} stroke={u.color} strokeWidth={2} />)}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Detail Kunjungan Harian — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left">Tgl</th>
-                <th className="px-2 py-2 text-right">RJ</th>
-                <th className="px-2 py-2 text-right">RI</th>
-                <th className="px-2 py-2 text-right">IGD</th>
-                <th className="px-2 py-2 text-right">MCU</th>
-                <th className="px-2 py-2 text-right font-bold">Total</th>
-                <th className="px-2 py-2 text-right">Target</th>
-                <th className="px-2 py-2 text-center">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
-                  <td className="px-2 py-1.5 text-right">{r.rjTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.riTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.igdTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.mcuTotal}</td>
-                  <td className="px-2 py-1.5 text-right font-semibold">{r.total}</td>
-                  <td className="px-2 py-1.5 text-right text-muted-foreground">{r.target ? Math.round(r.target) : '—'}</td>
-                  <td className="px-2 py-1.5 text-center">{r.pct ? <PctBadge pct={r.pct} /> : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: MCU ───
-function McuTab({ month, data }: { month: string; data: McuRow[] }) {
-  const rows = data.filter(r => r.omzet > 0);
-  if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} />;
-
-  const total = rows.reduce((s, r) => s + r.omzet, 0);
-  const avg = total / rows.length;
-  const maxRow = rows.reduce((a, b) => (b.omzet > a.omzet ? b : a));
-  const minRow = rows.reduce((a, b) => (b.omzet < a.omzet ? b : a));
-
-  const chartData = rows.map(r => ({ name: String(r.d), omzet: r.omzet, avg }));
-
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total MCU ${month}`} value={fmtRp(total)} sub={`${rows.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Rata-rata / Hari" value={fmtRp(avg)} sub="per hari aktif" color="#3b82f6" />
-        <KpiCard label="Tertinggi" value={fmtRp(maxRow.omzet)} sub={`Tgl ${maxRow.d} ${month}`} color="#f59e0b" />
-        <KpiCard label="Terendah" value={fmtRp(minRow.omzet)} sub={`Tgl ${minRow.d} ${month}`} color="#e11d48" />
-      </div>
-
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Omzet MCU Harian — {month}</h3>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
-              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-              <Bar dataKey="omzet" name="Omzet MCU" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.omzet >= avg ? 'rgba(13,158,132,0.75)' : 'rgba(245,158,11,0.65)'} />
-                ))}
-              </Bar>
-              <Line dataKey="avg" name="Rata-rata" stroke="#e11d48" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Detail Harian MCU — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-3 py-2 text-left">Tgl</th>
-                <th className="px-3 py-2 text-right">Omzet MCU</th>
-                <th className="px-3 py-2 text-right">Kontribusi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-1.5 font-semibold text-muted-foreground">{r.d}</td>
-                  <td className="px-3 py-1.5 text-right font-bold">{fmtRpFull(r.omzet)}</td>
-                  <td className="px-3 py-1.5 text-right">
-                    <div className="flex items-center gap-2 justify-end">
-                      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, (r.omzet / maxRow.omzet) * 100).toFixed(0)}%`,
-                            background: r.omzet >= avg ? 'hsl(var(--accent))' : 'hsl(var(--warning))',
-                          }}
-                        />
-                      </div>
-                      <span className="text-muted-foreground min-w-[36px] text-right">{((r.omzet / total) * 100).toFixed(1)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border bg-muted">
-                <td className="px-3 py-2 font-bold">TOTAL</td>
-                <td className="px-3 py-2 text-right font-extrabold text-accent">{fmtRpFull(total)}</td>
-                <td className="px-3 py-2 text-right font-semibold text-muted-foreground">100%</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── TAB: LAPORAN ───
+const HARI_ID = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni',
+  'Juli','Agustus','September','Oktober','November','Desember'];
+
+const fmtRpWA = (n: number) => Math.round(n).toLocaleString('id-ID');
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+type FormData = {
+  tanggal: string;
+  petugas: string;
+  jenisHari: 'kerja' | 'sabtu' | 'minggu';
+  rj: number; nonBpjsRJ: number;
+  ri: number; nonBpjsRI: number;
+  igd: number; nonBpjsIGD: number;
+  mcu: number;
+  rujukanGrahu: number; rujukanPPK1: number;
+  rujukanSatkal: number; rujukanLuar: number;
+  poliExclusive: number; poliPrioritas: number;
+  briLife: number[];
+  promoLab: number[];
+  morullaTerjadwal: number; morullaHadir: number;
+  targetKunjungan: number; targetOmzet: number;
+  pendMCU: number; pendSelainMCU: number;
+};
+
+const defaultForm = (): FormData => ({
+  tanggal: todayStr(), petugas: '', jenisHari: 'kerja',
+  rj: 0, nonBpjsRJ: 0, ri: 0, nonBpjsRI: 0,
+  igd: 0, nonBpjsIGD: 0, mcu: 0,
+  rujukanGrahu: 0, rujukanPPK1: 0, rujukanSatkal: 0, rujukanLuar: 0,
+  poliExclusive: 0, poliPrioritas: 0,
+  briLife: BRI_LIFE.map(() => 0),
+  promoLab: PROMO_LAB.map(() => 0),
+  morullaTerjadwal: 0, morullaHadir: 0,
+  targetKunjungan: 0, targetOmzet: 0,
+  pendMCU: 0, pendSelainMCU: 0,
+});
+
 function LaporanTab() {
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="card-clinical p-8 flex flex-col items-center justify-center text-center gap-3">
-        <p className="text-3xl">📋</p>
-        <h2 className="font-bold text-lg">Input Laporan Harian</h2>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Fitur input laporan harian dan kirim via WhatsApp sedang dalam pengembangan.
-        </p>
-        <span className="text-[10px] px-3 py-1 rounded-full bg-warning/10 text-warning font-medium">Segera Hadir</span>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="card-clinical p-12 text-center text-muted-foreground">
-      <p className="text-3xl mb-3">📊</p>
-      <p className="font-semibold">{text}</p>
-    </div>
-  );
-}
-
-// ─── Connection Status Badge ───
-function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
-  status: ConnectionStatus; lastUpdated: string | null; onRefresh: () => void; refreshing: boolean;
-}) {
-  const isLive = status === 'live';
-  const isLoading = status === 'loading' || refreshing;
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={onRefresh}
-        disabled={isLoading}
-        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
-        title="Refresh data"
-      >
-        <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${isLoading ? 'animate-spin' : ''}`} />
-      </button>
-      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-        isLive ? 'bg-success/10 text-success border-success/20' :
-        status === 'error' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-        'bg-muted text-muted-foreground border-border'
-      }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${
-          isLive ? 'bg-success animate-pulse' :
-          status === 'error' ? 'bg-destructive' : 'bg-muted-foreground'
-        }`} />
-        {isLive ? 'REALTIME' : status === 'error' ? 'ERROR' : status === 'loading' ? 'LOADING...' : 'EMBEDDED'}
-      </span>
-    </div>
-  );
-}
-
-
-// ─── MAIN PAGE ───
-export default function KunjunganDashboard() {
-  const navigate = useNavigate();
-  const { data, status, lastUpdated, error, refresh, availableMonths } = useKunjunganData();
-  const [tab, setTab] = useState<TabType>('omzet');
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [month, setMonth] = useState(() => {
-    const months = availableMonths('omzet');
-    return months[months.length - 1] || 'JANUARI';
+  const DRAFT_KEY = 'laporan-draft';
+  const [form, setForm] = useState<FormData>(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      return saved ? JSON.parse(saved) : defaultForm();
+    } catch { return defaultForm(); }
   });
-  const [mcuMonth, setMcuMonth] = useState(() => {
-    const months = availableMonths('mcu');
-    return months[months.length - 1] || 'JANUARI';
-  });
+  const [draftTime, setDraftTime] = useState<string>('');
+  const [collapsed, setCollapsed] = useState({ briLife: true, promo: true, morulla: true });
+  const [copied, setCopied] = useState(false);
 
-  // Update months when data changes
-  const activeMonthsList = useMemo(() => {
-    return availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
-  }, [tab, availableMonths]);
-
-  const activeMonth = tab === 'mcu' ? mcuMonth : month;
-  const setActiveMonth = (m: string) => {
-    if (tab === 'mcu') setMcuMonth(m);
-    else setMonth(m);
+  const set = (key: keyof FormData, val: any) => {
+    setForm(prev => {
+      const next = { ...prev, [key]: val };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+      setDraftTime(new Date().toLocaleTimeString('id-ID'));
+      return next;
+    });
   };
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refresh();
-    setRefreshing(false);
-    toast.success('Data di-refresh');
-  }, [refresh]);
+  const setArr = (key: 'briLife' | 'promoLab', idx: number, val: number) => {
+    setForm(prev => {
+      const arr = [...prev[key]];
+      arr[idx] = val;
+      const next = { ...prev, [key]: arr };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+      setDraftTime(new Date().toLocaleTimeString('id-ID'));
+      return next;
+    });
+  };
 
-  const tabs: { key: TabType; label: string; emoji: string }[] = [
-    { key: 'omzet', label: 'Omzet', emoji: '💰' },
-    { key: 'kunjungan', label: 'Kunjungan', emoji: '👥' },
-    { key: 'mcu', label: 'Omzet MCU', emoji: '🔬' },
-    { key: 'laporan', label: 'Laporan', emoji: '📋' },
-  ];
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setForm(defaultForm());
+    setDraftTime('');
+  };
+
+  // Kalkulasi otomatis
+  const totalKunj = form.rj + form.ri + form.igd + form.mcu;
+  const pctKunj = form.targetKunjungan > 0 ? Math.round((totalKunj / form.targetKunjungan) * 100) : 0;
+  const totalPend = form.pendMCU + form.pendSelainMCU;
+  const pctPend = form.targetOmzet > 0 ? Math.round((totalPend / form.targetOmzet) * 100) : 0;
+  const rerata = totalKunj > 0 ? Math.round(totalPend / totalKunj) : 0;
+
+  // Format tanggal untuk output
+  const tgl = new Date(form.tanggal + 'T00:00:00');
+  const namaHari = HARI_ID[tgl.getDay()];
+  const tglFull = `${namaHari} ${tgl.getDate()} ${BULAN_ID[tgl.getMonth()]} ${tgl.getFullYear()}`;
+  const bulanStr = `${BULAN_ID[tgl.getMonth()]} ${tgl.getFullYear()}`;
+
+  // Generate teks WA
+  const outputWA = `LAPORAN KUNJUNGAN  
+${tglFull}
+* Rawat Jalan : ${form.rj}
+▪Non BPJS : ${form.nonBpjsRJ}
+* Rawat Inap : ${form.ri}
+▪Non BPJS : ${form.nonBpjsRI}
+* IGD : ${form.igd}
+▪Non BPJS : ${form.nonBpjsIGD}
+* MCU : ${form.mcu}
+* Rujukan SBU/Grahu : ${form.rujukanGrahu}
+* Rujukan SBU/PPK1 : ${form.rujukanPPK1}
+* Rujukan SBU/Satkal : ${form.rujukanSatkal}
+* Rujukan dokter Luar : ${form.rujukanLuar}
+* Poli Exclusive : ${form.poliExclusive}
+* Poli Prioritas : ${form.poliPrioritas}
+* Pasien BRI LIFE PG:
+${BRI_LIFE.map((n, i) => `${i + 1}. ${n} : ${form.briLife[i]}`).join('\n')}
+* Promo Lab : 
+${PROMO_LAB.map((n, i) => `${i + 1}. ${n}: ${form.promoLab[i]}`).join('\n')}
+* Pasien AS Morulla 
+1. Terjadwal hari ini : ${form.morullaTerjadwal}
+2. Hadir hari ini : ${form.morullaHadir}
+  ================
+Capaian Harian 
+* Total Kunj Harian : ${totalKunj} (${pctKunj}%)
+* Pendapatan MCU :  Rp ${fmtRpWA(form.pendMCU)}
+* Pendapatan selain MCU: Rp ${fmtRpWA(form.pendSelainMCU)}
+* Total Pendapatan: Rp ${fmtRpWA(totalPend)} (${pctPend}%)
+* Target harian : Rp ${fmtRpWA(form.targetOmzet)}
+----------------
+Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerata)}/Pasien
+---------------`;
+
+  const numInput = (val: number, onChange: (v: number) => void, label: string) => (
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border last:border-0">
+      <label className="text-xs text-muted-foreground flex-1">{label}</label>
+      <input
+        type="number"
+        inputMode="numeric"
+        value={val || ''}
+        onChange={e => onChange(Number(e.target.value) || 0)}
+        className="w-20 text-right px-2 py-1 text-sm font-mono-data border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-accent"
+        placeholder="0"
+      />
+    </div>
+  );
+
+  const Section = ({ title, children, bold }: { title: string; children: React.ReactNode; bold?: boolean }) => (
+    <div className="card-clinical p-4 space-y-1">
+      <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ${bold ? 'text-accent' : 'text-muted-foreground'}`}>{title}</h3>
+      {children}
+    </div>
+  );
+
+  const CollapseSection = ({ id, title, children }: { id: keyof typeof collapsed; title: string; children: React.ReactNode }) => (
+    <div className="card-clinical overflow-hidden">
+      <button
+        onClick={() => setCollapsed(p => ({ ...p, [id]: !p[id] }))}
+        className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-muted/50 transition-colors"
+      >
+        <span>{title}</span>
+        <span className="text-lg leading-none">{collapsed[id] ? '＋' : '－'}</span>
+      </button>
+      {!collapsed[id] && <div className="px-4 pb-4 space-y-1">{children}</div>}
+    </div>
+  );
 
   return (
-    <div className="space-y-0">
-      {/* Status bar */}
-      <div className="flex items-center justify-between gap-2 pb-2">
-        <div className="flex items-center gap-2">
-          <StatusBadge status={status} lastUpdated={lastUpdated} onRefresh={handleRefresh} refreshing={refreshing} />
-          {lastUpdated && (
-            <span className="text-[9px] text-muted-foreground font-mono-data">
-              {new Date(lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-          {error && <span className="text-[9px] text-destructive">{error}</span>}
+    <div className="space-y-4 page-transition">
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
+
+        {/* ── FORM ── */}
+        <div className="space-y-3">
+          {/* Draft info */}
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{draftTime ? `Draft tersimpan: ${draftTime}` : 'Isi form di bawah'}</span>
+            <button onClick={clearDraft} className="text-destructive hover:underline">🗑 Hapus Draft</button>
+          </div>
+
+          {/* A — Identitas */}
+          <Section title="Identitas" bold>
+            <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border">
+              <label className="text-xs text-muted-foreground">Tanggal</label>
+              <input type="date" value={form.tanggal} onChange={e => set('tanggal', e.target.value)}
+                className="text-xs px-2 py-1 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-accent" />
+            </div>
+            <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border">
+              <label className="text-xs text-muted-foreground">Petugas</label>
+              <input type="text" value={form.petugas} onChange={e => set('petugas', e.target.value)}
+                className="w-36 text-right text-xs px-2 py-1 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-accent"
+                placeholder="Nama petugas" />
+            </div>
+            <div className="flex items-center justify-between gap-2 py-1.5">
+              <label className="text-xs text-muted-foreground">Jenis Hari</label>
+              <select value={form.jenisHari} onChange={e => set('jenisHari', e.target.value)}
+                className="text-xs px-2 py-1 border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-accent">
+                <option value="kerja">Hari Kerja</option>
+                <option value="sabtu">Sabtu / Cuti Bersama</option>
+                <option value="minggu">Minggu / Tanggal Merah</option>
+              </select>
+            </div>
+          </Section>
+
+          {/* B — Kunjungan */}
+          <Section title="Kunjungan" bold>
+            {numInput(form.rj, v => set('rj', v), 'Rawat Jalan')}
+            {numInput(form.nonBpjsRJ, v => set('nonBpjsRJ', v), '  ▪ Non BPJS')}
+            {numInput(form.ri, v => set('ri', v), 'Rawat Inap')}
+            {numInput(form.nonBpjsRI, v => set('nonBpjsRI', v), '  ▪ Non BPJS')}
+            {numInput(form.igd, v => set('igd', v), 'IGD')}
+            {numInput(form.nonBpjsIGD, v => set('nonBpjsIGD', v), '  ▪ Non BPJS')}
+            {numInput(form.mcu, v => set('mcu', v), 'MCU')}
+            {numInput(form.rujukanGrahu, v => set('rujukanGrahu', v), 'Rujukan SBU/Grahu')}
+            {numInput(form.rujukanPPK1, v => set('rujukanPPK1', v), 'Rujukan SBU/PPK1')}
+            {numInput(form.rujukanSatkal, v => set('rujukanSatkal', v), 'Rujukan SBU/Satkal')}
+            {numInput(form.rujukanLuar, v => set('rujukanLuar', v), 'Rujukan Dokter Luar')}
+            {numInput(form.poliExclusive, v => set('poliExclusive', v), 'Poli Exclusive')}
+            {numInput(form.poliPrioritas, v => set('poliPrioritas', v), 'Poli Prioritas')}
+          </Section>
+
+          {/* C — BRI Life (collapse) */}
+          <CollapseSection id="briLife" title="Pasien BRI Life PG">
+            {BRI_LIFE.map((n, i) => numInput(form.briLife[i], v => setArr('briLife', i, v), n))}
+          </CollapseSection>
+
+          {/* D — Promo Lab (collapse) */}
+          <CollapseSection id="promo" title="Promo Lab">
+            {PROMO_LAB.map((n, i) => numInput(form.promoLab[i], v => setArr('promoLab', i, v), n))}
+          </CollapseSection>
+
+          {/* E — Morulla (collapse) */}
+          <CollapseSection id="morulla" title="Pasien AS Morulla">
+            {numInput(form.morullaTerjadwal, v => set('morullaTerjadwal', v), 'Terjadwal Hari Ini')}
+            {numInput(form.morullaHadir, v => set('morullaHadir', v), 'Hadir Hari Ini')}
+          </CollapseSection>
+
+          {/* F — Capaian */}
+          <Section title="Capaian Harian" bold>
+            {numInput(form.targetKunjungan, v => set('targetKunjungan', v), 'Target Kunjungan')}
+            {numInput(form.targetOmzet, v => set('targetOmzet', v), 'Target Omzet (Rp)')}
+            {numInput(form.pendMCU, v => set('pendMCU', v), 'Pendapatan MCU (Rp)')}
+            {numInput(form.pendSelainMCU, v => set('pendSelainMCU', v), 'Pendapatan Selain MCU (Rp)')}
+            <div className="pt-2 grid grid-cols-2 gap-2">
+              <div className="bg-muted rounded-lg p-2 text-center">
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total Kunjungan</p>
+                <p className="text-base font-bold text-accent">{totalKunj} <span className="text-[10px]">({pctKunj}%)</span></p>
+              </div>
+              <div className="bg-muted rounded-lg p-2 text-center">
+                <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total Pendapatan</p>
+                <p className="text-base font-bold text-accent">Rp {fmtRpWA(totalPend)} <span className="text-[10px]">({pctPend}%)</span></p>
+              </div>
+            </div>
+          </Section>
         </div>
-      </div>
 
-      {/* Tab bar */}
-      <div className="bg-card border-b border-border -mx-4 px-4 flex items-center gap-1 overflow-x-auto">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-3 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-              tab === t.key
-                ? 'border-accent text-accent font-semibold'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t.emoji} {t.label}
-          </button>
-        ))}
-
-        {/* Month selector inline */}
-        {tab !== 'laporan' && activeMonthsList.length > 0 && (
-          <select
-            value={activeMonth}
-            onChange={e => setActiveMonth(e.target.value)}
-            className="ml-auto text-xs bg-card border border-border rounded-lg px-3 py-1.5 font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            {activeMonthsList.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="pt-4">
-        {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
-        {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
-        {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
-        {tab === 'laporan' && <LaporanTab />}
+        {/* ── PREVIEW ── */}
+        <div className="space-y-3 lg:sticky lg:top-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Preview Teks WA</h3>
+            <span className="text-[9px] text-muted-foreground">Update otomatis</span>
+          </div>
+          <div className="card-clinical p-4 bg-[#0a1628] border-[#1e3a5f]">
+            <pre className="text-[11px] font-mono-data text-green-400 whitespace-pre-wrap leading-relaxed">{outputWA}</pre>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { navigator.clipboard.writeText(outputWA); setCopied(true); setTimeout(() => setCopied(false), 2000); toast.success('Teks berhasil disalin'); }}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${copied ? 'bg-success/20 text-success border border-success/30' : 'bg-muted hover:bg-muted/80 text-foreground'}`}
+            >
+              {copied ? '✓ Tersalin!' : '📋 Salin Teks'}
+            </button>
+            <button
+              onClick={() => window.open('https://wa.me/?text=' + encodeURIComponent(outputWA), '_blank')}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#25d366] hover:bg-[#20bd5a] text-white transition-all"
+            >
+              💬 Kirim via WA
+            </button>
+          </div>
+          <p className="text-[9px] text-center text-muted-foreground">
+            Kumulatif bulan akan ditambahkan setelah data tersedia
+          </p>
+        </div>
       </div>
     </div>
   );
