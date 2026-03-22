@@ -23,8 +23,6 @@ interface PromoItem { label: string; value: number }
 
 interface FormData {
   tanggal: string;
-  petugas: string;
-  jenisHari: string;
   rj: number; nonBpjsRJ: number;
   ri: number; nonBpjsRI: number;
   igd: number; nonBpjsIGD: number;
@@ -38,21 +36,9 @@ interface FormData {
   pendapatanMCU: number; pendapatanSelainMCU: number;
 }
 
-const DEFAULT_PROMO: PromoItem[] = [
-  { label: 'paket Basic pekerja (umum)', value: 0 },
-  { label: 'Paket sahabat ginjal (umum)', value: 0 },
-  { label: 'Screaning paket B', value: 0 },
-  { label: 'Pre marital silver', value: 0 },
-  { label: 'Promo alergi', value: 0 },
-  { label: 'Sehat Bugar', value: 0 },
-  { label: 'Paket Narkoba', value: 0 },
-  { label: 'Paket executive platinum', value: 0 },
-];
-
 function defaultForm(): FormData {
   return {
     tanggal: new Date().toISOString().slice(0, 10),
-    petugas: '', jenisHari: 'Hari Kerja',
     rj: 0, nonBpjsRJ: 0, ri: 0, nonBpjsRI: 0, igd: 0, nonBpjsIGD: 0, mcu: 0,
     rujukanGrahu: 0, rujukanPPK1: 0, rujukanSatkal: 0, rujukanDokterLuar: 0,
     poliExclusive: 0, poliPrioritas: 0,
