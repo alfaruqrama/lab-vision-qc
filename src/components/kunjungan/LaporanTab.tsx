@@ -20,6 +20,17 @@ const fmtKunjTarget = (n: number) => n.toLocaleString('id-ID');
 
 interface PromoItem { label: string; value: number }
 
+const DEFAULT_PROMO: PromoItem[] = [
+  { label: 'paket Basic pekerja (umum)', value: 0 },
+  { label: 'Paket sahabat ginjal (umum)', value: 0 },
+  { label: 'Screaning paket B', value: 0 },
+  { label: 'Pre marital silver', value: 0 },
+  { label: 'Promo alergi', value: 0 },
+  { label: 'Sehat Bugar', value: 0 },
+  { label: 'Paket Narkoba', value: 0 },
+  { label: 'Paket executive platinum', value: 0 },
+];
+
 interface FormData {
   tanggal: string;
   rj: number; nonBpjsRJ: number;
