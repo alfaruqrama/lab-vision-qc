@@ -110,10 +110,12 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     return null;
   });
 
-  // Auto-fill targets from kumulatif when jenisHari changes
+  // Auto-detect day type from selected date and auto-fill targets
   useEffect(() => {
     if (!kumulatif) return;
-    const key = form.jenisHari === 'Hari Kerja' ? 'hariKerja' : form.jenisHari === 'Sabtu / Cuti Bersama' ? 'sabtu' : 'minggu';
+    const d = new Date(form.tanggal);
+    const day = d.getDay(); // 0=Sun, 6=Sat
+    const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
     const tgtK = kumulatif.targetKunjHarian?.[key];
     const tgtO = kumulatif.targetOmzetHarian?.[key];
     if (tgtK !== undefined || tgtO !== undefined) {
@@ -123,7 +125,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
         targetOmzet: tgtO ?? prev.targetOmzet,
       }));
     }
-  }, [form.jenisHari, kumulatif]);
+  }, [form.tanggal, kumulatif]);
 
   // Auto-save draft
   useEffect(() => {
