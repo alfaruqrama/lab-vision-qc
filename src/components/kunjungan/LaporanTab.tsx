@@ -311,11 +311,11 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
               B — Kunjungan
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Rawat Jalan (Total)" value={form.rj} onChange={v => set('rj', v)} />
+              <NumInput label="Rawat Jalan (Total)" value={form.rj} onChange={v => setForm(p => ({ ...p, rj: v, nonBpjsRJ: Math.min(p.nonBpjsRJ, v) }))} />
               <NumInput label="  └ Non BPJS RJ" value={form.nonBpjsRJ} onChange={v => set('nonBpjsRJ', Math.min(v, form.rj))} />
-              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => set('ri', v)} />
+              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => setForm(p => ({ ...p, ri: v, nonBpjsRI: Math.min(p.nonBpjsRI, v) }))} />
               <NumInput label="  └ Non BPJS RI" value={form.nonBpjsRI} onChange={v => set('nonBpjsRI', Math.min(v, form.ri))} />
-              <NumInput label="IGD (Total)" value={form.igd} onChange={v => set('igd', v)} />
+              <NumInput label="IGD (Total)" value={form.igd} onChange={v => setForm(p => ({ ...p, igd: v, nonBpjsIGD: Math.min(p.nonBpjsIGD, v) }))} />
               <NumInput label="  └ Non BPJS IGD" value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', Math.min(v, form.igd))} />
               <NumInput label="MCU" value={form.mcu} onChange={v => set('mcu', v)} />
               <NumInput label="Rujukan SBU/Grahu" value={form.rujukanGrahu} onChange={v => set('rujukanGrahu', v)} />
