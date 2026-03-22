@@ -11,6 +11,7 @@ import {
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { toast } from 'sonner';
+import LaporanTab from '@/components/kunjungan/LaporanTab';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
 
