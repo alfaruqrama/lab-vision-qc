@@ -531,7 +531,7 @@ export default function KunjunganDashboard() {
         {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
         {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
         {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
-        {tab === 'laporan' && <LaporanTab />}
+        {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
       </div>
     </div>
   );
