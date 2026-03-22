@@ -397,22 +397,7 @@ function McuTab({ month, data }: { month: string; data: McuRow[] }) {
   );
 }
 
-// ─── TAB: LAPORAN ───
-function LaporanTab() {
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="card-clinical p-8 flex flex-col items-center justify-center text-center gap-3">
-        <p className="text-3xl">📋</p>
-        <h2 className="font-bold text-lg">Input Laporan Harian</h2>
-        <p className="text-sm text-muted-foreground max-w-sm">
-          Fitur input laporan harian dan kirim via WhatsApp sedang dalam pengembangan.
-        </p>
-        <span className="text-[10px] px-3 py-1 rounded-full bg-warning/10 text-warning font-medium">Segera Hadir</span>
-      </div>
-    </div>
-  );
-}
-
+// LaporanTab moved to src/components/kunjungan/LaporanTab.tsx
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="card-clinical p-12 text-center text-muted-foreground">
