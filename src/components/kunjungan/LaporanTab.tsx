@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Copy, MessageCircle, Trash2, ChevronDown, Plus, Minus } from 'lucide-react';
+import { Copy, MessageCircle, Trash2, Plus, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -21,10 +20,19 @@ const fmtKunjTarget = (n: number) => n.toLocaleString('id-ID');
 
 interface PromoItem { label: string; value: number }
 
+const DEFAULT_PROMO: PromoItem[] = [
+  { label: 'paket Basic pekerja (umum)', value: 0 },
+  { label: 'Paket sahabat ginjal (umum)', value: 0 },
+  { label: 'Screaning paket B', value: 0 },
+  { label: 'Pre marital silver', value: 0 },
+  { label: 'Promo alergi', value: 0 },
+  { label: 'Sehat Bugar', value: 0 },
+  { label: 'Paket Narkoba', value: 0 },
+  { label: 'Paket executive platinum', value: 0 },
+];
+
 interface FormData {
   tanggal: string;
-  petugas: string;
-  jenisHari: string;
   rj: number; nonBpjsRJ: number;
   ri: number; nonBpjsRI: number;
   igd: number; nonBpjsIGD: number;
@@ -38,21 +46,9 @@ interface FormData {
   pendapatanMCU: number; pendapatanSelainMCU: number;
 }
 
-const DEFAULT_PROMO: PromoItem[] = [
-  { label: 'paket Basic pekerja (umum)', value: 0 },
-  { label: 'Paket sahabat ginjal (umum)', value: 0 },
-  { label: 'Screaning paket B', value: 0 },
-  { label: 'Pre marital silver', value: 0 },
-  { label: 'Promo alergi', value: 0 },
-  { label: 'Sehat Bugar', value: 0 },
-  { label: 'Paket Narkoba', value: 0 },
-  { label: 'Paket executive platinum', value: 0 },
-];
-
 function defaultForm(): FormData {
   return {
     tanggal: new Date().toISOString().slice(0, 10),
-    petugas: '', jenisHari: 'Hari Kerja',
     rj: 0, nonBpjsRJ: 0, ri: 0, nonBpjsRI: 0, igd: 0, nonBpjsIGD: 0, mcu: 0,
     rujukanGrahu: 0, rujukanPPK1: 0, rujukanSatkal: 0, rujukanDokterLuar: 0,
     poliExclusive: 0, poliPrioritas: 0,
@@ -124,10 +120,12 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     return null;
   });
 
-  // Auto-fill targets from kumulatif when jenisHari changes
+  // Auto-detect day type from selected date and auto-fill targets
   useEffect(() => {
     if (!kumulatif) return;
-    const key = form.jenisHari === 'Hari Kerja' ? 'hariKerja' : form.jenisHari === 'Sabtu / Cuti Bersama' ? 'sabtu' : 'minggu';
+    const d = new Date(form.tanggal);
+    const day = d.getDay(); // 0=Sun, 6=Sat
+    const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
     const tgtK = kumulatif.targetKunjHarian?.[key];
     const tgtO = kumulatif.targetOmzetHarian?.[key];
     if (tgtK !== undefined || tgtO !== undefined) {
@@ -137,7 +135,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
         targetOmzet: tgtO ?? prev.targetOmzet,
       }));
     }
-  }, [form.jenisHari, kumulatif]);
+  }, [form.tanggal, kumulatif]);
 
   // Auto-save draft
   useEffect(() => {
@@ -279,10 +277,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
         </div>
 
         <Accordion type="multiple" defaultValue={['a', 'b']} className="space-y-2">
-          {/* A: Identitas */}
+          {/* A: Tanggal */}
           <AccordionItem value="a" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              A — Identitas
+              A — Tanggal
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-2">
               <div className="flex items-center gap-2">
@@ -298,25 +296,11 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
                       mode="single"
                       selected={tgl}
                       onSelect={d => d && set('tanggal', d.toISOString().slice(0, 10))}
+                      initialFocus
                       className="p-3 pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground flex-1">Nama Petugas</label>
-                <Input value={form.petugas} onChange={e => set('petugas', e.target.value)} className="w-40 h-8 text-xs" placeholder="Nama..." />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground flex-1">Jenis Hari</label>
-                <Select value={form.jenisHari} onValueChange={v => set('jenisHari', v)}>
-                  <SelectTrigger className="w-48 h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Hari Kerja">Hari Kerja</SelectItem>
-                    <SelectItem value="Sabtu / Cuti Bersama">Sabtu / Cuti Bersama</SelectItem>
-                    <SelectItem value="Minggu / Tanggal Merah">Minggu / Tanggal Merah</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -327,12 +311,12 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
               B — Kunjungan
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Rawat Jalan (Total)" value={form.rj} onChange={v => set('rj', v)} />
-              <NumInput label="  └ Non BPJS RJ" value={form.nonBpjsRJ} onChange={v => set('nonBpjsRJ', v)} />
-              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => set('ri', v)} />
-              <NumInput label="  └ Non BPJS RI" value={form.nonBpjsRI} onChange={v => set('nonBpjsRI', v)} />
-              <NumInput label="IGD (Total)" value={form.igd} onChange={v => set('igd', v)} />
-              <NumInput label="  └ Non BPJS IGD" value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', v)} />
+              <NumInput label="Rawat Jalan (Total)" value={form.rj} onChange={v => setForm(p => ({ ...p, rj: v, nonBpjsRJ: Math.min(p.nonBpjsRJ, v) }))} />
+              <NumInput label="  └ Non BPJS RJ" value={form.nonBpjsRJ} onChange={v => set('nonBpjsRJ', Math.min(v, form.rj))} />
+              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => setForm(p => ({ ...p, ri: v, nonBpjsRI: Math.min(p.nonBpjsRI, v) }))} />
+              <NumInput label="  └ Non BPJS RI" value={form.nonBpjsRI} onChange={v => set('nonBpjsRI', Math.min(v, form.ri))} />
+              <NumInput label="IGD (Total)" value={form.igd} onChange={v => setForm(p => ({ ...p, igd: v, nonBpjsIGD: Math.min(p.nonBpjsIGD, v) }))} />
+              <NumInput label="  └ Non BPJS IGD" value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', Math.min(v, form.igd))} />
               <NumInput label="MCU" value={form.mcu} onChange={v => set('mcu', v)} />
               <NumInput label="Rujukan SBU/Grahu" value={form.rujukanGrahu} onChange={v => set('rujukanGrahu', v)} />
               <NumInput label="Rujukan SBU/PPK1" value={form.rujukanPPK1} onChange={v => set('rujukanPPK1', v)} />
