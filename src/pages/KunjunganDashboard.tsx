@@ -443,7 +443,7 @@ function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
 // ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
   const navigate = useNavigate();
-  const { data, status, lastUpdated, error, refresh, availableMonths } = useKunjunganData();
+  const { data, status, lastUpdated, error, refresh, availableMonths, kumulatif } = useKunjunganData();
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
 
