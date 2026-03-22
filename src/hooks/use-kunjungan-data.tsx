@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { type KunjunganData, normalizeMonthKeys, sortMonths } from '@/lib/kunjungan-types';
-import { isKunjunganConnected, fetchSummary } from '@/lib/kunjungan-api';
+import { isKunjunganConnected, fetchSummary, fetchKumulatif } from '@/lib/kunjungan-api';
 import embeddedRaw from '@/lib/kunjungan-data.json';
 
 const EMBEDDED: KunjunganData = {
@@ -11,11 +11,22 @@ const EMBEDDED: KunjunganData = {
 
 export type ConnectionStatus = 'live' | 'loading' | 'embedded' | 'error';
 
+export interface KumulatifData {
+  kumOmzet: number;
+  kumKunj: number;
+  tglAkhir: number;
+  targetOmzetBulan: number;
+  targetKunjBulan: number;
+  targetOmzetHarian: Record<string, number>;
+  targetKunjHarian: Record<string, number>;
+}
+
 export function useKunjunganData() {
   const [data, setData] = useState<KunjunganData>(EMBEDDED);
   const [status, setStatus] = useState<ConnectionStatus>('embedded');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [kumulatif, setKumulatif] = useState<KumulatifData | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -29,7 +40,10 @@ export function useKunjunganData() {
 
     setStatus('loading');
     try {
-      const result = await fetchSummary();
+      const [result, kumResult] = await Promise.all([
+        fetchSummary(),
+        fetchKumulatif().catch(() => null),
+      ]);
       setData({
         omzet: result.omzet,
         kunjungan: result.kunjungan,
@@ -38,14 +52,22 @@ export function useKunjunganData() {
       setLastUpdated(result.lastUpdated);
       setStatus('live');
       setError(null);
+
+      if (kumResult && !kumResult.error) {
+        setKumulatif({
+          kumOmzet: kumResult.kumOmzet || 0,
+          kumKunj: kumResult.kumKunj || 0,
+          tglAkhir: kumResult.tglAkhir || 0,
+          targetOmzetBulan: kumResult.targetOmzetBulan || 0,
+          targetKunjBulan: kumResult.targetKunjBulan || 0,
+          targetOmzetHarian: kumResult.targetOmzetHarian || {},
+          targetKunjHarian: kumResult.targetKunjHarian || {},
+        });
+      }
     } catch (e: any) {
       console.error('Fetch kunjungan failed:', e);
       setError(e.message || 'Gagal terhubung');
       setStatus('error');
-      // If an error occurs, we don't want to clear the data.
-      // The data state will retain its previous value, which could be
-      // either the last successfully fetched live data or the initial embedded data.
-      // This ensures that the dashboard doesn't go blank on a temporary network issue.
     }
   }, []);
 
@@ -68,5 +90,5 @@ export function useKunjunganData() {
     [data]
   );
 
-  return { data, status, lastUpdated, error, refresh, availableMonths };
+  return { data, status, lastUpdated, error, refresh, availableMonths, kumulatif };
 }
