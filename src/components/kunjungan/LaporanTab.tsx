@@ -188,7 +188,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   const pctKumOmzet = targetOmzetBulan > 0 ? Math.round((kumOmzet / targetOmzetBulan) * 100) : 0;
   const pctKumKunj = targetKunjBulan > 0 ? Math.round((kumKunj / targetKunjBulan) * 100) : 0;
 
-  const tgl = new Date(form.tanggal);
+  const tgl = useMemo(() => {
+    const [y, m, d] = form.tanggal.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }, [form.tanggal]);
   const namaHari = HARI_ID[tgl.getDay()];
   const namaBulan = BULAN_ID[tgl.getMonth()];
   const tahun = tgl.getFullYear();
