@@ -8,7 +8,8 @@ import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import PortalHome from "@/pages/PortalHome";
 import KunjunganDashboard from "@/pages/KunjunganDashboard";
-import SuhuPlaceholder from "@/pages/SuhuPlaceholder";
+import MonitorSuhu from "@/pages/MonitorSuhu";
+import { SuhuProvider } from "@/hooks/use-suhu-store";
 import Dashboard from "@/pages/Dashboard";
 import InputQC from "@/pages/InputQC";
 import LeveyJennings from "@/pages/LeveyJennings";
@@ -29,7 +30,7 @@ const App = () => (
               {/* Portal pages with top navbar */}
               <Route path="/" element={<PortalLayout><PortalHome /></PortalLayout>} />
               <Route path="/kunjungan" element={<PortalLayout><KunjunganDashboard /></PortalLayout>} />
-              <Route path="/suhu" element={<PortalLayout><SuhuPlaceholder /></PortalLayout>} />
+              <Route path="/suhu" element={<PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout>} />
 
               {/* QC module with sidebar/bottom nav */}
               <Route path="/qc" element={<AppLayout><Dashboard /></AppLayout>} />
