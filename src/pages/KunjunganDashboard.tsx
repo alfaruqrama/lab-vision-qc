@@ -12,8 +12,9 @@ import {
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { toast } from 'sonner';
 import LaporanTab from '@/components/kunjungan/LaporanTab';
+import InputHarianTab from '@/components/kunjungan/InputHarianTab';
 
-type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan';
+type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan' | 'input';
 
 // ─── KPI Card ───
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
@@ -479,6 +480,7 @@ export default function KunjunganDashboard() {
     { key: 'kunjungan', label: 'Kunjungan', emoji: '👥' },
     { key: 'mcu', label: 'Omzet MCU', emoji: '🔬' },
     { key: 'laporan', label: 'Laporan', emoji: '📋' },
+    { key: 'input', label: 'Input Harian', emoji: '✏️' },
   ];
 
   return (
@@ -532,6 +534,7 @@ export default function KunjunganDashboard() {
         {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
         {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
         {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
+          {tab === 'input' && <InputHarianTab />}
       </div>
     </div>
   );
