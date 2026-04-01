@@ -536,6 +536,20 @@ function usePenjaminList() {
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
 
+// Mapping badge → nama kolom di format OMZET KUNJUNGAN
+const REKAP_LABEL_MAP: Record<string, string> = {
+  'PG':           'PT PETROKIMIA',
+  'NPG':          'PERUSAHAAN LAIN',
+  'BRI LIFE PG':  'BRI (PG)',
+  'AS':           'ASURANSI KOMERSIAL',
+  'PROKESPEN':    'PROKESPEN MURNI',
+  'PROKESPEN BPJS': 'PROKESPEN BPJS',
+  'BPJS':         'BPJS KES',
+  'JKK':          'BPJS TK',
+  'UMUM':         'TUNAI/UMUM',
+};
+const REKAP_LABEL_ORDER = ['PG','NPG','BRI LIFE PG','AS','PROKESPEN','PROKESPEN BPJS','BPJS','JKK','UMUM'];
+
 function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: McuInputRow[]) {
   const wb = XLSX.utils.book_new();
   const colH = ['KET','JAMINAN','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL'];
@@ -545,17 +559,21 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
   for (const [badge, rows] of Object.entries(groups)) {
     rows.forEach((r,i) => aoa.push([
-      i===0?badge:null, r.namaPenjamin,
+      i===0?(REKAP_LABEL_MAP[badge]||badge):null, r.namaPenjamin,
       r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
     ]));
   }
   const tot: any[] = ['TOTAL',null];
   KUNJUNGAN_COLS.forEach(c => tot.push(kunjungan.reduce((s,r)=>s+(r as any)[c.k],0)));
   tot.push(kunjungan.reduce((s,r)=>s+r.total,0));
-  aoa.push(tot, [], [' REKAP PER LABEL'],
+
+  // Rekap per label (ordered, with proper names)
+  aoa.push(tot, [], ['REKAP PER LABEL'],
     ['LABEL','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL']);
-  for (const [badge, rows] of Object.entries(groups)) {
-    aoa.push([badge,
+  for (const badge of REKAP_LABEL_ORDER) {
+    const rows = groups[badge] || [];
+    if (rows.length === 0) continue;
+    aoa.push([REKAP_LABEL_MAP[badge]||badge,
       rows.reduce((s,r)=>s+r.rjYani,0), rows.reduce((s,r)=>s+r.riYani,0),
       rows.reduce((s,r)=>s+r.igd,0),    rows.reduce((s,r)=>s+r.mcuAuto,0),
       rows.reduce((s,r)=>s+r.promo,0),  rows.reduce((s,r)=>s+r.dokter,0),
@@ -566,8 +584,32 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     ]);
   }
   const ws1 = XLSX.utils.aoa_to_sheet(aoa);
-  ws1['!cols'] = [{ wch:14 },{ wch:36 },...Array(13).fill({ wch:10 })];
+  ws1['!cols'] = [{ wch:20 },{ wch:36 },...Array(13).fill({ wch:10 })];
   XLSX.utils.book_append_sheet(wb, ws1, 'Laporan Harian');
+
+  // Sheet Rekap Kunjungan — format sesuai OMZET KUNJUNGAN 2026
+  const rekapCols = REKAP_LABEL_ORDER.map(b => REKAP_LABEL_MAP[b]);
+  const rekapAoa: any[][] = [
+    [`REKAP KUNJUNGAN - ${tanggal}`],
+    ['KUNJUNGAN', ...rekapCols, 'TOTAL KUNJUNGAN'],
+  ];
+  const serviceRows: { label: string; key: keyof KunjunganInputRow }[] = [
+    { label: 'RAWAT JALAN', key: 'rjYani' },
+    { label: 'RAWAT INAP',  key: 'riYani' },
+    { label: 'IGD',         key: 'igd'    },
+    { label: 'MCU',         key: 'mcuAuto'},
+  ];
+  for (const { label, key } of serviceRows) {
+    const vals = REKAP_LABEL_ORDER.map(badge => (groups[badge]||[]).reduce((s,r)=>s+(r[key] as number),0));
+    rekapAoa.push([label, ...vals, vals.reduce((a,b)=>a+b,0)]);
+  }
+  // Total row
+  const totVals = REKAP_LABEL_ORDER.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.total,0));
+  rekapAoa.push(['TOTAL KUNJUNGAN', ...totVals, totVals.reduce((a,b)=>a+b,0)]);
+
+  const ws3 = XLSX.utils.aoa_to_sheet(rekapAoa);
+  ws3['!cols'] = [{ wch:18 }, ...Array(REKAP_LABEL_ORDER.length+1).fill({ wch:16 })];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Rekap Kunjungan');
 
   const mcuAoa: any[][] = [
     [`MCU HARIAN - ${tanggal}`],
