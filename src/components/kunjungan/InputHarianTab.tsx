@@ -944,21 +944,38 @@ export default function InputHarianTab() {
     return () => window.removeEventListener('beforeunload', h);
   }, [kunjungan, mcu]);
 
-  // ── MCU → aggregate mcuAuto by NAMA PENJAMIN ──────────────────────────────
+  // ── MCU → aggregate mcuAuto by NAMA PENJAMIN, auto-add missing rows ──────────
   useEffect(() => {
     // Build map: namaPenjamin → total peserta
     const byName: Record<string, number> = {};
     for (const r of mcu) {
       if (r.namaPenjamin) byName[r.namaPenjamin] = (byName[r.namaPenjamin]||0) + (r.peserta||0);
     }
-    setKunjungan(prev => prev.map(row => {
-      const agg = byName[row.namaPenjamin] || 0;
-      if (row.mcuAuto === agg) return row;
-      const updated = { ...row, mcuAuto: agg };
-      updated.total = calcTotal(updated);
-      return updated;
-    }));
-  }, [mcu]);
+    setKunjungan(prev => {
+      const existingNames = new Set(prev.map(r => r.namaPenjamin));
+      const newRows: KunjunganInputRow[] = [];
+      for (const [nama, peserta] of Object.entries(byName)) {
+        if (!existingNames.has(nama)) {
+          const entry = allList.find(p => p.nama === nama);
+          const badge = entry?.badge || 'NPG';
+          const row: KunjunganInputRow = {
+            id: nanoid(), namaPenjamin: nama, badge,
+            rjYani:0,riYani:0,igd:0,mcuAuto:peserta,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0,
+          };
+          row.total = calcTotal(row);
+          newRows.push(row);
+        }
+      }
+      const updated = prev.map(row => {
+        const agg = byName[row.namaPenjamin] || 0;
+        if (row.mcuAuto === agg) return row;
+        const u = { ...row, mcuAuto: agg };
+        u.total = calcTotal(u);
+        return u;
+      });
+      return newRows.length > 0 ? [...updated, ...newRows] : updated;
+    });
+  }, [mcu, allList]);
 
   // ── Kunjungan handlers ────────────────────────────────────────────────────
   const updateKunjungan = useCallback((id: string, field: string, val: string) => {
