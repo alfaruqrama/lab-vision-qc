@@ -1,22 +1,20 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Copy, MessageCircle, Trash2, Plus, Minus } from 'lucide-react';
+import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
 import type { KumulatifData } from '@/hooks/use-kunjungan-data';
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const LS_KEY = 'laporan-draft';
+const INPUT_HARIAN_KEY = 'input-harian-draft';
 
 const fmtRpWA = (n: number) => Math.round(n).toLocaleString('id-ID');
 const fmtKunjTarget = (n: number) => n.toLocaleString('id-ID');
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 interface PromoItem { label: string; value: number }
 
@@ -44,11 +42,15 @@ interface FormData {
   morullaTerjadwal: number; morullaHadir: number;
   targetKunjungan: number; targetOmzet: number;
   pendapatanMCU: number; pendapatanSelainMCU: number;
+  // Kumulatif manual
+  kumOmzet: number; kumKunj: number;
+  targetOmzetBulan: number; targetKunjBulan: number;
+  tglAkhir: number;
 }
 
 function defaultForm(): FormData {
   return {
-    tanggal: new Date().toISOString().slice(0, 10),
+    tanggal: todayISO(),
     rj: 0, nonBpjsRJ: 0, ri: 0, nonBpjsRI: 0, igd: 0, nonBpjsIGD: 0, mcu: 0,
     rujukanGrahu: 0, rujukanPPK1: 0, rujukanSatkal: 0, rujukanDokterLuar: 0,
     poliExclusive: 0, poliPrioritas: 0,
@@ -57,22 +59,57 @@ function defaultForm(): FormData {
     morullaTerjadwal: 0, morullaHadir: 0,
     targetKunjungan: 0, targetOmzet: 0,
     pendapatanMCU: 0, pendapatanSelainMCU: 0,
+    kumOmzet: 0, kumKunj: 0, targetOmzetBulan: 0, targetKunjBulan: 0, tglAkhir: 0,
   };
 }
 
-function NumInput({ value, onChange, label, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; gsAutoFill?: boolean }) {
+// Read & compute totals from InputHarian draft
+function readInputHarianDraft(tanggal: string) {
+  try {
+    const raw = localStorage.getItem(INPUT_HARIAN_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as { tanggal: string; kunjungan: any[] };
+    if (draft.tanggal !== tanggal) return null;
+    const rows: any[] = draft.kunjungan || [];
+    const sum = (key: string) => rows.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+    const bpjsRows = rows.filter((r: any) => r.badge === 'BPJS');
+    const sumBpjs = (key: string) => bpjsRows.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+    const rj  = sum('rjYani');
+    const ri  = sum('riYani');
+    const igd = sum('igd');
+    return {
+      rj,  nonBpjsRJ:  rj  - sumBpjs('rjYani'),
+      ri,  nonBpjsRI:  ri  - sumBpjs('riYani'),
+      igd, nonBpjsIGD: igd - sumBpjs('igd'),
+      mcu: sum('mcuAuto'),
+      rujukanGrahu:     sum('grhuRj') + sum('grhuRi'),
+      rujukanPPK1:      sum('ppk1'),
+      rujukanSatkal:    sum('sat'),
+      rujukanDokterLuar:sum('dokter'),
+      poliExclusive:    sum('exc'),
+      poliPrioritas:    sum('prior'),
+    };
+  } catch { return null; }
+}
+
+function NumInput({ value, onChange, label, auto, gsAutoFill }: {
+  value: number; onChange: (v: number) => void; label: string;
+  auto?: boolean; gsAutoFill?: boolean;
+}) {
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-muted-foreground flex-1 min-w-0">
         {label}
+        {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
         {gsAutoFill && <span className="text-[9px] ml-1 text-accent font-medium">(dari Sheets)</span>}
       </label>
       <Input
-        type="text"
-        inputMode="numeric"
+        type="text" inputMode="numeric"
         value={value || ''}
         onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
-        className={cn("w-24 h-8 text-right text-xs font-mono", gsAutoFill && "bg-accent/5 border-accent/30")}
+        className={cn("w-24 h-8 text-right text-xs font-mono",
+          auto && "border-green-400/50 bg-green-50/30",
+          gsAutoFill && "bg-accent/5 border-accent/30")}
         placeholder="0"
       />
     </div>
@@ -89,8 +126,7 @@ function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChan
       <div className="relative">
         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">Rp</span>
         <Input
-          type="text"
-          inputMode="numeric"
+          type="text" inputMode="numeric"
           value={value ? fmtRpWA(value) : ''}
           onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
           className={cn("w-32 h-8 text-right text-xs font-mono pl-7", gsAutoFill && "bg-accent/5 border-accent/30")}
@@ -105,10 +141,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   const [form, setForm] = useState<FormData>(() => {
     try {
       const saved = localStorage.getItem(LS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return { ...defaultForm(), ...parsed.data };
-      }
+      if (saved) return { ...defaultForm(), ...JSON.parse(saved).data };
     } catch {}
     return defaultForm();
   });
@@ -119,25 +152,48 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     } catch {}
     return null;
   });
+  const [autoFields, setAutoFields] = useState<Set<string>>(new Set());
 
-  // Auto-detect day type from selected date and auto-fill targets
+  // Auto-fill Section B from InputHarian draft when tanggal matches
+  const syncFromInputHarian = useCallback((silent = false) => {
+    const data = readInputHarianDraft(form.tanggal);
+    if (!data) {
+      if (!silent) toast.error('Data Input Harian untuk tanggal ini tidak ditemukan');
+      return;
+    }
+    setForm(prev => ({ ...prev, ...data }));
+    setAutoFields(new Set(Object.keys(data)));
+    if (!silent) toast.success('Data kunjungan disinkronkan dari Input Harian');
+  }, [form.tanggal]);
+
+  // Auto-sync on mount or date change (silent)
+  useEffect(() => {
+    syncFromInputHarian(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.tanggal]);
+
+  // Auto-fill targets from kumulatif when date changes
   useEffect(() => {
     if (!kumulatif) return;
-    const d = new Date(form.tanggal);
-    const day = d.getDay(); // 0=Sun, 6=Sat
+    const d = new Date(form.tanggal + 'T00:00:00');
+    const day = d.getDay();
     const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
     const tgtK = kumulatif.targetKunjHarian?.[key];
     const tgtO = kumulatif.targetOmzetHarian?.[key];
-    if (tgtK !== undefined || tgtO !== undefined) {
-      setForm(prev => ({
-        ...prev,
-        targetKunjungan: tgtK ?? prev.targetKunjungan,
-        targetOmzet: tgtO ?? prev.targetOmzet,
-      }));
-    }
+    setForm(prev => ({
+      ...prev,
+      targetKunjungan: tgtK ?? prev.targetKunjungan,
+      targetOmzet: tgtO ?? prev.targetOmzet,
+      kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
+      kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
+      targetOmzetBulan: kumulatif.targetOmzetBulan ?? prev.targetOmzetBulan,
+      targetKunjBulan: kumulatif.targetKunjBulan ?? prev.targetKunjBulan,
+      tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal, kumulatif]);
 
-  // Auto-save draft
+  // Auto-save
   useEffect(() => {
     const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     localStorage.setItem(LS_KEY, JSON.stringify({ data: form, time }));
@@ -146,55 +202,40 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
 
   const set = useCallback(<K extends keyof FormData>(key: K, val: FormData[K]) => {
     setForm(prev => ({ ...prev, [key]: val }));
+    setAutoFields(prev => { const s = new Set(prev); s.delete(key as string); return s; });
   }, []);
 
   const setPromo = useCallback((idx: number, val: number) => {
-    setForm(prev => {
-      const items = [...prev.promoItems];
-      items[idx] = { ...items[idx], value: val };
-      return { ...prev, promoItems: items };
-    });
+    setForm(prev => { const items = [...prev.promoItems]; items[idx] = { ...items[idx], value: val }; return { ...prev, promoItems: items }; });
   }, []);
-
   const addPromo = useCallback(() => {
     setForm(prev => ({ ...prev, promoItems: [...prev.promoItems, { label: 'Item baru', value: 0 }] }));
   }, []);
-
   const removePromo = useCallback((idx: number) => {
     setForm(prev => ({ ...prev, promoItems: prev.promoItems.filter((_, i) => i !== idx) }));
   }, []);
-
   const setPromoLabel = useCallback((idx: number, label: string) => {
-    setForm(prev => {
-      const items = [...prev.promoItems];
-      items[idx] = { ...items[idx], label };
-      return { ...prev, promoItems: items };
-    });
+    setForm(prev => { const items = [...prev.promoItems]; items[idx] = { ...items[idx], label }; return { ...prev, promoItems: items }; });
   }, []);
 
-  // Auto-calc
+  // Calculations
   const totalKunjungan = form.rj + form.ri + form.igd + form.mcu;
-  const pctKunjungan = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
+  const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
   const totalPendapatan = form.pendapatanMCU + form.pendapatanSelainMCU;
-  const pctPendapatan = form.targetOmzet > 0 ? Math.round((totalPendapatan / form.targetOmzet) * 100) : 0;
+  const pctPendapatan  = form.targetOmzet > 0 ? Math.round((totalPendapatan / form.targetOmzet) * 100) : 0;
   const rerataPerPasien = totalKunjungan > 0 ? Math.round(totalPendapatan / totalKunjungan) : 0;
-
-  // Kumulatif calcs
-  const kumOmzet = kumulatif?.kumOmzet || 0;
-  const kumKunj = kumulatif?.kumKunj || 0;
-  const tglAkhir = kumulatif?.tglAkhir || 0;
-  const targetOmzetBulan = kumulatif?.targetOmzetBulan || 0;
-  const targetKunjBulan = kumulatif?.targetKunjBulan || 0;
-  const pctKumOmzet = targetOmzetBulan > 0 ? Math.round((kumOmzet / targetOmzetBulan) * 100) : 0;
-  const pctKumKunj = targetKunjBulan > 0 ? Math.round((kumKunj / targetKunjBulan) * 100) : 0;
+  const pctKumOmzet = form.targetOmzetBulan > 0 ? Math.round((form.kumOmzet / form.targetOmzetBulan) * 100) : 0;
+  const pctKumKunj  = form.targetKunjBulan  > 0 ? Math.round((form.kumKunj  / form.targetKunjBulan)  * 100) : 0;
 
   const tgl = useMemo(() => {
     const [y, m, d] = form.tanggal.split('-').map(Number);
     return new Date(y, m - 1, d);
   }, [form.tanggal]);
-  const namaHari = HARI_ID[tgl.getDay()];
+  const namaHari  = HARI_ID[tgl.getDay()];
   const namaBulan = BULAN_ID[tgl.getMonth()];
-  const tahun = tgl.getFullYear();
+  const tahun     = tgl.getFullYear();
+
+  const isAuto = (k: string) => autoFields.has(k);
 
   const outputTeks = useMemo(() => {
     const lines: string[] = [];
@@ -221,9 +262,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`5. Rawin BRI Life Kry PG : ${form.briRawinKry}`);
     lines.push(`6. Rawin BRI Life Kel PG : ${form.briRawinKel}`);
     lines.push(`* Promo Lab : `);
-    form.promoItems.forEach((p, i) => {
-      lines.push(`${i + 1}. ${p.label}: ${p.value}`);
-    });
+    form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${p.value}`); });
     lines.push(`* Pasien AS Morulla `);
     lines.push(`1. Terjadwal hari ini : ${form.morullaTerjadwal}`);
     lines.push(`2. Hadir hari ini : ${form.morullaHadir}`);
@@ -238,32 +277,21 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(`---------------`);
     lines.push(`================`);
-    lines.push(`CAPAIAN 01- ${tglAkhir} ${namaBulan} ${tahun}`);
-    lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzet)} (${pctKumOmzet}%)`);
-    lines.push(`* Total kunjungan  :   ${kumKunj} (${pctKumKunj}%)`);
+    lines.push(`CAPAIAN 01- ${form.tglAkhir} ${namaBulan} ${tahun}`);
+    lines.push(`* Total pendapatan : Rp ${fmtRpWA(form.kumOmzet)} (${pctKumOmzet}%)`);
+    lines.push(`* Total kunjungan  :   ${form.kumKunj} (${pctKumKunj}%)`);
     lines.push(`----------------------------------`);
     lines.push(`Data`);
     lines.push(`Target ${namaBulan} ${tahun}`);
-    lines.push(`* Kunjungan : ${fmtKunjTarget(targetKunjBulan)}`);
-    lines.push(`* Omzet : Rp. ${fmtRpWA(targetOmzetBulan)}`);
+    lines.push(`* Kunjungan : ${fmtKunjTarget(form.targetKunjBulan)}`);
+    lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
     return lines.join('\n');
-  }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien, namaHari, namaBulan, tahun, tgl, kumOmzet, kumKunj, tglAkhir, targetOmzetBulan, targetKunjBulan, pctKumOmzet, pctKumKunj]);
+  }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
+      namaHari, namaBulan, tahun, tgl, pctKumOmzet, pctKumKunj]);
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(outputTeks);
-    toast.success('✅ Teks berhasil disalin');
-  };
-
-  const handleWA = () => {
-    window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
-  };
-
-  const handleClearDraft = () => {
-    localStorage.removeItem(LS_KEY);
-    setForm(defaultForm());
-    setDraftTime(null);
-    toast.success('Draft dihapus');
-  };
+  const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
+  const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
+  const handleClear = () => { localStorage.removeItem(LS_KEY); setForm(defaultForm()); setDraftTime(null); setAutoFields(new Set()); toast.success('Draft dihapus'); };
 
   return (
     <div className="grid lg:grid-cols-2 gap-4 page-transition">
@@ -273,37 +301,26 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <h2 className="text-sm font-bold">📋 Input Laporan Harian</h2>
           <div className="flex items-center gap-2">
             {draftTime && <span className="text-[9px] text-muted-foreground">Draft: {draftTime}</span>}
-            <Button variant="ghost" size="sm" onClick={handleClearDraft} className="h-7 px-2 text-[10px]">
+            <Button variant="ghost" size="sm" onClick={handleClear} className="h-7 px-2 text-[10px]">
               <Trash2 className="w-3 h-3 mr-1" /> Hapus Draft
             </Button>
           </div>
         </div>
 
-        <Accordion type="multiple" defaultValue={['a', 'b']} className="space-y-2">
+        <Accordion type="multiple" defaultValue={['a','b']} className="space-y-2">
+
           {/* A: Tanggal */}
           <AccordionItem value="a" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              A — Tanggal
-            </AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">A — Tanggal</AccordionTrigger>
             <AccordionContent className="px-4 space-y-2">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-muted-foreground flex-1">Tanggal</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs w-36 justify-start">
-                      {format(tgl, 'd MMM yyyy', { locale: idLocale })}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={tgl}
-                      onSelect={d => d && set('tanggal', d.toISOString().slice(0, 10))}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Input
+                  type="date"
+                  value={form.tanggal}
+                  onChange={e => setForm(prev => ({ ...prev, tanggal: e.target.value }))}
+                  className="w-36 text-xs h-8"
+                />
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -312,58 +329,56 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <AccordionItem value="b" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
               B — Kunjungan
+              <Button
+                variant="outline" size="sm"
+                className="ml-auto mr-2 h-6 px-2 text-[10px] text-green-700 border-green-400 hover:bg-green-50"
+                onClick={e => { e.stopPropagation(); syncFromInputHarian(false); }}>
+                <RefreshCw className="w-2.5 h-2.5 mr-1" /> Sync Input Harian
+              </Button>
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Rawat Jalan (Total)" value={form.rj} onChange={v => setForm(p => ({ ...p, rj: v, nonBpjsRJ: Math.min(p.nonBpjsRJ, v) }))} />
-              <NumInput label="  └ Non BPJS RJ" value={form.nonBpjsRJ} onChange={v => set('nonBpjsRJ', Math.min(v, form.rj))} />
-              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => setForm(p => ({ ...p, ri: v, nonBpjsRI: Math.min(p.nonBpjsRI, v) }))} />
-              <NumInput label="  └ Non BPJS RI" value={form.nonBpjsRI} onChange={v => set('nonBpjsRI', Math.min(v, form.ri))} />
-              <NumInput label="IGD (Total)" value={form.igd} onChange={v => setForm(p => ({ ...p, igd: v, nonBpjsIGD: Math.min(p.nonBpjsIGD, v) }))} />
-              <NumInput label="  └ Non BPJS IGD" value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', Math.min(v, form.igd))} />
-              <NumInput label="MCU" value={form.mcu} onChange={v => set('mcu', v)} />
-              <NumInput label="Rujukan SBU/Grahu" value={form.rujukanGrahu} onChange={v => set('rujukanGrahu', v)} />
-              <NumInput label="Rujukan SBU/PPK1" value={form.rujukanPPK1} onChange={v => set('rujukanPPK1', v)} />
-              <NumInput label="Rujukan SBU/Satkal" value={form.rujukanSatkal} onChange={v => set('rujukanSatkal', v)} />
-              <NumInput label="Rujukan Dokter Luar" value={form.rujukanDokterLuar} onChange={v => set('rujukanDokterLuar', v)} />
-              <NumInput label="Poli Exclusive" value={form.poliExclusive} onChange={v => set('poliExclusive', v)} />
-              <NumInput label="Poli Prioritas" value={form.poliPrioritas} onChange={v => set('poliPrioritas', v)} />
+              <p className="text-[9px] text-muted-foreground pb-1">Field bertanda <span className="text-green-600 font-medium">(auto)</span> diisi dari Tab Input Harian.</p>
+              <NumInput label="Rawat Jalan (Total)"  value={form.rj}  onChange={v => set('rj', v)}  auto={isAuto('rj')} />
+              <NumInput label="  └ Non BPJS RJ"      value={form.nonBpjsRJ}  onChange={v => set('nonBpjsRJ', v)}  auto={isAuto('nonBpjsRJ')} />
+              <NumInput label="Rawat Inap (Total)"   value={form.ri}  onChange={v => set('ri', v)}  auto={isAuto('ri')} />
+              <NumInput label="  └ Non BPJS RI"      value={form.nonBpjsRI}  onChange={v => set('nonBpjsRI', v)}  auto={isAuto('nonBpjsRI')} />
+              <NumInput label="IGD (Total)"          value={form.igd} onChange={v => set('igd', v)} auto={isAuto('igd')} />
+              <NumInput label="  └ Non BPJS IGD"     value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', v)} auto={isAuto('nonBpjsIGD')} />
+              <NumInput label="MCU"                  value={form.mcu} onChange={v => set('mcu', v)} auto={isAuto('mcu')} />
+              <NumInput label="Rujukan SBU/Grahu"    value={form.rujukanGrahu}      onChange={v => set('rujukanGrahu', v)}      auto={isAuto('rujukanGrahu')} />
+              <NumInput label="Rujukan SBU/PPK1"     value={form.rujukanPPK1}       onChange={v => set('rujukanPPK1', v)}       auto={isAuto('rujukanPPK1')} />
+              <NumInput label="Rujukan SBU/Satkal"   value={form.rujukanSatkal}     onChange={v => set('rujukanSatkal', v)}     auto={isAuto('rujukanSatkal')} />
+              <NumInput label="Rujukan Dokter Luar"  value={form.rujukanDokterLuar} onChange={v => set('rujukanDokterLuar', v)} auto={isAuto('rujukanDokterLuar')} />
+              <NumInput label="Poli Exclusive"       value={form.poliExclusive}     onChange={v => set('poliExclusive', v)}     auto={isAuto('poliExclusive')} />
+              <NumInput label="Poli Prioritas"       value={form.poliPrioritas}     onChange={v => set('poliPrioritas', v)}     auto={isAuto('poliPrioritas')} />
             </AccordionContent>
           </AccordionItem>
 
           {/* C: BRI Life */}
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              C — Pasien BRI Life PG
-            </AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien BRI Life PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="IGD BRI Life Kry PG" value={form.briIgdKry} onChange={v => set('briIgdKry', v)} />
-              <NumInput label="IGD BRI Life Kel PG" value={form.briIgdKel} onChange={v => set('briIgdKel', v)} />
-              <NumInput label="Rajal BRI Life Kry PG" value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
-              <NumInput label="Rajal BRI Life Kel PG" value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
-              <NumInput label="Rawin BRI Life Kry PG" value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
-              <NumInput label="Rawin BRI Life Kel PG" value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
+              <NumInput label="IGD BRI Life Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
+              <NumInput label="IGD BRI Life Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
+              <NumInput label="Rajal BRI Life Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
+              <NumInput label="Rajal BRI Life Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
+              <NumInput label="Rawin BRI Life Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
+              <NumInput label="Rawin BRI Life Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
             </AccordionContent>
           </AccordionItem>
 
           {/* D: Promo Lab */}
           <AccordionItem value="d" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              D — Promo Lab
-            </AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">D — Promo Lab</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               {form.promoItems.map((p, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  <Input
-                    value={p.label}
-                    onChange={e => setPromoLabel(i, e.target.value)}
-                    className="flex-1 h-7 text-[11px]"
-                  />
+                  <Input value={p.label} onChange={e => setPromoLabel(i, e.target.value)} className="flex-1 h-7 text-[11px]" />
                   <Input
                     type="text" inputMode="numeric"
                     value={p.value || ''}
                     onChange={e => setPromo(i, Number(e.target.value.replace(/\D/g, '')) || 0)}
-                    className="w-16 h-7 text-right text-xs font-mono"
-                    placeholder="0"
+                    className="w-16 h-7 text-right text-xs font-mono" placeholder="0"
                   />
                   <button onClick={() => removePromo(i)} className="p-1 text-muted-foreground hover:text-destructive">
                     <Minus className="w-3 h-3" />
@@ -378,25 +393,21 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
 
           {/* E: Morulla */}
           <AccordionItem value="e" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              E — Pasien AS Morulla
-            </AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">E — Pasien AS Morulla</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <NumInput label="Terjadwal Hari Ini" value={form.morullaTerjadwal} onChange={v => set('morullaTerjadwal', v)} />
-              <NumInput label="Hadir Hari Ini" value={form.morullaHadir} onChange={v => set('morullaHadir', v)} />
+              <NumInput label="Hadir Hari Ini"     value={form.morullaHadir}     onChange={v => set('morullaHadir', v)} />
             </AccordionContent>
           </AccordionItem>
 
           {/* F: Capaian */}
           <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              F — Capaian Harian
-            </AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">F — Capaian Harian</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={!!kumulatif} />
-              <RpInput label="Target Omzet Harian" value={form.targetOmzet} onChange={v => set('targetOmzet', v)} gsAutoFill={!!kumulatif} />
-              <RpInput label="Pendapatan MCU" value={form.pendapatanMCU} onChange={v => set('pendapatanMCU', v)} />
-              <RpInput label="Pendapatan Selain MCU" value={form.pendapatanSelainMCU} onChange={v => set('pendapatanSelainMCU', v)} />
+              <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={!!kumulatif} />
+              <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} />
+              <RpInput  label="Pendapatan Selain MCU"   value={form.pendapatanSelainMCU} onChange={v => set('pendapatanSelainMCU', v)} />
               <div className="pt-2 border-t border-border space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Total Kunjungan</span>
@@ -417,21 +428,28 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           {/* G: Kumulatif */}
           <AccordionItem value="g" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              G — Kumulatif Bulan {kumulatif ? <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span> : ''}
+              G — Kumulatif Bulan
+              {kumulatif && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              {kumulatif ? (
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Total Pendapatan s/d tgl {tglAkhir}</span><span className="font-bold">Rp {fmtRpWA(kumOmzet)} ({pctKumOmzet}%)</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Total Kunjungan s/d tgl {tglAkhir}</span><span className="font-bold">{kumKunj} ({pctKumKunj}%)</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Target Omzet Bulan</span><span className="font-bold">Rp {fmtRpWA(targetOmzetBulan)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Target Kunjungan Bulan</span><span className="font-bold">{fmtKunjTarget(targetKunjBulan)}</span></div>
+              <NumInput label="Tanggal Akhir Data (tgl)"  value={form.tglAkhir}        onChange={v => set('tglAkhir', v)}        gsAutoFill={!!kumulatif} />
+              <RpInput  label="Total Pendapatan s/d tgl"  value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={!!kumulatif} />
+              <NumInput label="Total Kunjungan s/d tgl"   value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={!!kumulatif} />
+              <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={!!kumulatif} />
+              <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={!!kumulatif} />
+              <div className="pt-2 border-t border-border space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Capaian Omzet</span>
+                  <span className="font-bold text-accent">{pctKumOmzet}%</span>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">Data kumulatif belum tersedia. Pastikan koneksi ke Google Sheets aktif.</p>
-              )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Capaian Kunjungan</span>
+                  <span className="font-bold text-accent">{pctKumKunj}%</span>
+                </div>
+              </div>
             </AccordionContent>
           </AccordionItem>
+
         </Accordion>
       </div>
 
