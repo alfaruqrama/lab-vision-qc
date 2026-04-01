@@ -946,7 +946,6 @@ export default function InputHarianTab() {
 
   // ── MCU → aggregate mcuAuto by NAMA PENJAMIN, auto-add missing rows ──────────
   useEffect(() => {
-    // Build map: namaPenjamin → total peserta
     const byName: Record<string, number> = {};
     for (const r of mcu) {
       if (r.namaPenjamin) byName[r.namaPenjamin] = (byName[r.namaPenjamin]||0) + (r.peserta||0);
@@ -956,7 +955,7 @@ export default function InputHarianTab() {
       const newRows: KunjunganInputRow[] = [];
       for (const [nama, peserta] of Object.entries(byName)) {
         if (!existingNames.has(nama)) {
-          const entry = allList.find(p => p.nama === nama);
+          const entry = BUILTIN_PENJAMIN.find(p => p.nama === nama);
           const badge = entry?.badge || 'NPG';
           const row: KunjunganInputRow = {
             id: nanoid(), namaPenjamin: nama, badge,
@@ -975,7 +974,7 @@ export default function InputHarianTab() {
       });
       return newRows.length > 0 ? [...updated, ...newRows] : updated;
     });
-  }, [mcu, allList]);
+  }, [mcu]);
 
   // ── Kunjungan handlers ────────────────────────────────────────────────────
   const updateKunjungan = useCallback((id: string, field: string, val: string) => {
