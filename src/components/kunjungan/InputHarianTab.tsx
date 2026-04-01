@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import * as XLSX from 'xlsx';
@@ -651,6 +651,88 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], onSelect, onOpen
   );
 }
 
+// ─── Admin PIN ────────────────────────────────────────────────────────────────
+
+const ADMIN_PIN = '112231';
+
+function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
+  const PIN_LEN     = 6;
+  const MAX_ATTEMPTS = 3;
+  const [pin,      setPin]      = useState('');
+  const [error,    setError]    = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [locked,   setLocked]   = useState(false);
+
+  const validate = (value: string) => {
+    if (value === ADMIN_PIN) { onSuccess(); return; }
+    const next = attempts + 1;
+    setAttempts(next);
+    setPin('');
+    if (next >= MAX_ATTEMPTS) {
+      setLocked(true);
+      setError('Terlalu banyak percobaan. Coba lagi dalam 30 detik.');
+      setTimeout(() => { setLocked(false); setAttempts(0); setError(''); }, 30_000);
+    } else {
+      setError(`PIN salah. Sisa ${MAX_ATTEMPTS - next} percobaan.`);
+    }
+  };
+
+  const handleDigit = (d: string) => {
+    if (locked || pin.length >= PIN_LEN) return;
+    setError('');
+    const next = pin + d;
+    setPin(next);
+    if (next.length === PIN_LEN) setTimeout(() => validate(next), 120);
+  };
+
+  const handleBack = () => { if (!locked) { setPin(p => p.slice(0, -1)); setError(''); } };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="card-clinical p-5 w-64 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" /> Admin Penjamin
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground text-center">
+          Masukkan PIN admin untuk mengelola daftar penjamin
+        </p>
+
+        {/* PIN dots */}
+        <div className="flex justify-center gap-2">
+          {Array.from({ length: PIN_LEN }).map((_, i) => (
+            <div key={i} className={`w-2.5 h-2.5 rounded-full border-2 transition-colors
+              ${i < pin.length ? 'bg-accent border-accent' : 'border-muted-foreground/40'}`} />
+          ))}
+        </div>
+
+        {error && <p className="text-[10px] text-destructive text-center">{error}</p>}
+
+        {/* Numpad */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
+            <button key={i}
+              disabled={locked || k === ''}
+              onClick={() => k === '⌫' ? handleBack() : k ? handleDigit(k) : undefined}
+              className={`h-9 rounded-lg text-sm font-semibold border border-border transition-colors
+                ${k === '' ? 'invisible pointer-events-none' : ''}
+                ${k === '⌫' ? 'text-muted-foreground hover:bg-muted' : 'hover:bg-accent/10 active:bg-accent/20'}
+                ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
 function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
@@ -779,6 +861,8 @@ export default function InputHarianTab() {
   const [mcu,        setMcu]        = useState<McuInputRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const openAdminSettings = () => setShowPinModal(true);
 
   // Load draft
   useEffect(() => {
@@ -932,8 +1016,8 @@ export default function InputHarianTab() {
   const ActionButtons = () => (
     <div className="flex gap-1.5">
       <Button variant="outline" size="sm" className="h-7 text-xs px-2"
-        onClick={() => setShowSettings(true)}>
-        <Settings className="w-3 h-3 mr-1" /> Penjamin
+        onClick={openAdminSettings}>
+        <Lock className="w-3 h-3 mr-1" /> Penjamin
       </Button>
       <Button variant="outline" size="sm" className="h-7 text-xs px-2"
         onClick={() => exportToExcel(tanggal, kunjungan, mcu)}>
@@ -951,6 +1035,12 @@ export default function InputHarianTab() {
 
   return (
     <>
+      {showPinModal && (
+        <PinModal
+          onSuccess={() => { setShowPinModal(false); setShowSettings(true); }}
+          onClose={() => setShowPinModal(false)}
+        />
+      )}
       {showSettings && (
         <SettingsModal
           list={allList} custom={custom}
@@ -1044,7 +1134,7 @@ export default function InputHarianTab() {
                           list={allList}
                           usedNames={usedNames.filter(n => n !== row.namaPenjamin)}
                           onSelect={(nama,badge) => selectPenjamin(row.id,nama,badge)}
-                          onOpenSettings={() => setShowSettings(true)}
+                          onOpenSettings={openAdminSettings}
                         />
                       </td>
                       {KUNJUNGAN_COLS.map(c=>{
@@ -1142,7 +1232,7 @@ export default function InputHarianTab() {
                           value={row.namaPenjamin} badge={''}
                           list={allList}
                           onSelect={(nama) => selectMcuPenjamin(row.id, nama)}
-                          onOpenSettings={() => setShowSettings(true)}
+                          onOpenSettings={openAdminSettings}
                         />
                       </td>
                       <td className="px-0.5 py-0.5">
