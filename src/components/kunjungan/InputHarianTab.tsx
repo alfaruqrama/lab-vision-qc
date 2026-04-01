@@ -77,7 +77,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'KARYAWAN PG INHEALTH', badge: 'PG' },
   { nama: 'KELUARGA PG INHEALTH', badge: 'PG' },
   { nama: 'BPJS KESEHATAN', badge: 'BPJS' },
-  { nama: 'BPJS KESEHATAN - KAPITASI', badge: 'BPJS' },
+  { nama: 'BPJS KESEHATAN - KAPITASI', badge: 'NPG' },
   { nama: 'BPJS NAIK KELAS.', badge: 'BPJS' },
   { nama: 'KARYAWAN PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'KELUARGA PG BRI LIFE', badge: 'BRI LIFE PG' },
@@ -87,7 +87,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'MCU UMUM', badge: 'UMUM' },
   { nama: 'GENERAL PATIENT', badge: 'UMUM' },
   { nama: 'BPJS KETENAGAKERJAAN (JKK)', badge: 'JKK' },
-  { nama: 'K3PG', badge: 'JKK' },
+  { nama: 'K3PG', badge: 'NPG' },
   { nama: 'COB BPJS KESEHATAN', badge: 'NPG' },
   { nama: 'ADHI KARYA (PERSERO), PT', badge: 'NPG' },
   { nama: 'ADINATA GRAHA SOLUSI, PT', badge: 'NPG' },
@@ -483,6 +483,13 @@ const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
 
 const DEFAULT_PENJAMIN_NAMES = new Set(DEFAULT_ROWS.map(r => r.namaPenjamin));
 
+// Validation: check if penjamin name exists in any list
+function isPenjaminValid(nama: string, builtinList: PenjaminEntry[], customList: PenjaminEntry[]): boolean {
+  if (!nama.trim()) return false;
+  const allList = [...builtinList, ...customList];
+  return allList.some(p => p.nama.toUpperCase() === nama.toUpperCase());
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -576,11 +583,12 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
 // ─── PenjaminCombobox ─────────────────────────────────────────────────────────
 
-function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = false, onSelect, onOpenSettings }: {
+function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = false, isInvalid = false, onSelect, onOpenSettings }: {
   value: string; badge: string;
   list: PenjaminEntry[];
   usedNames?: string[];
   isDefault?: boolean;
+  isInvalid?: boolean;
   onSelect: (nama: string, badge: string) => void;
   onOpenSettings?: () => void;
 }) {
@@ -607,9 +615,9 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
         onChange={e => { if (!isDefault) { setQuery(e.target.value); setOpen(true); } }}
         onFocus={() => { if (!isDefault) setOpen(true); }}
         disabled={isDefault}
-        className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''}`}
+        className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''} ${isInvalid ? 'border-red-500 bg-red-50' : ''}`}
         placeholder="Cari penjamin..."
-        title={isDefault ? 'Nama penjamin default tidak bisa diubah' : 'Cari penjamin...'}
+        title={isDefault ? 'Nama penjamin default tidak bisa diubah' : (isInvalid ? 'Nama penjamin tidak sesuai dengan list' : 'Cari penjamin...')}
       />
       {badge && (
         <span className={`text-[8px] font-bold px-1 py-0.5 rounded border whitespace-nowrap shrink-0 ${labelClass(badge)}`}>
@@ -1128,15 +1136,17 @@ export default function InputHarianTab() {
               <tbody>
                 {kunjungan.map((row,i)=>{
                   const isEmpty = !row.namaPenjamin.trim();
+                  const isValid = isEmpty || isPenjaminValid(row.namaPenjamin, BUILTIN_PENJAMIN, custom);
                   return (
-                    <tr key={row.id} className="border-t border-border/40 hover:bg-muted/20">
+                    <tr key={row.id} className={`border-t border-border/40 hover:bg-muted/20 ${!isValid ? 'bg-red-50/30' : ''}`}>
                       <td className="px-1 py-0.5 text-muted-foreground text-[9px]">{i+1}</td>
-                      <td className="px-0.5 py-0.5">
+                      <td className={`px-0.5 py-0.5 ${!isValid && !isEmpty ? 'border-l-2 border-red-500' : ''}`}>
                         <PenjaminCombobox
                           value={row.namaPenjamin} badge={row.badge}
                           list={allList}
                           usedNames={usedNames.filter(n => n !== row.namaPenjamin)}
                           isDefault={DEFAULT_PENJAMIN_NAMES.has(row.namaPenjamin)}
+                          isInvalid={!isValid && !isEmpty}
                           onSelect={(nama,badge) => selectPenjamin(row.id,nama,badge)}
                           onOpenSettings={openAdminSettings}
                         />
@@ -1153,11 +1163,11 @@ export default function InputHarianTab() {
                             ):(
                               <Input type="number" min={0}
                                 value={val===0?'':val}
-                                disabled={isEmpty}
+                                disabled={isEmpty || !isValid}
                                 onChange={e=>updateKunjungan(row.id,c.k,e.target.value)}
                                 onKeyDown={numericKeyDown}
-                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty?'opacity-40 cursor-not-allowed':''}`}
-                                placeholder="—" title={isEmpty?'Isi nama penjamin dulu':''}
+                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
+                                placeholder="—" title={isEmpty?'Isi nama penjamin dulu': !isValid ? 'Nama penjamin tidak sesuai dengan list' : ''}
                               />
                             )}
                           </td>
