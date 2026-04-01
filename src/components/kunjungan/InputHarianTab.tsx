@@ -589,26 +589,26 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
   // Sheet Rekap Kunjungan — format sesuai OMZET KUNJUNGAN 2026
   const rekapCols = REKAP_LABEL_ORDER.map(b => REKAP_LABEL_MAP[b]);
+  const activeLabels = REKAP_LABEL_ORDER.filter(b => (groups[b]||[]).length > 0);
+  const activeCols = activeLabels.map(b => REKAP_LABEL_MAP[b]);
   const rekapAoa: any[][] = [
     [`REKAP KUNJUNGAN - ${tanggal}`],
-    ['KUNJUNGAN', ...rekapCols, 'TOTAL KUNJUNGAN'],
+    ['KUNJUNGAN', ...activeCols, 'TOTAL KUNJUNGAN'],
   ];
-  const serviceRows: { label: string; key: keyof KunjunganInputRow }[] = [
-    { label: 'RAWAT JALAN', key: 'rjYani' },
-    { label: 'RAWAT INAP',  key: 'riYani' },
-    { label: 'IGD',         key: 'igd'    },
-    { label: 'MCU',         key: 'mcuAuto'},
-  ];
-  for (const { label, key } of serviceRows) {
-    const vals = REKAP_LABEL_ORDER.map(badge => (groups[badge]||[]).reduce((s,r)=>s+(r[key] as number),0));
-    rekapAoa.push([label, ...vals, vals.reduce((a,b)=>a+b,0)]);
-  }
-  // Total row
-  const totVals = REKAP_LABEL_ORDER.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.total,0));
+  // RAWAT JALAN = semua kolom kecuali IGD dan MCU
+  const rjVals = activeLabels.map(badge =>
+    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0)
+  );
+  rekapAoa.push(['RAWAT JALAN', ...rjVals, rjVals.reduce((a,b)=>a+b,0)]);
+  const igdVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.igd,0));
+  rekapAoa.push(['IGD', ...igdVals, igdVals.reduce((a,b)=>a+b,0)]);
+  const mcuVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.mcuAuto,0));
+  rekapAoa.push(['MCU', ...mcuVals, mcuVals.reduce((a,b)=>a+b,0)]);
+  const totVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.total,0));
   rekapAoa.push(['TOTAL KUNJUNGAN', ...totVals, totVals.reduce((a,b)=>a+b,0)]);
 
   const ws3 = XLSX.utils.aoa_to_sheet(rekapAoa);
-  ws3['!cols'] = [{ wch:18 }, ...Array(REKAP_LABEL_ORDER.length+1).fill({ wch:16 })];
+  ws3['!cols'] = [{ wch:18 }, ...Array(activeLabels.length+1).fill({ wch:16 })];
   XLSX.utils.book_append_sheet(wb, ws3, 'Rekap Kunjungan');
 
   const mcuAoa: any[][] = [
@@ -1072,9 +1072,11 @@ export default function InputHarianTab() {
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
-    return { label, rj:rows.reduce((s,r)=>s+r.rjYani,0), ri:rows.reduce((s,r)=>s+r.riYani,0),
-      igd:rows.reduce((s,r)=>s+r.igd,0), mcu:rows.reduce((s,r)=>s+r.mcuAuto,0),
-      total:rows.reduce((s,r)=>s+r.total,0) };
+    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0);
+    const igd = rows.reduce((s,r)=>s+r.igd,0);
+    const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
+    const total = rows.reduce((s,r)=>s+r.total,0);
+    return { label, rj, igd, mcu, total };
   }).filter(l=>l.total>0);
   const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
   const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
@@ -1143,29 +1145,46 @@ export default function InputHarianTab() {
             <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
           </div>
           {labelSummary.length>0 && (
-            <table className="w-full text-[10px] font-mono-data">
-              <thead>
-                <tr className="border-b border-border">
-                  {['LABEL','RJ','RI','IGD','MCU','TOTAL'].map((h,i)=>(
-                    <th key={h} className={`py-1 text-[9px] text-muted-foreground font-semibold ${i===0?'text-left pr-3':'text-right px-1.5'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {labelSummary.map(l=>(
-                  <tr key={l.label} className="border-b border-border/20">
-                    <td className="py-0.5 pr-3">
-                      <span className={`text-[8px] font-bold px-1 py-0.5 rounded border ${labelClass(l.label)}`}>{l.label}</span>
-                    </td>
-                    <td className="text-right px-1.5">{l.rj||'—'}</td>
-                    <td className="text-right px-1.5">{l.ri||'—'}</td>
-                    <td className="text-right px-1.5">{l.igd||'—'}</td>
-                    <td className="text-right px-1.5">{l.mcu||'—'}</td>
-                    <td className="text-right pl-1.5 font-bold text-[#0a9e87]">{l.total}</td>
+            <div className="overflow-x-auto">
+              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${labelSummary.length * 70 + 120}px` }}>
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="py-1 text-left text-[9px] text-muted-foreground font-semibold pr-3 whitespace-nowrap">KUNJUNGAN</th>
+                    {labelSummary.map(l=>(
+                      <th key={l.label} className="py-1 text-center px-2 text-[9px]">
+                        <span className={`font-bold px-1 py-0.5 rounded border ${labelClass(l.label)}`}>{l.label}</span>
+                      </th>
+                    ))}
+                    <th className="py-1 text-right px-2 text-[9px] text-muted-foreground font-semibold">TOTAL</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {([
+                    { key: 'rj'  as const, label: 'RAWAT JALAN' },
+                    { key: 'igd' as const, label: 'IGD' },
+                    { key: 'mcu' as const, label: 'MCU' },
+                  ]).map(({ key, label }) => {
+                    const rowTotal = labelSummary.reduce((s,l)=>s+l[key],0);
+                    return (
+                      <tr key={key} className="border-b border-border/20">
+                        <td className="py-0.5 pr-3 text-[9px] text-muted-foreground whitespace-nowrap">{label}</td>
+                        {labelSummary.map(l=>(
+                          <td key={l.label} className="text-right px-2">{l[key]||'—'}</td>
+                        ))}
+                        <td className="text-right px-2 font-bold">{rowTotal||'—'}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t border-border">
+                    <td className="py-0.5 pr-3 text-[9px] font-bold whitespace-nowrap">TOTAL</td>
+                    {labelSummary.map(l=>(
+                      <td key={l.label} className="text-right px-2 font-bold text-[#0a9e87]">{l.total||'—'}</td>
+                    ))}
+                    <td className="text-right px-2 font-bold text-[#0a9e87]">{labelSummary.reduce((s,l)=>s+l.total,0)||'—'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
