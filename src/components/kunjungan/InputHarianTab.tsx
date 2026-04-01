@@ -576,10 +576,11 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
 // ─── PenjaminCombobox ─────────────────────────────────────────────────────────
 
-function PenjaminCombobox({ value, badge, list, usedNames = [], onSelect, onOpenSettings }: {
+function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = false, onSelect, onOpenSettings }: {
   value: string; badge: string;
   list: PenjaminEntry[];
   usedNames?: string[];
+  isDefault?: boolean;
   onSelect: (nama: string, badge: string) => void;
   onOpenSettings?: () => void;
 }) {
@@ -587,7 +588,7 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], onSelect, onOpen
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
 
-  const filtered = query.length >= 1
+  const filtered = query.length >= 1 && !isDefault
     ? list.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
     : [];
   const noResult = query.length >= 2 && filtered.length === 0;
@@ -603,10 +604,12 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], onSelect, onOpen
     <div ref={ref} className="relative flex items-center gap-1">
       <Input
         value={query}
-        onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        className="h-6 text-[10px] w-[155px] px-1.5"
+        onChange={e => { if (!isDefault) { setQuery(e.target.value); setOpen(true); } }}
+        onFocus={() => { if (!isDefault) setOpen(true); }}
+        disabled={isDefault}
+        className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''}`}
         placeholder="Cari penjamin..."
+        title={isDefault ? 'Nama penjamin default tidak bisa diubah' : 'Cari penjamin...'}
       />
       {badge && (
         <span className={`text-[8px] font-bold px-1 py-0.5 rounded border whitespace-nowrap shrink-0 ${labelClass(badge)}`}>
@@ -1133,6 +1136,7 @@ export default function InputHarianTab() {
                           value={row.namaPenjamin} badge={row.badge}
                           list={allList}
                           usedNames={usedNames.filter(n => n !== row.namaPenjamin)}
+                          isDefault={DEFAULT_PENJAMIN_NAMES.has(row.namaPenjamin)}
                           onSelect={(nama,badge) => selectPenjamin(row.id,nama,badge)}
                           onOpenSettings={openAdminSettings}
                         />
