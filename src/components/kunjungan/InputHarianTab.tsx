@@ -1,39 +1,29 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, ChevronDown, Search } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import * as XLSX from 'xlsx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface PenjaminEntry { nama: string; badge: string; }
 
 export interface KunjunganInputRow {
   id: string;
   namaPenjamin: string;
   badge: string;
-  rjYani: number;
-  riYani: number;
-  igd: number;
-  mcuAuto: number; // auto-aggregated from MCU rows
-  promo: number;
-  dokter: number;
-  exc: number;
-  prior: number;
-  grhuRj: number;
-  grhuRi: number;
-  sat: number;
-  ppk1: number;
+  rjYani: number; riYani: number; igd: number; mcuAuto: number;
+  promo: number; dokter: number; exc: number; prior: number;
+  grhuRj: number; grhuRi: number; sat: number; ppk1: number;
   total: number;
 }
 
 export interface McuInputRow {
   id: string;
-  perusahaan: string;
-  label: string;
+  namaPenjamin: string; // linked to tabel utama by name
   paket: string;
-  peserta: number;
-  nominal: number;
-  total: number;
+  peserta: number; nominal: number; total: number;
 }
 
 export interface InputHarianDraft {
@@ -44,9 +34,10 @@ export interface InputHarianDraft {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DRAFT_KEY = 'input-harian-draft';
+const DRAFT_KEY    = 'input-harian-draft';
+const PENJAMIN_KEY = 'penjamin-list-custom';
 
-export const KUNJUNGAN_COLS = [
+export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
   { k: 'riYani',  l: 'RI YANI' },
   { k: 'igd',     l: 'IGD' },
@@ -59,9 +50,8 @@ export const KUNJUNGAN_COLS = [
   { k: 'grhuRi',  l: 'GRHU RI' },
   { k: 'sat',     l: 'SAT' },
   { k: 'ppk1',    l: 'PPK1' },
-] as const;
+];
 
-// Label colors — matches the 9 label categories
 export const LABEL_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   'PG':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-300' },
   'BPJS':          { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' },
@@ -73,31 +63,15 @@ export const LABEL_STYLES: Record<string, { bg: string; text: string; border: st
   'NPG':           { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-300' },
   'AS':            { bg: 'bg-pink-50',    text: 'text-pink-700',    border: 'border-pink-300' },
 };
-
 const ALL_LABELS = Object.keys(LABEL_STYLES);
 
 function labelClass(badge: string) {
-  const s = LABEL_STYLES[badge?.toUpperCase()] || LABEL_STYLES['NPG'];
+  const s = LABEL_STYLES[badge] || LABEL_STYLES['NPG'];
   return `${s.bg} ${s.text} ${s.border}`;
 }
 
-// Default penjamin rows matching Laporan Harian structure
-const DEFAULT_PENJAMIN: Omit<KunjunganInputRow, 'id'>[] = [
-  { namaPenjamin: 'KARYAWAN PG',              badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'KELUARGA PG',              badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS KESEHATAN',           badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS NAIK KELAS.',         badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'KARYAWAN PG BRI LIFE',     badge: 'BRI LIFE PG',    rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'KELUARGA PG BRI LIFE',     badge: 'BRI LIFE PG',    rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'PROKESPEN MURNI',          badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'PROKESPEN BPJS COB',       badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'PASIEN UMUM',              badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)', badge: 'JKK',          rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-];
-
-// Full penjamin list for autocomplete (NPG/AS label)
-const PENJAMIN_LIST: { nama: string; badge: string }[] = [
-  // Fixed labels
+// ─── Default penjamin list (built-in, tidak bisa dihapus) ─────────────────────
+const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'KARYAWAN PG', badge: 'PG' },
   { nama: 'KELUARGA PG', badge: 'PG' },
   { nama: 'KARYAWAN PG INHEALTH', badge: 'PG' },
@@ -115,20 +89,16 @@ const PENJAMIN_LIST: { nama: string; badge: string }[] = [
   { nama: 'BPJS KETENAGAKERJAAN (JKK)', badge: 'JKK' },
   { nama: 'K3PG', badge: 'JKK' },
   { nama: 'COB BPJS KESEHATAN', badge: 'NPG' },
-  // NPG (asuransi & perusahaan)
-  { nama: 'ABYAKTA NASTARI TRANSINDO, PT', badge: 'NPG' },
   { nama: 'ADHI KARYA (PERSERO), PT', badge: 'NPG' },
   { nama: 'ADINATA GRAHA SOLUSI, PT', badge: 'NPG' },
   { nama: 'ADIRA DINAMIKA MEDICILIN (ADMEDIKA)', badge: 'AS' },
   { nama: 'ADMEDIKA - INHEALTH MANDIRI', badge: 'AS' },
-  { nama: 'ADMEDIKA HEALTHCARE SOLUTION', badge: 'AS' },
   { nama: 'AIA ADMEDIKA', badge: 'AS' },
   { nama: 'AIA FINANCIAL', badge: 'AS' },
   { nama: 'AJ INHEALTH', badge: 'AS' },
   { nama: 'AKSES TELKO MEDIKA (PT TELKOM AKSES)', badge: 'NPG' },
   { nama: 'ANEKA JASA GRHADIKA, PT', badge: 'NPG' },
   { nama: 'APLIKANUSA LINTASARTA, PT', badge: 'NPG' },
-  { nama: 'ASTRA AVIVA LIFE, PT', badge: 'AS' },
   { nama: 'ASURANSI ACA (ADMEDIKA)', badge: 'AS' },
   { nama: 'ASURANSI ADIRA MEDICILLIN - JSMART', badge: 'AS' },
   { nama: 'ASURANSI ADMEDIKA', badge: 'AS' },
@@ -152,7 +122,6 @@ const PENJAMIN_LIST: { nama: string; badge: string }[] = [
   { nama: 'CARGILL INDONESIA, PT', badge: 'NPG' },
   { nama: 'CEMINDO GEMILANG', badge: 'NPG' },
   { nama: 'CIGNA INDONESIA, PT (ADMEDIKA)', badge: 'AS' },
-  { nama: 'COB BPJS KESEHATAN', badge: 'NPG' },
   { nama: 'DPB PETROKIMIA KAYAKU', badge: 'NPG' },
   { nama: 'EQUITY LIFE INDONESIA, PT', badge: 'AS' },
   { nama: 'FWD LIFE INDONESIA', badge: 'AS' },
@@ -198,203 +167,426 @@ const PENJAMIN_LIST: { nama: string; badge: string }[] = [
   { nama: 'XINYI GLASS INDONESIA, PT', badge: 'NPG' },
   { nama: 'YAYASAN KESEHATAN PERTAMINA', badge: 'NPG' },
   { nama: 'YAYASAN PETROKIMIA GRESIK', badge: 'NPG' },
-  // MCU pakets
   { nama: 'ANTIGEN MCU', badge: 'UMUM' },
   { nama: 'ANTIGEN PASIEN', badge: 'UMUM' },
   { nama: 'MCU CALON JAMAAH HAJI', badge: 'UMUM' },
   { nama: 'PAKET MINI MCU (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET MERAH PUTIH (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET PAHLAWAN (UMUM)', badge: 'UMUM' },
-  { nama: 'PAKET PEJUANG (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET SEGAR BUGAR', badge: 'UMUM' },
   { nama: 'PAKET SEHAT BUGAR', badge: 'UMUM' },
-  { nama: 'PAKET SCREENING A (UMUM)', badge: 'UMUM' },
-  { nama: 'PAKET SAHABAT DIABETES (UMUM)', badge: 'UMUM' },
-  { nama: 'PAKET SAHABAT JANTUNG BASIC (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET NARKOBA (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET BASIC PEKERJA (UMUM)', badge: 'UMUM' },
 ];
 
+const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
+  { namaPenjamin: 'KARYAWAN PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'KELUARGA PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'KARYAWAN PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'KELUARGA PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'PASIEN UMUM',               badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)',badge: 'JKK',            rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function nanoid()   { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function calcTotal(row: any): number { return KUNJUNGAN_COLS.reduce((s,c) => s+(Number(row[c.k])||0), 0); }
+function defaultRows(): KunjunganInputRow[] { return DEFAULT_ROWS.map(p => ({ ...p, id: nanoid() })); }
+function hasData(k: KunjunganInputRow[], m: McuInputRow[]) { return k.some(r=>r.total>0) || m.length>0; }
+function numericKeyDown(e: React.KeyboardEvent) {
+  const pass = ['Backspace','Tab','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+  if (pass.includes(e.key) || e.ctrlKey || e.metaKey) return;
+  if (!/^\d$/.test(e.key)) e.preventDefault();
 }
 
-function nanoid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+// ─── usePenjaminList hook ─────────────────────────────────────────────────────
+
+function usePenjaminList() {
+  const [custom, setCustom] = useState<PenjaminEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(PENJAMIN_KEY) || '[]'); } catch { return []; }
+  });
+
+  const allList: PenjaminEntry[] = [
+    ...BUILTIN_PENJAMIN,
+    ...custom.filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama)),
+  ];
+
+  const addPenjamin = (entry: PenjaminEntry) => {
+    if (allList.some(p => p.nama.toLowerCase() === entry.nama.toLowerCase())) return false;
+    const next = [...custom, entry];
+    setCustom(next);
+    localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
+    return true;
+  };
+
+  const removePenjamin = (nama: string) => {
+    const next = custom.filter(p => p.nama !== nama);
+    setCustom(next);
+    localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
+  };
+
+  const isBuiltin = (nama: string) => BUILTIN_PENJAMIN.some(p => p.nama === nama);
+
+  return { allList, custom, addPenjamin, removePenjamin, isBuiltin };
 }
 
-function calcTotal(row: Omit<KunjunganInputRow, 'id' | 'total'>): number {
-  return KUNJUNGAN_COLS.reduce((s, c) => s + (Number((row as any)[c.k]) || 0), 0);
+// ─── Export Excel ─────────────────────────────────────────────────────────────
+
+function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: McuInputRow[]) {
+  const wb = XLSX.utils.book_new();
+  const colH = ['KET','JAMINAN','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL'];
+  const aoa: any[][] = [['LAPORAN HARIAN KUNJUNGAN LABORATORIUM A. YANI'],['Tanggal :', tanggal], colH];
+
+  const groups: Record<string, KunjunganInputRow[]> = {};
+  for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
+  for (const [badge, rows] of Object.entries(groups)) {
+    rows.forEach((r,i) => aoa.push([
+      i===0?badge:null, r.namaPenjamin,
+      r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
+    ]));
+  }
+  const tot: any[] = ['TOTAL',null];
+  KUNJUNGAN_COLS.forEach(c => tot.push(kunjungan.reduce((s,r)=>s+(r as any)[c.k],0)));
+  tot.push(kunjungan.reduce((s,r)=>s+r.total,0));
+  aoa.push(tot, [], [' REKAP PER LABEL'],
+    ['LABEL','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL']);
+  for (const [badge, rows] of Object.entries(groups)) {
+    aoa.push([badge,
+      rows.reduce((s,r)=>s+r.rjYani,0), rows.reduce((s,r)=>s+r.riYani,0),
+      rows.reduce((s,r)=>s+r.igd,0),    rows.reduce((s,r)=>s+r.mcuAuto,0),
+      rows.reduce((s,r)=>s+r.promo,0),  rows.reduce((s,r)=>s+r.dokter,0),
+      rows.reduce((s,r)=>s+r.exc,0),    rows.reduce((s,r)=>s+r.prior,0),
+      rows.reduce((s,r)=>s+r.grhuRj,0), rows.reduce((s,r)=>s+r.grhuRi,0),
+      rows.reduce((s,r)=>s+r.sat,0),    rows.reduce((s,r)=>s+r.ppk1,0),
+      rows.reduce((s,r)=>s+r.total,0),
+    ]);
+  }
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa);
+  ws1['!cols'] = [{ wch:14 },{ wch:36 },...Array(13).fill({ wch:10 })];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Laporan Harian');
+
+  const mcuAoa: any[][] = [
+    [`MCU HARIAN - ${tanggal}`],
+    ['No.','Nama Penjamin','Paket','Peserta','Nominal/Orang','Total'],
+    ...mcu.map((r,i) => [i+1,r.namaPenjamin,r.paket,r.peserta,r.nominal,r.total]),
+    ['TOTAL',null,null,mcu.reduce((s,r)=>s+r.peserta,0),null,mcu.reduce((s,r)=>s+r.total,0)],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(mcuAoa);
+  ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:20 },{ wch:10 },{ wch:14 },{ wch:14 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'MCU Harian');
+  XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);
 }
 
-function defaultKunjunganRows(): KunjunganInputRow[] {
-  return DEFAULT_PENJAMIN.map(p => ({ ...p, id: nanoid() }));
-}
+// ─── PenjaminCombobox ─────────────────────────────────────────────────────────
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-/** Combobox for penjamin name with autocomplete */
-function PenjaminCombobox({
-  value,
-  badge,
-  onChange,
-}: {
-  value: string;
-  badge: string;
-  onChange: (nama: string, badge: string) => void;
+function PenjaminCombobox({ value, badge, list, usedNames = [], onSelect, onOpenSettings }: {
+  value: string; badge: string;
+  list: PenjaminEntry[];
+  usedNames?: string[];
+  onSelect: (nama: string, badge: string) => void;
+  onOpenSettings?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const ref = useRef<HTMLDivElement>(null);
 
   const filtered = query.length >= 1
-    ? PENJAMIN_LIST.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    ? list.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
     : [];
+  const noResult = query.length >= 2 && filtered.length === 0;
 
   useEffect(() => { setQuery(value); }, [value]);
-
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
   return (
-    <div ref={ref} className="relative">
-      <div className="flex items-center gap-1">
-        <Input
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => {
-            // commit free-text if not in list
-            if (query !== value) onChange(query, badge);
-          }, 150)}
-          className="h-7 text-[11px] w-[160px]"
-          placeholder="Cari penjamin..."
-        />
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${labelClass(badge)}`}>
-          {badge || '?'}
+    <div ref={ref} className="relative flex items-center gap-1">
+      <Input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        className="h-6 text-[10px] w-[155px] px-1.5"
+        placeholder="Cari penjamin..."
+      />
+      {badge && (
+        <span className={`text-[8px] font-bold px-1 py-0.5 rounded border whitespace-nowrap shrink-0 ${labelClass(badge)}`}>
+          {badge}
         </span>
-      </div>
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 top-8 left-0 w-72 bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
-          {filtered.map(p => (
-            <button
-              key={p.nama}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left hover:bg-muted transition-colors"
-              onMouseDown={() => { onChange(p.nama, p.badge); setQuery(p.nama); setOpen(false); }}
-            >
-              <span className={`text-[9px] font-bold px-1 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>{p.badge}</span>
-              <span className="truncate">{p.nama}</span>
-            </button>
-          ))}
+      )}
+      {open && (filtered.length > 0 || noResult) && (
+        <div className="absolute z-50 top-7 left-0 w-72 bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
+          {filtered.map(p => {
+            const isUsed = usedNames.includes(p.nama);
+            return (
+              <button key={p.nama}
+                className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-left transition-colors
+                  ${isUsed ? 'opacity-40 cursor-not-allowed bg-muted' : 'hover:bg-muted'}`}
+                onMouseDown={() => {
+                  if (isUsed) return;
+                  onSelect(p.nama, p.badge);
+                  setQuery(p.nama);
+                  setOpen(false);
+                }}>
+                <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>{p.badge}</span>
+                <span className="truncate">{p.nama}</span>
+                {isUsed && <span className="ml-auto text-[8px] text-muted-foreground shrink-0">sudah ada</span>}
+              </button>
+            );
+          })}
+          {noResult && (
+            <div className="px-3 py-2.5 text-[10px] text-muted-foreground space-y-1">
+              <p>"{query}" tidak ditemukan di list.</p>
+              {onOpenSettings && (
+                <button
+                  className="flex items-center gap-1 text-accent font-semibold hover:underline"
+                  onMouseDown={() => { setOpen(false); onOpenSettings(); }}>
+                  <Settings className="w-3 h-3" /> Tambah penjamin baru di Settings
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/** Summary card */
-function SummaryCard({ label, value, color, sub }: { label: string; value: number; color: string; sub?: string }) {
+// ─── Settings Modal ───────────────────────────────────────────────────────────
+
+function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
+  list: PenjaminEntry[];
+  custom: PenjaminEntry[];
+  onAdd: (e: PenjaminEntry) => boolean;
+  onRemove: (nama: string) => void;
+  onClose: () => void;
+  isBuiltin: (nama: string) => boolean;
+}) {
+  const [newNama,  setNewNama]  = useState('');
+  const [newBadge, setNewBadge] = useState('NPG');
+  const [search,   setSearch]   = useState('');
+
+  const filtered = list.filter(p =>
+    p.nama.toLowerCase().includes(search.toLowerCase()) ||
+    p.badge.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAdd = () => {
+    const nama = newNama.trim().toUpperCase();
+    if (!nama) return;
+    const ok = onAdd({ nama, badge: newBadge });
+    if (ok) { setNewNama(''); toast.success(`${nama} ditambahkan ke list`); }
+    else toast.error('Nama penjamin sudah ada di list');
+  };
+
   return (
-    <div className="card-clinical px-3 py-2 flex flex-col gap-0.5 min-w-[90px]">
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">{label}</p>
-      <p className="text-lg font-bold font-display" style={{ color }}>{value}</p>
-      {sub && <p className="text-[9px] text-muted-foreground">{sub}</p>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-bold flex items-center gap-2">
+            <Settings className="w-4 h-4" /> Manajemen List Penjamin
+          </h2>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        {/* Add new */}
+        <div className="px-4 py-3 border-b border-border space-y-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Tambah Penjamin Baru</p>
+          <div className="flex gap-2">
+            <Input
+              value={newNama}
+              onChange={e => setNewNama(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              className="h-7 text-xs flex-1"
+              placeholder="Nama penjamin (huruf kapital)"
+            />
+            <select
+              value={newBadge}
+              onChange={e => setNewBadge(e.target.value)}
+              className={`h-7 text-[10px] font-bold rounded border px-1.5 w-32 cursor-pointer ${labelClass(newBadge)}`}>
+              {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <Button size="sm" className="h-7 text-xs px-2 shrink-0" onClick={handleAdd}>
+              <Plus className="w-3 h-3 mr-1" /> Tambah
+            </Button>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 py-2 border-b border-border">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input value={search} onChange={e => setSearch(e.target.value)}
+              className="h-7 text-xs pl-7" placeholder={`Cari dari ${list.length} penjamin...`} />
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1 px-2 py-1">
+          {filtered.map(p => (
+            <div key={p.nama}
+              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
+              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>
+                {p.badge}
+              </span>
+              <span className="text-[11px] flex-1 truncate">{p.nama}</span>
+              {isBuiltin(p.nama)
+                ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
+                : (
+                  <Button variant="ghost" size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
+                    onClick={() => { onRemove(p.nama); toast.success(`${p.nama} dihapus dari list`); }}>
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </Button>
+                )
+              }
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-center text-[10px] text-muted-foreground py-6">Tidak ada hasil untuk "{search}"</p>
+          )}
+        </div>
+
+        <div className="px-4 py-2 border-t border-border text-[9px] text-muted-foreground">
+          {list.length} total · {custom.length} ditambahkan · {BUILTIN_PENJAMIN.length} bawaan
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── SummaryCard ──────────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, color, sub }: { label: string; value: number; color: string; sub?: string }) {
+  return (
+    <div className="card-clinical px-2.5 py-1.5 flex flex-col min-w-[80px]">
+      <p className="text-[8px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">{label}</p>
+      <p className="text-base font-bold font-display leading-tight" style={{ color }}>{value}</p>
+      {sub && <p className="text-[8px] text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const [tanggal, setTanggal] = useState(todayISO());
-  const [kunjungan, setKunjungan] = useState<KunjunganInputRow[]>(defaultKunjunganRows());
-  const [mcu, setMcu] = useState<McuInputRow[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const { allList, custom, addPenjamin, removePenjamin, isBuiltin } = usePenjaminList();
 
-  // ── Load draft ─────────────────────────────────────────────────────────────
+  const [tanggal,    setTanggal]    = useState(todayISO());
+  const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
+  const [mcu,        setMcu]        = useState<McuInputRow[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Load draft
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
-        const draft: InputHarianDraft = JSON.parse(raw);
-        setTanggal(draft.tanggal || todayISO());
-        setKunjungan(draft.kunjungan?.length ? draft.kunjungan : defaultKunjunganRows());
-        setMcu(draft.mcu || []);
+        const d: InputHarianDraft = JSON.parse(raw);
+        setTanggal(d.tanggal || todayISO());
+        setKunjungan(d.kunjungan?.length ? d.kunjungan : defaultRows());
+        setMcu(d.mcu || []);
       }
     } catch { /* ignore */ }
   }, []);
 
-  // ── Auto-save draft ────────────────────────────────────────────────────────
+  // Auto-save
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
   }, [tanggal, kunjungan, mcu]);
 
-  // ── MCU → auto-aggregate mcuAuto per badge ─────────────────────────────────
+  // Warn on leave
   useEffect(() => {
-    // Build map: badge → total peserta
-    const mcuByBadge: Record<string, number> = {};
-    for (const row of mcu) {
-      if (row.label) {
-        mcuByBadge[row.label] = (mcuByBadge[row.label] || 0) + (row.peserta || 0);
-      }
-    }
+    const h = (e: BeforeUnloadEvent) => {
+      if (hasData(kunjungan, mcu)) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [kunjungan, mcu]);
 
+  // ── MCU → aggregate mcuAuto by NAMA PENJAMIN ──────────────────────────────
+  useEffect(() => {
+    // Build map: namaPenjamin → total peserta
+    const byName: Record<string, number> = {};
+    for (const r of mcu) {
+      if (r.namaPenjamin) byName[r.namaPenjamin] = (byName[r.namaPenjamin]||0) + (r.peserta||0);
+    }
     setKunjungan(prev => prev.map(row => {
-      const aggregated = mcuByBadge[row.badge] || 0;
-      if (row.mcuAuto === aggregated) return row;
-      const updated = { ...row, mcuAuto: aggregated };
+      const agg = byName[row.namaPenjamin] || 0;
+      if (row.mcuAuto === agg) return row;
+      const updated = { ...row, mcuAuto: agg };
       updated.total = calcTotal(updated);
       return updated;
     }));
   }, [mcu]);
 
-  // ── Kunjungan handlers ─────────────────────────────────────────────────────
+  // ── Kunjungan handlers ────────────────────────────────────────────────────
   const updateKunjungan = useCallback((id: string, field: string, val: string) => {
     setKunjungan(prev => prev.map(row => {
       if (row.id !== id) return row;
-      const updated = { ...row, [field]: Number(val) || 0 };
+      const updated = { ...row, [field]: Number(val)||0 };
       updated.total = calcTotal(updated);
       return updated;
     }));
   }, []);
 
-  const updatePenjamin = useCallback((id: string, nama: string, badge: string) => {
-    setKunjungan(prev => prev.map(row => row.id === id ? { ...row, namaPenjamin: nama, badge } : row));
+  const selectPenjamin = useCallback((id: string, nama: string, badge: string) => {
+    // Check duplicate
+    setKunjungan(prev => {
+      const isDup = prev.some(r => r.id !== id && r.namaPenjamin === nama);
+      if (isDup) {
+        toast.warning(`"${nama}" sudah ada di tabel — tidak bisa duplikat`);
+        // Clear the input
+        return prev.map(r => r.id === id ? { ...r, namaPenjamin: '', badge: 'NPG' } : r);
+      }
+      return prev.map(r => r.id === id ? { ...r, namaPenjamin: nama, badge } : r);
+    });
   }, []);
 
-  const addKunjunganRow = () => {
-    setKunjungan(prev => [...prev, { id: nanoid(), namaPenjamin: '', badge: 'NPG', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 }]);
-  };
+  const addKunjunganRow = () => setKunjungan(prev => [...prev, {
+    id: nanoid(), namaPenjamin: '', badge: 'NPG',
+    rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0,
+  }]);
+  const removeKunjunganRow = (id: string) => setKunjungan(prev => prev.filter(r => r.id !== id));
 
-  const removeKunjunganRow = (id: string) => {
-    setKunjungan(prev => prev.filter(r => r.id !== id));
-  };
+  // Names already used in tabel utama (for showing "sudah ada" in dropdown)
+  const usedNames = kunjungan.map(r => r.namaPenjamin).filter(Boolean);
 
-  // ── MCU handlers ───────────────────────────────────────────────────────────
+  // ── MCU handlers ──────────────────────────────────────────────────────────
   const updateMcu = useCallback((id: string, field: string, val: string) => {
     setMcu(prev => prev.map(row => {
       if (row.id !== id) return row;
-      const numFields = ['peserta', 'nominal'];
-      const updated = { ...row, [field]: numFields.includes(field) ? Number(val) || 0 : val };
+      const num = ['peserta','nominal'].includes(field);
+      const updated = { ...row, [field]: num ? Number(val)||0 : val };
       updated.total = updated.peserta * updated.nominal;
       return updated;
     }));
   }, []);
 
-  const addMcuRow = () => setMcu(prev => [...prev, { id: nanoid(), perusahaan: '', label: 'NPG', paket: '', peserta: 0, nominal: 0, total: 0 }]);
+  const selectMcuPenjamin = useCallback((id: string, nama: string) => {
+    setMcu(prev => prev.map(r => r.id === id ? { ...r, namaPenjamin: nama } : r));
+  }, []);
+
+  const addMcuRow    = () => setMcu(prev => [...prev, { id: nanoid(), namaPenjamin:'', paket:'', peserta:0, nominal:0, total:0 }]);
   const removeMcuRow = (id: string) => setMcu(prev => prev.filter(r => r.id !== id));
 
   // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = () => {
+    if (hasData(kunjungan, mcu) && !confirm('Reset semua data yang sudah diisi?')) return;
     setTanggal(todayISO());
-    setKunjungan(defaultKunjunganRows());
+    setKunjungan(defaultRows());
     setMcu([]);
     localStorage.removeItem(DRAFT_KEY);
     toast.success('Form direset');
@@ -402,333 +594,319 @@ export default function InputHarianTab() {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
+    const empty = kunjungan.filter(r => r.total>0 && !r.namaPenjamin.trim());
+    if (empty.length) { toast.error(`${empty.length} baris ada angka tapi nama penjamin kosong`); return; }
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     if (!GS_URL) { toast.error('VITE_GAS_INPUT_URL belum diset di .env'); return; }
-
     setSubmitting(true);
     try {
       await fetch(GS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'inputHarian', tanggal, kunjungan, mcu }),
+        method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
       });
       toast.success('Data berhasil dikirim ke Sheets!');
       localStorage.removeItem(DRAFT_KEY);
     } catch (err: any) {
       toast.error(`Gagal kirim: ${err.message}`);
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
-  // ── Computed totals & summary ──────────────────────────────────────────────
-  const colTotals = KUNJUNGAN_COLS.map(c => ({
-    k: c.k,
-    total: kunjungan.reduce((s, r) => s + (Number((r as any)[c.k]) || 0), 0),
-  }));
-
-  const grandTotal = kunjungan.reduce((s, r) => s + r.total, 0);
-
-  // Summary per unit
+  // ── Computed ───────────────────────────────────────────────────────────────
+  const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
+  const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
-    rj: kunjungan.reduce((s, r) => s + r.rjYani, 0),
-    ri: kunjungan.reduce((s, r) => s + r.riYani, 0),
-    igd: kunjungan.reduce((s, r) => s + r.igd, 0),
-    mcu: kunjungan.reduce((s, r) => s + r.mcuAuto, 0),
-    promo: kunjungan.reduce((s, r) => s + r.promo, 0),
+    rj:    kunjungan.reduce((s,r)=>s+r.rjYani,0),
+    ri:    kunjungan.reduce((s,r)=>s+r.riYani,0),
+    igd:   kunjungan.reduce((s,r)=>s+r.igd,0),
+    mcu:   kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
+    promo: kunjungan.reduce((s,r)=>s+r.promo,0),
   };
-
-  // Summary per label per unit
   const labelSummary = ALL_LABELS.map(label => {
-    const rows = kunjungan.filter(r => r.badge === label);
-    return {
-      label,
-      rj: rows.reduce((s, r) => s + r.rjYani, 0),
-      ri: rows.reduce((s, r) => s + r.riYani, 0),
-      igd: rows.reduce((s, r) => s + r.igd, 0),
-      mcu: rows.reduce((s, r) => s + r.mcuAuto, 0),
-      total: rows.reduce((s, r) => s + r.total, 0),
-    };
-  }).filter(l => l.total > 0);
+    const rows = kunjungan.filter(r=>r.badge===label);
+    return { label, rj:rows.reduce((s,r)=>s+r.rjYani,0), ri:rows.reduce((s,r)=>s+r.riYani,0),
+      igd:rows.reduce((s,r)=>s+r.igd,0), mcu:rows.reduce((s,r)=>s+r.mcuAuto,0),
+      total:rows.reduce((s,r)=>s+r.total,0) };
+  }).filter(l=>l.total>0);
+  const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
+  const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
 
-  const mcuTotalPeserta = mcu.reduce((s, r) => s + r.peserta, 0);
-  const mcuTotalNominal = mcu.reduce((s, r) => s + r.total, 0);
+  // MCU: which names are linked to tabel utama
+  const linkedNames = new Set(kunjungan.map(r=>r.namaPenjamin).filter(Boolean));
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const ActionButtons = () => (
+    <div className="flex gap-1.5">
+      <Button variant="outline" size="sm" className="h-7 text-xs px-2"
+        onClick={() => setShowSettings(true)}>
+        <Settings className="w-3 h-3 mr-1" /> Penjamin
+      </Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs px-2"
+        onClick={() => exportToExcel(tanggal, kunjungan, mcu)}>
+        <Download className="w-3 h-3 mr-1" /> Export Excel
+      </Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={handleReset}>
+        <RotateCcw className="w-3 h-3 mr-1" /> Reset
+      </Button>
+      <Button size="sm" className="h-7 text-xs px-2 bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 text-white"
+        onClick={handleSubmit} disabled={submitting}>
+        <Send className="w-3 h-3 mr-1" />{submitting?'Mengirim...':'Submit ke Sheets'}
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-4 page-transition">
+    <>
+      {showSettings && (
+        <SettingsModal
+          list={allList} custom={custom}
+          onAdd={addPenjamin} onRemove={removePenjamin}
+          onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
+        />
+      )}
 
-      {/* ── Date picker + action bar ──────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-muted-foreground">Tanggal</label>
-          <Input
-            type="date"
-            value={tanggal}
-            onChange={e => setTanggal(e.target.value)}
-            className="w-38 text-sm h-8"
-          />
-        </div>
-        <div className="text-xs text-muted-foreground flex items-center gap-1 ml-1">
-          <Save className="w-3 h-3" />
-          <span>Draft tersimpan otomatis</span>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleReset}>
-            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
-          </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={submitting}
-            className="bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 text-white">
-            <Send className="w-3.5 h-3.5 mr-1" />
-            {submitting ? 'Mengirim...' : 'Submit ke Sheets'}
-          </Button>
-        </div>
-      </div>
+      <div className="space-y-3 page-transition">
 
-      {/* ── Summary harian ───────────────────────────────────────────────── */}
-      <div className="card-clinical p-4 space-y-3">
-        <h3 className="text-sm font-bold">Summary Harian — {tanggal}</h3>
-
-        {/* Per unit */}
-        <div className="flex gap-2 flex-wrap">
-          <SummaryCard label="RJ A.Yani" value={unitSummary.rj} color="#2563eb" />
-          <SummaryCard label="RI A.Yani" value={unitSummary.ri} color="#7c3aed" />
-          <SummaryCard label="IGD" value={unitSummary.igd} color="#dc2626" />
-          <SummaryCard label="MCU" value={unitSummary.mcu} color="#0891b2" sub={`${mcuTotalPeserta} peserta MCU`} />
-          <SummaryCard label="Promo" value={unitSummary.promo} color="#059669" />
-          <SummaryCard label="Grand Total" value={grandTotal} color="#0a9e87" />
+        {/* Topbar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground">Tanggal</label>
+            <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)} className="w-36 text-xs h-7" />
+          </div>
+          <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+            <Save className="w-2.5 h-2.5" /> Draft tersimpan otomatis
+          </span>
+          <div className="ml-auto"><ActionButtons /></div>
         </div>
 
-        {/* Per label breakdown */}
-        {labelSummary.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px] font-mono-data">
+        {/* Summary */}
+        <div className="card-clinical p-3 space-y-2">
+          <h3 className="text-xs font-bold">Summary — {tanggal}</h3>
+          <div className="flex gap-1.5 flex-wrap">
+            <SummaryCard label="RJ A.Yani"   value={unitSummary.rj}    color="#2563eb" />
+            <SummaryCard label="RI A.Yani"   value={unitSummary.ri}    color="#7c3aed" />
+            <SummaryCard label="IGD"         value={unitSummary.igd}   color="#dc2626" />
+            <SummaryCard label="MCU"         value={unitSummary.mcu}   color="#0891b2" sub={`${mcuTotalPeserta} peserta`} />
+            <SummaryCard label="Promo"       value={unitSummary.promo} color="#059669" />
+            <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
+          </div>
+          {labelSummary.length>0 && (
+            <table className="w-full text-[10px] font-mono-data">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-1.5 pr-3 font-semibold text-muted-foreground">LABEL</th>
-                  <th className="text-right py-1.5 px-2 font-semibold text-muted-foreground">RJ</th>
-                  <th className="text-right py-1.5 px-2 font-semibold text-muted-foreground">RI</th>
-                  <th className="text-right py-1.5 px-2 font-semibold text-muted-foreground">IGD</th>
-                  <th className="text-right py-1.5 px-2 font-semibold text-muted-foreground">MCU</th>
-                  <th className="text-right py-1.5 pl-2 font-semibold text-muted-foreground">TOTAL</th>
+                  {['LABEL','RJ','RI','IGD','MCU','TOTAL'].map((h,i)=>(
+                    <th key={h} className={`py-1 text-[9px] text-muted-foreground font-semibold ${i===0?'text-left pr-3':'text-right px-1.5'}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {labelSummary.map(l => (
-                  <tr key={l.label} className="border-b border-border/30">
-                    <td className="py-1 pr-3">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${labelClass(l.label)}`}>{l.label}</span>
+                {labelSummary.map(l=>(
+                  <tr key={l.label} className="border-b border-border/20">
+                    <td className="py-0.5 pr-3">
+                      <span className={`text-[8px] font-bold px-1 py-0.5 rounded border ${labelClass(l.label)}`}>{l.label}</span>
                     </td>
-                    <td className="text-right px-2 py-1">{l.rj || '—'}</td>
-                    <td className="text-right px-2 py-1">{l.ri || '—'}</td>
-                    <td className="text-right px-2 py-1">{l.igd || '—'}</td>
-                    <td className="text-right px-2 py-1">{l.mcu || '—'}</td>
-                    <td className="text-right pl-2 py-1 font-bold text-[#0a9e87]">{l.total}</td>
+                    <td className="text-right px-1.5">{l.rj||'—'}</td>
+                    <td className="text-right px-1.5">{l.ri||'—'}</td>
+                    <td className="text-right px-1.5">{l.igd||'—'}</td>
+                    <td className="text-right px-1.5">{l.mcu||'—'}</td>
+                    <td className="text-right pl-1.5 font-bold text-[#0a9e87]">{l.total}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Tabel Kunjungan per Penjamin ──────────────────────────────────── */}
-      <div className="card-clinical p-4 overflow-hidden">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold">Kunjungan per Penjamin</h3>
-          <span className="text-xs text-muted-foreground">{kunjungan.length} baris</span>
+          )}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data" style={{ minWidth: '1000px' }}>
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left w-7">#</th>
-                <th className="px-2 py-2 text-left" style={{ minWidth: '200px' }}>NAMA PENJAMIN</th>
-                {KUNJUNGAN_COLS.map(c => (
-                  <th key={c.k} className={`px-2 py-2 text-center whitespace-nowrap ${'readOnly' in c && c.readOnly ? 'bg-blue-50 text-blue-700' : ''}`}>
-                    {c.l}
-                    {'readOnly' in c && c.readOnly && <span className="block text-[8px] text-blue-400">auto</span>}
-                  </th>
-                ))}
-                <th className="px-2 py-2 text-right font-bold">TOTAL</th>
-                <th className="px-2 py-2 w-7" />
-              </tr>
-            </thead>
-            <tbody>
-              {kunjungan.map((row, i) => (
-                <tr key={row.id} className="border-t border-border/40 hover:bg-muted/20 transition-colors">
-                  <td className="px-2 py-1 text-muted-foreground">{i + 1}</td>
-                  <td className="px-1 py-1">
-                    <PenjaminCombobox
-                      value={row.namaPenjamin}
-                      badge={row.badge}
-                      onChange={(nama, badge) => updatePenjamin(row.id, nama, badge)}
-                    />
-                  </td>
-                  {KUNJUNGAN_COLS.map(c => {
-                    const isAuto = 'readOnly' in c && c.readOnly;
-                    const val = (row as any)[c.k] as number;
-                    return (
-                      <td key={c.k} className={`px-1 py-1 ${isAuto ? 'bg-blue-50/50' : ''}`}>
-                        {isAuto ? (
-                          <div className="h-7 w-14 flex items-center justify-center text-blue-700 font-bold text-[11px]">
-                            {val > 0 ? val : '—'}
-                          </div>
-                        ) : (
-                          <Input
-                            type="number"
-                            min={0}
-                            value={val === 0 ? '' : val}
-                            onChange={e => updateKunjungan(row.id, c.k, e.target.value)}
-                            className="h-7 text-[11px] text-center w-14 px-1"
-                            placeholder="—"
-                          />
+        {/* Tabel Kunjungan */}
+        <div className="card-clinical p-3 overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-bold">Kunjungan per Penjamin</h3>
+            <span className="text-[9px] text-muted-foreground">{kunjungan.length} baris</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono-data" style={{ minWidth:'820px', fontSize:'10px' }}>
+              <thead>
+                <tr className="bg-muted">
+                  <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
+                  {KUNJUNGAN_COLS.map(c=>(
+                    <th key={c.k} className={`px-1 py-1.5 text-center whitespace-nowrap text-[9px] ${c.readOnly?'bg-blue-50 text-blue-700':''}`}>
+                      {c.l}
+                      {c.readOnly && <span className="block text-[7px] text-blue-400 leading-none">auto</span>}
+                    </th>
+                  ))}
+                  <th className="px-1 py-1.5 text-right font-bold text-[9px]">TOTAL</th>
+                  <th className="w-6"/>
+                </tr>
+              </thead>
+              <tbody>
+                {kunjungan.map((row,i)=>{
+                  const isEmpty = !row.namaPenjamin.trim();
+                  return (
+                    <tr key={row.id} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-1 py-0.5 text-muted-foreground text-[9px]">{i+1}</td>
+                      <td className="px-0.5 py-0.5">
+                        <PenjaminCombobox
+                          value={row.namaPenjamin} badge={row.badge}
+                          list={allList}
+                          usedNames={usedNames.filter(n => n !== row.namaPenjamin)}
+                          onSelect={(nama,badge) => selectPenjamin(row.id,nama,badge)}
+                          onOpenSettings={() => setShowSettings(true)}
+                        />
+                      </td>
+                      {KUNJUNGAN_COLS.map(c=>{
+                        const isAuto = !!c.readOnly;
+                        const val = (row as any)[c.k] as number;
+                        return (
+                          <td key={c.k} className={`px-0.5 py-0.5 ${isAuto?'bg-blue-50/40':''}`}>
+                            {isAuto?(
+                              <div className="h-6 w-11 flex items-center justify-center text-blue-700 font-bold text-[10px]">
+                                {val>0?val:'—'}
+                              </div>
+                            ):(
+                              <Input type="number" min={0}
+                                value={val===0?'':val}
+                                disabled={isEmpty}
+                                onChange={e=>updateKunjungan(row.id,c.k,e.target.value)}
+                                onKeyDown={numericKeyDown}
+                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty?'opacity-40 cursor-not-allowed':''}`}
+                                placeholder="—" title={isEmpty?'Isi nama penjamin dulu':''}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-1 py-0.5 text-right font-bold text-[#0a9e87] text-[10px]">
+                        {row.total>0?row.total:'—'}
+                      </td>
+                      <td className="px-0.5 py-0.5">
+                        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                          onClick={()=>removeKunjunganRow(row.id)}>
+                          <Trash2 className="w-2.5 h-2.5"/>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-t-2 border-border bg-muted/60 font-bold">
+                  <td colSpan={2} className="px-1 py-1.5 text-right text-[9px] text-muted-foreground">TOTAL</td>
+                  {colTotals.map(c=>(
+                    <td key={c.k} className="px-1 py-1.5 text-center text-[10px] text-[#0a9e87]">
+                      {c.total>0?c.total:'—'}
+                    </td>
+                  ))}
+                  <td className="px-1 py-1.5 text-right text-[10px] text-[#0a9e87]">{grandTotal>0?grandTotal:'—'}</td>
+                  <td/>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <Button variant="outline" size="sm" className="text-[10px] h-6 px-2 mt-2" onClick={addKunjunganRow}>
+            <Plus className="w-2.5 h-2.5 mr-1"/> + Penjamin Baru
+          </Button>
+        </div>
+
+        {/* Tabel MCU */}
+        <div className="card-clinical p-3 overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-xs font-bold">MCU Harian</h3>
+              <p className="text-[9px] text-muted-foreground">
+                Peserta dijumlah per nama penjamin → otomatis masuk kolom MCU AUTO
+              </p>
+            </div>
+            <span className="text-[9px] text-muted-foreground">{mcu.length} baris · {mcuTotalPeserta} peserta</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full font-mono-data" style={{ minWidth:'560px', fontSize:'10px' }}>
+              <thead>
+                <tr className="bg-muted">
+                  <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'120px' }}>PAKET</th>
+                  <th className="px-1 py-1.5 text-center w-16 text-[9px]">PESERTA</th>
+                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">NOMINAL/ORG</th>
+                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">TOTAL</th>
+                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">LINK</th>
+                  <th className="w-6"/>
+                </tr>
+              </thead>
+              <tbody>
+                {mcu.length===0 && (
+                  <tr><td colSpan={8} className="px-2 py-6 text-center text-muted-foreground text-[10px]">
+                    Belum ada data MCU — klik "+ Baris MCU"
+                  </td></tr>
+                )}
+                {mcu.map((row,i)=>{
+                  const isLinked = linkedNames.has(row.namaPenjamin);
+                  return (
+                    <tr key={row.id} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-1 py-0.5 text-muted-foreground text-[9px]">{i+1}</td>
+                      <td className="px-0.5 py-0.5">
+                        <PenjaminCombobox
+                          value={row.namaPenjamin} badge={''}
+                          list={allList}
+                          onSelect={(nama) => selectMcuPenjamin(row.id, nama)}
+                          onOpenSettings={() => setShowSettings(true)}
+                        />
+                      </td>
+                      <td className="px-0.5 py-0.5">
+                        <Input value={row.paket} onChange={e=>updateMcu(row.id,'paket',e.target.value)}
+                          className="h-6 text-[10px]" placeholder="Nama paket"/>
+                      </td>
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} value={row.peserta||''}
+                          onChange={e=>updateMcu(row.id,'peserta',e.target.value)}
+                          onKeyDown={numericKeyDown}
+                          className="h-6 text-[10px] text-center w-full" placeholder="0"/>
+                      </td>
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} value={row.nominal||''}
+                          onChange={e=>updateMcu(row.id,'nominal',e.target.value)}
+                          onKeyDown={numericKeyDown}
+                          className="h-6 text-[10px] text-right w-full" placeholder="0"/>
+                      </td>
+                      <td className="px-1 py-0.5 text-right font-bold text-[#0a9e87] text-[10px]">
+                        {row.total>0?row.total.toLocaleString('id-ID'):'—'}
+                      </td>
+                      <td className="px-1 py-0.5 text-center">
+                        {row.namaPenjamin && (
+                          isLinked
+                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded">✓ linked</span>
+                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">not in tabel</span>
                         )}
                       </td>
-                    );
-                  })}
-                  <td className="px-2 py-1 text-right font-bold text-[#0a9e87]">
-                    {row.total > 0 ? row.total : '—'}
-                  </td>
-                  <td className="px-1 py-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeKunjunganRow(row.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-
-              {/* Total row */}
-              <tr className="border-t-2 border-border bg-muted/60 font-bold">
-                <td colSpan={2} className="px-2 py-2 text-right text-xs text-muted-foreground">TOTAL</td>
-                {colTotals.map(c => (
-                  <td key={c.k} className="px-2 py-2 text-center text-[#0a9e87]">
-                    {c.total > 0 ? c.total : '—'}
-                  </td>
-                ))}
-                <td className="px-2 py-2 text-right text-[#0a9e87]">{grandTotal > 0 ? grandTotal : '—'}</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <Button variant="outline" size="sm" className="text-xs mt-3" onClick={addKunjunganRow}>
-          <Plus className="w-3 h-3 mr-1" /> + Penjamin Baru
-        </Button>
-      </div>
-
-      {/* ── Tabel MCU Harian ──────────────────────────────────────────────── */}
-      <div className="card-clinical p-4 overflow-hidden">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-bold">MCU Harian</h3>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Total peserta akan otomatis teraggregate ke kolom MCU AUTO per label
-            </p>
+                      <td className="px-0.5 py-0.5">
+                        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                          onClick={()=>removeMcuRow(row.id)}>
+                          <Trash2 className="w-2.5 h-2.5"/>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {mcu.length>0 && (
+                  <tr className="border-t-2 border-border bg-muted/60 font-bold">
+                    <td colSpan={3} className="px-1 py-1.5 text-right text-[9px] text-muted-foreground">TOTAL</td>
+                    <td className="px-1 py-1.5 text-center text-[10px] text-[#0a9e87]">{mcuTotalPeserta}</td>
+                    <td/>
+                    <td className="px-1 py-1.5 text-right text-[10px] text-[#0a9e87]">{mcuTotalNominal.toLocaleString('id-ID')}</td>
+                    <td/><td/>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-          <span className="text-xs text-muted-foreground">{mcu.length} baris · {mcuTotalPeserta} peserta</span>
+          <Button variant="outline" size="sm" className="text-[10px] h-6 px-2 mt-2" onClick={addMcuRow}>
+            <Plus className="w-2.5 h-2.5 mr-1"/> + Baris MCU
+          </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data" style={{ minWidth: '680px' }}>
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left w-7">#</th>
-                <th className="px-2 py-2 text-left" style={{ minWidth: '200px' }}>PERUSAHAAN</th>
-                <th className="px-2 py-2 text-center w-24">LABEL</th>
-                <th className="px-2 py-2 text-left" style={{ minWidth: '120px' }}>PAKET</th>
-                <th className="px-2 py-2 text-center w-20">PESERTA</th>
-                <th className="px-2 py-2 text-right w-28">NOMINAL/ORG</th>
-                <th className="px-2 py-2 text-right w-28">TOTAL</th>
-                <th className="px-2 py-2 w-7" />
-              </tr>
-            </thead>
-            <tbody>
-              {mcu.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-2 py-8 text-center text-muted-foreground text-xs">
-                    Belum ada data MCU — klik "+ Baris MCU" untuk menambah
-                  </td>
-                </tr>
-              )}
-              {mcu.map((row, i) => (
-                <tr key={row.id} className="border-t border-border/40 hover:bg-muted/20">
-                  <td className="px-2 py-1 text-muted-foreground">{i + 1}</td>
-                  <td className="px-1 py-1">
-                    <Input value={row.perusahaan} onChange={e => updateMcu(row.id, 'perusahaan', e.target.value)}
-                      className="h-7 text-[11px]" placeholder="Nama perusahaan" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <select
-                      value={row.label}
-                      onChange={e => updateMcu(row.id, 'label', e.target.value)}
-                      className={`h-7 w-full text-[10px] font-bold rounded border px-1 cursor-pointer ${labelClass(row.label)}`}
-                    >
-                      {ALL_LABELS.map(l => (
-                        <option key={l} value={l}>{l}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input value={row.paket} onChange={e => updateMcu(row.id, 'paket', e.target.value)}
-                      className="h-7 text-[11px]" placeholder="Nama paket" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" min={0} value={row.peserta || ''}
-                      onChange={e => updateMcu(row.id, 'peserta', e.target.value)}
-                      className="h-7 text-[11px] text-center w-full" placeholder="0" />
-                  </td>
-                  <td className="px-1 py-1">
-                    <Input type="number" min={0} value={row.nominal || ''}
-                      onChange={e => updateMcu(row.id, 'nominal', e.target.value)}
-                      className="h-7 text-[11px] text-right w-full" placeholder="0" />
-                  </td>
-                  <td className="px-2 py-1 text-right font-bold text-[#0a9e87]">
-                    {row.total > 0 ? row.total.toLocaleString('id-ID') : '—'}
-                  </td>
-                  <td className="px-1 py-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeMcuRow(row.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-
-              {mcu.length > 0 && (
-                <tr className="border-t-2 border-border bg-muted/60 font-bold">
-                  <td colSpan={4} className="px-2 py-2 text-right text-xs text-muted-foreground">TOTAL</td>
-                  <td className="px-2 py-2 text-center text-[#0a9e87]">{mcuTotalPeserta}</td>
-                  <td />
-                  <td className="px-2 py-2 text-right text-[#0a9e87]">{mcuTotalNominal.toLocaleString('id-ID')}</td>
-                  <td />
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* Bottom */}
+        <div className="flex justify-end gap-1.5 pt-2 border-t border-border">
+          <ActionButtons/>
         </div>
 
-        <Button variant="outline" size="sm" className="text-xs mt-3" onClick={addMcuRow}>
-          <Plus className="w-3 h-3 mr-1" /> + Baris MCU
-        </Button>
       </div>
-
-      {/* ── Bottom submit ─────────────────────────────────────────────────── */}
-      <div className="flex justify-end gap-2 pt-2 border-t border-border">
-        <Button variant="outline" size="sm" onClick={handleReset}>
-          <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset
-        </Button>
-        <Button size="sm" onClick={handleSubmit} disabled={submitting}
-          className="bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 text-white">
-          <Send className="w-3.5 h-3.5 mr-1" />
-          {submitting ? 'Mengirim...' : 'Submit ke Sheets'}
-        </Button>
-      </div>
-
-    </div>
+    </>
   );
 }
