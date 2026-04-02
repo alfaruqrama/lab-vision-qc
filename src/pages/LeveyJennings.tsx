@@ -61,6 +61,12 @@ export default function LeveyJennings() {
 
   const instrument = INSTRUMENTS[instrIdx];
   const selected   = instrument.params[paramIdx];
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  );
+
+  const selected = ALL_PARAMS[selectedIdx];
   const levelOptions = selected.levels;
 
   // ── Available years from data ─────────────────────────
@@ -85,11 +91,22 @@ export default function LeveyJennings() {
       )
       .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [records, instrument, selected, selectedLevel, selMonth, selYear]);
+        r.alat === selected.alat &&
+        r.level === lvl &&
+        r.params[selected.name] != null &&
+        r.tanggal.startsWith(selectedMonth)
+      )
+      .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  }, [records, selected, selectedLevel, selectedMonth]);
 
   const lotConfig = useMemo(() => {
     if (instrument.alat === 'CA660') {
       const lot = config.CA660[0];
       return lot?.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
+    } else if (selected.alat === 'ONCALL') {
+      const lot = config.ONCALL[0];
+      const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
+      return lot?.[lvl as 'CTRL0' | 'CTRL1' | 'CTRL2']?.GDA || null;
     } else {
       const lot = config.EASYLITE[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
@@ -179,6 +196,30 @@ export default function LeveyJennings() {
             </button>
           ))}
         </div>
+      {/* Month selector */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Bulan</label>
+        <input
+          type="month"
+          value={selectedMonth}
+          onChange={e => setSelectedMonth(e.target.value)}
+          className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm font-mono-data"
+        />
+      </div>
+
+      {/* Parameter tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
+        {ALL_PARAMS.map((p, i) => (
+          <button
+            key={`${p.name}-${i}`}
+            onClick={() => { setSelectedIdx(i); if (p.levels.length === 1) setSelectedLevel(p.levels[0]); else setSelectedLevel(p.levels[0]); }}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              selectedIdx === i ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {p.name}
+          </button>
+        ))}
       </div>
 
       {/* Level selector for multi-level params */}
@@ -210,6 +251,7 @@ export default function LeveyJennings() {
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
             Belum ada data untuk {BULAN[selMonth]} {selYear}
           </div>
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Belum ada data untuk bulan ini</div>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
