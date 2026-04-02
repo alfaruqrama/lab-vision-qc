@@ -7,29 +7,14 @@ import {
   ReferenceArea, ReferenceLine, Tooltip, Dot
 } from 'recharts';
 
-// ── Parameter per instrumen ──────────────────────────────
-const INSTRUMENTS: { alat: InstrumentType; label: string; params: { name: ParamName; levels: ControlLevel[] }[] }[] = [
-  {
-    alat: 'CA660', label: 'CA660',
-    params: [
-      { name: 'PT',   levels: ['Kontrol'] },
-      { name: 'APTT', levels: ['Kontrol'] },
-      { name: 'INR',  levels: ['Kontrol'] },
-    ],
-  },
-  {
-    alat: 'EASYLITE', label: 'EASYLITE',
-    params: [
-      { name: 'Na', levels: ['NORMAL', 'HIGH'] },
-      { name: 'K',  levels: ['NORMAL', 'HIGH'] },
-      { name: 'Cl', levels: ['NORMAL', 'HIGH'] },
-    ],
-  },
-];
-
-const BULAN = [
-  'Januari','Februari','Maret','April','Mei','Juni',
-  'Juli','Agustus','September','Oktober','November','Desember',
+const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[] }[] = [
+  { name: 'PT', alat: 'CA660', levels: ['Kontrol'] },
+  { name: 'APTT', alat: 'CA660', levels: ['Kontrol'] },
+  { name: 'INR', alat: 'CA660', levels: ['Kontrol'] },
+  { name: 'Na', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
+  { name: 'K', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
+  { name: 'Cl', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
+  { name: 'GDA', alat: 'ONCALL', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
 ];
 
 function CustomDot(props: any) {
@@ -50,17 +35,9 @@ function CustomDot(props: any) {
 
 export default function LeveyJennings() {
   const { records, config } = useQCStore();
-
-  // ── State ─────────────────────────────────────────────
-  const now = new Date();
-  const [selMonth, setSelMonth] = useState(now.getMonth()); // 0-based
-  const [selYear, setSelYear]   = useState(now.getFullYear());
-  const [instrIdx, setInstrIdx] = useState(0);
-  const [paramIdx, setParamIdx] = useState(0);
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState<ControlLevel>('Kontrol');
 
-  const instrument = INSTRUMENTS[instrIdx];
-  const selected   = instrument.params[paramIdx];
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -69,28 +46,10 @@ export default function LeveyJennings() {
   const selected = ALL_PARAMS[selectedIdx];
   const levelOptions = selected.levels;
 
-  // ── Available years from data ─────────────────────────
-  const availableYears = useMemo(() => {
-    const yrs = new Set<number>();
-    records.forEach(r => { const y = parseInt(r.tanggal); if (!isNaN(y)) yrs.add(y); });
-    if (yrs.size === 0) yrs.add(now.getFullYear());
-    return Array.from(yrs).sort();
-  }, [records]);
-
-  // ── Filter records by month/year + param ──────────────
   const filteredRecords = useMemo(() => {
     const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-    const mm  = String(selMonth + 1).padStart(2, '0');
-    const prefix = `${selYear}-${mm}`;
     return records
       .filter(r =>
-        r.alat === instrument.alat &&
-        r.level === lvl &&
-        r.params[selected.name] != null &&
-        r.tanggal.startsWith(prefix)
-      )
-      .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  }, [records, instrument, selected, selectedLevel, selMonth, selYear]);
         r.alat === selected.alat &&
         r.level === lvl &&
         r.params[selected.name] != null &&
@@ -100,7 +59,7 @@ export default function LeveyJennings() {
   }, [records, selected, selectedLevel, selectedMonth]);
 
   const lotConfig = useMemo(() => {
-    if (instrument.alat === 'CA660') {
+    if (selected.alat === 'CA660') {
       const lot = config.CA660[0];
       return lot?.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
     } else if (selected.alat === 'ONCALL') {
@@ -112,7 +71,7 @@ export default function LeveyJennings() {
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
       return lot?.[lvl as 'NORMAL' | 'HIGH']?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
     }
-  }, [config, instrument, selected, selectedLevel]);
+  }, [config, selected, selectedLevel]);
 
   const chartData = useMemo(() => {
     return filteredRecords.map((r, i) => ({
@@ -124,78 +83,25 @@ export default function LeveyJennings() {
   }, [filteredRecords, selected]);
 
   const mean = lotConfig?.mean || 0;
-  const sd   = lotConfig?.sd || 1;
+  const sd = lotConfig?.sd || 1;
 
   // Stats
   const actualValues = chartData.map(d => d.value!).filter(v => v != null);
-  const actualMean   = actualValues.length ? actualValues.reduce((a, b) => a + b, 0) / actualValues.length : 0;
-  const actualSD     = actualValues.length > 1
+  const actualMean = actualValues.length ? actualValues.reduce((a, b) => a + b, 0) / actualValues.length : 0;
+  const actualSD = actualValues.length > 1
     ? Math.sqrt(actualValues.reduce((sum, v) => sum + Math.pow(v - actualMean, 2), 0) / (actualValues.length - 1))
     : 0;
   const cv = actualMean !== 0 ? (actualSD / actualMean) * 100 : 0;
-  const inControl    = chartData.filter(d => d.status === 'ok').length;
+  const inControl = chartData.filter(d => d.status === 'ok').length;
   const inControlPct = chartData.length ? (inControl / chartData.length) * 100 : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Header + date picker */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">Grafik Levey-Jennings</h1>
-          <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <select
-            value={selMonth}
-            onChange={e => setSelMonth(Number(e.target.value))}
-            className="text-xs bg-card border border-border rounded-md px-2 py-1 h-7 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            {BULAN.map((b, i) => <option key={i} value={i}>{b}</option>)}
-          </select>
-          <select
-            value={selYear}
-            onChange={e => setSelYear(Number(e.target.value))}
-            className="text-xs bg-card border border-border rounded-md px-2 py-1 h-7 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
-          >
-            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold">Grafik Levey-Jennings</h1>
+        <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
       </div>
 
-      {/* Instrument group tabs */}
-      <div className="space-y-2">
-        <div className="flex gap-2">
-          {INSTRUMENTS.map((ins, i) => (
-            <button
-              key={ins.alat}
-              onClick={() => { setInstrIdx(i); setParamIdx(0); if (ins.params[0].levels.length === 1) setSelectedLevel(ins.params[0].levels[0]); }}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-                instrIdx === i
-                  ? 'bg-[#1a3a5c] text-white'
-                  : 'bg-muted text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {ins.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Parameter tabs within instrument */}
-        <div className="flex gap-1.5">
-          {instrument.params.map((p, i) => (
-            <button
-              key={p.name}
-              onClick={() => { setParamIdx(i); if (p.levels.length === 1) setSelectedLevel(p.levels[0]); else setSelectedLevel(p.levels[0]); }}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                paramIdx === i
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/60 text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
       {/* Month selector */}
       <div>
         <label className="text-xs font-medium text-muted-foreground">Bulan</label>
@@ -239,18 +145,9 @@ export default function LeveyJennings() {
         </div>
       )}
 
-      {/* Info badge */}
-      <div className="text-[10px] text-muted-foreground">
-        {instrument.label} &middot; {selected.name} &middot; {BULAN[selMonth]} {selYear}
-        {chartData.length > 0 && <span className="ml-2 text-foreground font-medium">{chartData.length} data point{chartData.length > 1 ? 's' : ''}</span>}
-      </div>
-
       {/* Chart */}
       <div className="card-clinical p-3">
         {chartData.length === 0 ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
-            Belum ada data untuk {BULAN[selMonth]} {selYear}
-          </div>
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Belum ada data untuk bulan ini</div>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
