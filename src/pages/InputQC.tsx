@@ -32,7 +32,8 @@ export default function InputQC() {
   const lots = useMemo(() => {
     if (!alat) return [];
     if (alat === 'CA660') return config.CA660;
-    if (alat === 'ONCALL') return config.ONCALL;
+    if (alat === 'ONCALL1') return config.ONCALL1;
+    if (alat === 'ONCALL2') return config.ONCALL2;
     return config.EASYLITE;
   }, [alat, config]);
 
@@ -46,7 +47,7 @@ export default function InputQC() {
     if (alat === 'CA660') {
       const lot = selectedLot as any;
       return lot.Kontrol?.[param] || null;
-    } else if (alat === 'ONCALL') {
+    } else if (alat === 'ONCALL1' || alat === 'ONCALL2') {
       const lot = selectedLot as any;
       return lot[level]?.[param] || null;
     } else {
@@ -69,7 +70,7 @@ export default function InputQC() {
       setLevel(null);
       setStep(2);
     }
-    const firstLot = instrument === 'CA660' ? config.CA660[0] : instrument === 'ONCALL' ? config.ONCALL[0] : config.EASYLITE[0];
+    const firstLot = instrument === 'CA660' ? config.CA660[0] : instrument === 'ONCALL1' ? config.ONCALL1[0] : instrument === 'ONCALL2' ? config.ONCALL2[0] : config.EASYLITE[0];
     setLotNumber(firstLot?.lot || '');
   }
 
@@ -279,8 +280,13 @@ export default function InputQC() {
             <p className="text-sm text-muted-foreground mt-1">Elektrolit — Na⁺, K⁺, Cl⁻</p>
             <p className="text-xs text-muted-foreground mt-0.5">2 level kontrol (Normal & High)</p>
           </button>
-          <button onClick={() => handleInstrumentSelect('ONCALL')} className="card-clinical p-6 text-left hover:border-primary transition-colors">
-            <h3 className="font-bold text-lg">On Call Sure</h3>
+          <button onClick={() => handleInstrumentSelect('ONCALL1')} className="card-clinical p-6 text-left hover:border-primary transition-colors">
+            <h3 className="font-bold text-lg">On Call Sure 1</h3>
+            <p className="text-sm text-muted-foreground mt-1">Gula Darah Strip — GDA</p>
+            <p className="text-xs text-muted-foreground mt-0.5">3 level kontrol (CTRL 0, 1, 2)</p>
+          </button>
+          <button onClick={() => handleInstrumentSelect('ONCALL2')} className="card-clinical p-6 text-left hover:border-primary transition-colors">
+            <h3 className="font-bold text-lg">On Call Sure 2</h3>
             <p className="text-sm text-muted-foreground mt-1">Gula Darah Strip — GDA</p>
             <p className="text-xs text-muted-foreground mt-0.5">3 level kontrol (CTRL 0, 1, 2)</p>
           </button>
@@ -291,7 +297,7 @@ export default function InputQC() {
 
   // Step 2: Select level (Easylite only)
   if (step === 2) {
-    const isOncall = alat === 'ONCALL';
+    const isOncall = alat === 'ONCALL1' || alat === 'ONCALL2';
     const levelChoices: { lvl: ControlLevel; label: string }[] = isOncall
       ? [{ lvl: 'CTRL0', label: 'CTRL 0' }, { lvl: 'CTRL1', label: 'CTRL 1' }, { lvl: 'CTRL2', label: 'CTRL 2' }]
       : [{ lvl: 'NORMAL', label: 'Normal' }, { lvl: 'HIGH', label: 'High' }];
@@ -301,7 +307,7 @@ export default function InputQC() {
           <ArrowLeft size={16} /> Kembali
         </button>
         <h1 className="text-xl font-bold">Pilih Level Kontrol</h1>
-        <p className="text-sm text-muted-foreground">{isOncall ? 'On Call Sure' : 'Easylite'}</p>
+        <p className="text-sm text-muted-foreground">{isOncall ? (alat === 'ONCALL1' ? 'On Call Sure 1' : 'On Call Sure 2') : 'Easylite'}</p>
         <div className={`grid gap-3 ${isOncall ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {levelChoices.map(({ lvl, label }) => (
             <button key={lvl} onClick={() => handleLevelSelect(lvl)} className="card-clinical p-6 text-center hover:border-primary transition-colors">
@@ -316,16 +322,16 @@ export default function InputQC() {
   // Step 3: Form
   return (
     <div className="space-y-5">
-      <button onClick={() => (alat === 'EASYLITE' || alat === 'ONCALL') ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={() => (alat === 'EASYLITE' || alat === 'ONCALL1' || alat === 'ONCALL2') ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Kembali
       </button>
       <div>
-        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : alat === 'ONCALL' ? 'On Call Sure' : 'Easylite'}</h1>
+        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : alat === 'ONCALL1' ? 'On Call Sure 1' : alat === 'ONCALL2' ? 'On Call Sure 2' : 'Easylite'}</h1>
         <p className="text-sm text-muted-foreground">Level: {level}</p>
       </div>
 
-      {/* Photo upload */}
-      <div>
+      {/* Photo upload — only for CA660 and EASYLITE, not ONCALL1/ONCALL2 */}
+      {alat !== 'ONCALL1' && alat !== 'ONCALL2' && <div>
         <label className="text-xs font-medium text-muted-foreground">Foto Struk</label>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
         {photoPreview ? (
@@ -357,7 +363,7 @@ export default function InputQC() {
             <span className="text-xs">Semua parameter terbaca sekaligus</span>
           </button>
         )}
-      </div>
+      </div>}
 
       {/* AI Result Panel (Easylite both levels) */}
       {aiResult && alat === 'EASYLITE' && aiResult.NORMAL && aiResult.HIGH && (
