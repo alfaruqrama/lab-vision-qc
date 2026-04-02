@@ -102,30 +102,40 @@ export default function LeveyJennings() {
         <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
       </div>
 
-      {/* Month selector */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground">Bulan</label>
+      {/* Month selector — compact */}
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Bulan:</label>
         <input
           type="month"
           value={selectedMonth}
           onChange={e => setSelectedMonth(e.target.value)}
-          className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm font-mono-data"
+          className="px-2 py-1 rounded-md border border-border bg-card text-sm font-mono-data w-36"
         />
       </div>
 
-      {/* Parameter tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0">
-        {ALL_PARAMS.map((p, i) => (
-          <button
-            key={`${p.name}-${i}`}
-            onClick={() => { setSelectedIdx(i); if (p.levels.length === 1) setSelectedLevel(p.levels[0]); else setSelectedLevel(p.levels[0]); }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              selectedIdx === i ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {p.name}
-          </button>
-        ))}
+      {/* Parameter tabs — grouped by instrument */}
+      <div className="space-y-2">
+        {(['CA660', 'EASYLITE', 'ONCALL'] as InstrumentType[]).map(alat => {
+          const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter(p => p.alat === alat);
+          return (
+            <div key={alat} className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">{alat}</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {params.map(p => (
+                  <button
+                    key={p.i}
+                    onClick={() => { setSelectedIdx(p.i); setSelectedLevel(p.levels[0]); }}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      selectedIdx === p.i ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Level selector for multi-level params */}
