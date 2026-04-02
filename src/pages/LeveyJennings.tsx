@@ -14,7 +14,8 @@ const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[
   { name: 'Na', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
   { name: 'K', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
   { name: 'Cl', alat: 'EASYLITE', levels: ['NORMAL', 'HIGH'] },
-  { name: 'GDA', alat: 'ONCALL', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
+  { name: 'GDA', alat: 'ONCALL1', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
+  { name: 'GDA', alat: 'ONCALL2', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
 ];
 
 function CustomDot(props: any) {
@@ -62,8 +63,8 @@ export default function LeveyJennings() {
     if (selected.alat === 'CA660') {
       const lot = config.CA660[0];
       return lot?.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
-    } else if (selected.alat === 'ONCALL') {
-      const lot = config.ONCALL[0];
+    } else if (selected.alat === 'ONCALL1' || selected.alat === 'ONCALL2') {
+      const lot = (selected.alat === 'ONCALL1' ? config.ONCALL1 : config.ONCALL2)[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
       return lot?.[lvl as 'CTRL0' | 'CTRL1' | 'CTRL2']?.GDA || null;
     } else {
@@ -115,7 +116,7 @@ export default function LeveyJennings() {
 
       {/* Parameter tabs — grouped by instrument */}
       <div className="space-y-2">
-        {(['CA660', 'EASYLITE', 'ONCALL'] as InstrumentType[]).map(alat => {
+        {(['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2'] as InstrumentType[]).map(alat => {
           const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter(p => p.alat === alat);
           return (
             <div key={alat} className="flex items-center gap-2">

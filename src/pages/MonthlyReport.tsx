@@ -4,12 +4,13 @@ import type { ParamName, WestgardStatus } from '@/lib/types';
 import { PARAM_UNITS, getParamsForInstrument } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { FileText, Printer, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function MonthlyReport() {
   const { records, config } = useQCStore();
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE' | 'ONCALL'>('ALL');
+  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2'>('ALL');
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -44,14 +45,18 @@ export default function MonthlyReport() {
           if (r.alat === 'CA660') {
             const lot = config.CA660.find(l => l.lot === r.lot);
             meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
-          } else if (r.alat === 'ONCALL') {
-            const lot = config.ONCALL.find(l => l.lot === r.lot);
+          } else if (r.alat === 'ONCALL1') {
+            const lot = config.ONCALL1.find(l => l.lot === r.lot);
+            meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
+          } else if (r.alat === 'ONCALL2') {
+            const lot = config.ONCALL2.find(l => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else {
             const lot = config.EASYLITE.find(l => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
           }
-          groups[key] = { param: p, alat: r.alat === 'CA660' ? 'Sysmex CA-660' : r.alat === 'ONCALL' ? 'On Call Sure' : 'Easylite', level: r.level, values: [], statuses: [], meanTarget };
+          const alatLabel = r.alat === 'CA660' ? 'Sysmex CA-660' : r.alat === 'ONCALL1' ? 'On Call Sure 1' : r.alat === 'ONCALL2' ? 'On Call Sure 2' : 'Easylite';
+          groups[key] = { param: p, alat: alatLabel, level: r.level, values: [], statuses: [], meanTarget };
         }
         groups[key].values.push(r.params[p]!);
         groups[key].statuses.push(r.status[p] || 'ok');
@@ -72,16 +77,23 @@ export default function MonthlyReport() {
     window.print();
   }
 
-  function handleExportCSV() {
+  function handleExportExcel() {
     const headers = ['Parameter', 'Alat', 'Level', 'N', 'Mean Target', 'Mean Aktual', 'SD', 'CV%', 'Status'];
-    const rows = summary.map(r => [r.param, r.alat, r.level, r.n, r.meanTarget.toFixed(2), r.meanActual.toFixed(2), r.sd.toFixed(2), r.cv.toFixed(1), r.status === 'ok' ? 'Pass' : r.status === 'warning' ? 'Warning' : 'Reject']);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Laporan_PMI_${month}.csv`;
-    a.click();
+    const rows = summary.map(r => [
+      r.param, r.alat, r.level, r.n,
+      parseFloat(r.meanTarget.toFixed(2)),
+      parseFloat(r.meanActual.toFixed(2)),
+      parseFloat(r.sd.toFixed(2)),
+      parseFloat(r.cv.toFixed(1)),
+      r.status === 'ok' ? 'Pass' : r.status === 'warning' ? 'Warning' : 'Reject',
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [8, 16, 10, 5, 12, 12, 8, 8, 10].map(w => ({ wch: w }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Laporan PMI');
+    XLSX.writeFile(wb, `Laporan_PMI_${month}.xlsx`);
   }
 
   return (
@@ -103,7 +115,8 @@ export default function MonthlyReport() {
             <option value="ALL">Semua</option>
             <option value="CA660">Sysmex CA-660</option>
             <option value="EASYLITE">Easylite</option>
-            <option value="ONCALL">On Call Sure</option>
+            <option value="ONCALL1">On Call Sure 1</option>
+            <option value="ONCALL2">On Call Sure 2</option>
           </select>
         </div>
         <div className="flex items-end">
@@ -120,8 +133,8 @@ export default function MonthlyReport() {
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-sm font-medium hover:bg-muted/80 transition-colors">
               <Printer size={14} /> Print / PDF
             </button>
-            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-sm font-medium hover:bg-muted/80 transition-colors">
-              <Download size={14} /> Export CSV
+            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-sm font-medium hover:bg-muted/80 transition-colors">
+              <Download size={14} /> Export Excel
             </button>
           </div>
 
