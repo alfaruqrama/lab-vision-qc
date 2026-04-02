@@ -31,7 +31,9 @@ export default function InputQC() {
 
   const lots = useMemo(() => {
     if (!alat) return [];
-    return alat === 'CA660' ? config.CA660 : config.EASYLITE;
+    if (alat === 'CA660') return config.CA660;
+    if (alat === 'ONCALL') return config.ONCALL;
+    return config.EASYLITE;
   }, [alat, config]);
 
   const selectedLot = useMemo(() => {
