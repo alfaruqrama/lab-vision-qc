@@ -608,11 +608,16 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     [`REKAP KUNJUNGAN - ${tanggal}`],
     ['KUNJUNGAN', ...activeCols, 'TOTAL KUNJUNGAN'],
   ];
-  // RAWAT JALAN = semua kolom kecuali IGD dan MCU
+  // RAWAT JALAN = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
   const rjVals = activeLabels.map(badge =>
-    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0)
+    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0)
   );
   rekapAoa.push(['RAWAT JALAN', ...rjVals, rjVals.reduce((a,b)=>a+b,0)]);
+  // RAWAT INAP = riYani + grhuRi
+  const riVals = activeLabels.map(badge =>
+    (groups[badge]||[]).reduce((s,r)=>s+r.riYani+r.grhuRi,0)
+  );
+  rekapAoa.push(['RAWAT INAP', ...riVals, riVals.reduce((a,b)=>a+b,0)]);
   const igdVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.igd,0));
   rekapAoa.push(['IGD', ...igdVals, igdVals.reduce((a,b)=>a+b,0)]);
   const mcuVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.mcuAuto,0));
