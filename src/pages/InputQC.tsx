@@ -279,6 +279,11 @@ export default function InputQC() {
             <p className="text-sm text-muted-foreground mt-1">Elektrolit — Na⁺, K⁺, Cl⁻</p>
             <p className="text-xs text-muted-foreground mt-0.5">2 level kontrol (Normal & High)</p>
           </button>
+          <button onClick={() => handleInstrumentSelect('ONCALL')} className="card-clinical p-6 text-left hover:border-primary transition-colors">
+            <h3 className="font-bold text-lg">On Call Sure</h3>
+            <p className="text-sm text-muted-foreground mt-1">Gula Darah Strip — GDA</p>
+            <p className="text-xs text-muted-foreground mt-0.5">3 level kontrol (CTRL 0, 1, 2)</p>
+          </button>
         </div>
       </div>
     );
