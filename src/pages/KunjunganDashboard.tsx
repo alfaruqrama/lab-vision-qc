@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
@@ -449,32 +449,21 @@ export default function KunjunganDashboard() {
   const [refreshing, setRefreshing] = useState(false);
 
   const currentMonthName = BULAN_ORDER[new Date().getMonth()];
-  const monthManuallySet = useRef(false);
 
-  const [month, setMonth] = useState('JANUARI');
-  const [mcuMonth, setMcuMonth] = useState('JANUARI');
+  const [month, setMonth] = useState(currentMonthName);
+  const [mcuMonth, setMcuMonth] = useState(currentMonthName);
 
-  // Set bulan default ke bulan sekarang setelah data tersedia
-  useEffect(() => {
-    if (monthManuallySet.current) return;
-    const months = availableMonths('omzet');
-    const mcuMonths = availableMonths('mcu');
-    if (months.length > 0) {
-      setMonth(months.includes(currentMonthName) ? currentMonthName : months[months.length - 1]);
-    }
-    if (mcuMonths.length > 0) {
-      setMcuMonth(mcuMonths.includes(currentMonthName) ? currentMonthName : (mcuMonths[mcuMonths.length - 1] || 'JANUARI'));
-    }
-  }, [availableMonths, currentMonthName]);
-
-  // Update months when data changes
+  // Selalu sertakan bulan sekarang di daftar pilihan meski data belum ada
   const activeMonthsList = useMemo(() => {
-    return availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
-  }, [tab, availableMonths]);
+    const months = availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
+    if (!months.includes(currentMonthName)) {
+      return sortMonths([...months, currentMonthName]);
+    }
+    return months;
+  }, [tab, availableMonths, currentMonthName]);
 
   const activeMonth = tab === 'mcu' ? mcuMonth : month;
   const setActiveMonth = (m: string) => {
-    monthManuallySet.current = true;
     if (tab === 'mcu') setMcuMonth(m);
     else setMonth(m);
   };
