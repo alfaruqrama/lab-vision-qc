@@ -31,7 +31,9 @@ export default function InputQC() {
 
   const lots = useMemo(() => {
     if (!alat) return [];
-    return alat === 'CA660' ? config.CA660 : config.EASYLITE;
+    if (alat === 'CA660') return config.CA660;
+    if (alat === 'ONCALL') return config.ONCALL;
+    return config.EASYLITE;
   }, [alat, config]);
 
   const selectedLot = useMemo(() => {
@@ -44,6 +46,9 @@ export default function InputQC() {
     if (alat === 'CA660') {
       const lot = selectedLot as any;
       return lot.Kontrol?.[param] || null;
+    } else if (alat === 'ONCALL') {
+      const lot = selectedLot as any;
+      return lot[level]?.[param] || null;
     } else {
       const lot = selectedLot as any;
       return lot[level]?.[param] || null;
@@ -64,7 +69,7 @@ export default function InputQC() {
       setLevel(null);
       setStep(2);
     }
-    const firstLot = instrument === 'CA660' ? config.CA660[0] : config.EASYLITE[0];
+    const firstLot = instrument === 'CA660' ? config.CA660[0] : instrument === 'ONCALL' ? config.ONCALL[0] : config.EASYLITE[0];
     setLotNumber(firstLot?.lot || '');
   }
 
@@ -274,6 +279,11 @@ export default function InputQC() {
             <p className="text-sm text-muted-foreground mt-1">Elektrolit — Na⁺, K⁺, Cl⁻</p>
             <p className="text-xs text-muted-foreground mt-0.5">2 level kontrol (Normal & High)</p>
           </button>
+          <button onClick={() => handleInstrumentSelect('ONCALL')} className="card-clinical p-6 text-left hover:border-primary transition-colors">
+            <h3 className="font-bold text-lg">On Call Sure</h3>
+            <p className="text-sm text-muted-foreground mt-1">Gula Darah Strip — GDA</p>
+            <p className="text-xs text-muted-foreground mt-0.5">3 level kontrol (CTRL 0, 1, 2)</p>
+          </button>
         </div>
       </div>
     );
@@ -281,20 +291,23 @@ export default function InputQC() {
 
   // Step 2: Select level (Easylite only)
   if (step === 2) {
+    const isOncall = alat === 'ONCALL';
+    const levelChoices: { lvl: ControlLevel; label: string }[] = isOncall
+      ? [{ lvl: 'CTRL0', label: 'CTRL 0' }, { lvl: 'CTRL1', label: 'CTRL 1' }, { lvl: 'CTRL2', label: 'CTRL 2' }]
+      : [{ lvl: 'NORMAL', label: 'Normal' }, { lvl: 'HIGH', label: 'High' }];
     return (
       <div className="space-y-5">
         <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft size={16} /> Kembali
         </button>
         <h1 className="text-xl font-bold">Pilih Level Kontrol</h1>
-        <p className="text-sm text-muted-foreground">Easylite</p>
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => handleLevelSelect('NORMAL')} className="card-clinical p-6 text-center hover:border-primary transition-colors">
-            <h3 className="font-bold">Normal</h3>
-          </button>
-          <button onClick={() => handleLevelSelect('HIGH')} className="card-clinical p-6 text-center hover:border-primary transition-colors">
-            <h3 className="font-bold">High</h3>
-          </button>
+        <p className="text-sm text-muted-foreground">{isOncall ? 'On Call Sure' : 'Easylite'}</p>
+        <div className={`grid gap-3 ${isOncall ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {levelChoices.map(({ lvl, label }) => (
+            <button key={lvl} onClick={() => handleLevelSelect(lvl)} className="card-clinical p-6 text-center hover:border-primary transition-colors">
+              <h3 className="font-bold">{label}</h3>
+            </button>
+          ))}
         </div>
       </div>
     );
@@ -303,11 +316,11 @@ export default function InputQC() {
   // Step 3: Form
   return (
     <div className="space-y-5">
-      <button onClick={() => alat === 'EASYLITE' ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={() => (alat === 'EASYLITE' || alat === 'ONCALL') ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Kembali
       </button>
       <div>
-        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : 'Easylite'}</h1>
+        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : alat === 'ONCALL' ? 'On Call Sure' : 'Easylite'}</h1>
         <p className="text-sm text-muted-foreground">Level: {level}</p>
       </div>
 

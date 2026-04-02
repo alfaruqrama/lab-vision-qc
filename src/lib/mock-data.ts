@@ -29,6 +29,15 @@ export const DEFAULT_LOT_CONFIG: LotConfig = {
       },
     },
   ],
+  ONCALL: [
+    {
+      lot: '1790338',
+      exp: '2026-05-28',
+      CTRL0: { GDA: { mean: 47, sd: 7.5 } },
+      CTRL1: { GDA: { mean: 134, sd: 13.5 } },
+      CTRL2: { GDA: { mean: 364, sd: 36.5 } },
+    },
+  ],
 };
 
 function generateValue(mean: number, sd: number, bias: number = 0): number {
@@ -46,6 +55,7 @@ export function generateMockRecords(): QCRecord[] {
   const analysts = ['Dewi S.', 'Rina A.', 'Budi P.', 'Sari K.'];
   const ca660Lot = DEFAULT_LOT_CONFIG.CA660[0];
   const elLot = DEFAULT_LOT_CONFIG.EASYLITE[0];
+  const ocLot = DEFAULT_LOT_CONFIG.ONCALL[0];
 
   for (let day = 1; day <= Math.min(now.getDate(), 28); day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -117,6 +127,46 @@ export function generateMockRecords(): QCRecord[] {
         lot: elLot.lot,
         params: elHParams,
         status: elHStatus,
+        analis,
+        catatan: '',
+      });
+    }
+
+    // On Call Sure - CTRL1 daily
+    const ocCtrl1: Partial<Record<ParamName, number>> = {
+      GDA: generateValue(ocLot.CTRL1.GDA.mean, ocLot.CTRL1.GDA.sd, day === 15 ? 3 : 0),
+    };
+    const ocCtrl1Status: Partial<Record<ParamName, any>> = {};
+    ocCtrl1Status.GDA = evaluateWestgard(ocCtrl1.GDA!, ocLot.CTRL1.GDA).status;
+    records.push({
+      id: `mock-oc1-${day}`,
+      timestamp: new Date(year, month, day, 8, 15).toISOString(),
+      tanggal: dateStr,
+      alat: 'ONCALL',
+      level: 'CTRL1',
+      lot: ocLot.lot,
+      params: ocCtrl1,
+      status: ocCtrl1Status,
+      analis,
+      catatan: '',
+    });
+
+    // On Call Sure - CTRL2 every 3 days
+    if (day % 3 === 0) {
+      const ocCtrl2: Partial<Record<ParamName, number>> = {
+        GDA: generateValue(ocLot.CTRL2.GDA.mean, ocLot.CTRL2.GDA.sd),
+      };
+      const ocCtrl2Status: Partial<Record<ParamName, any>> = {};
+      ocCtrl2Status.GDA = evaluateWestgard(ocCtrl2.GDA!, ocLot.CTRL2.GDA).status;
+      records.push({
+        id: `mock-oc2-${day}`,
+        timestamp: new Date(year, month, day, 8, 30).toISOString(),
+        tanggal: dateStr,
+        alat: 'ONCALL',
+        level: 'CTRL2',
+        lot: ocLot.lot,
+        params: ocCtrl2,
+        status: ocCtrl2Status,
         analis,
         catatan: '',
       });
