@@ -10,11 +10,13 @@ export function isConnected(): boolean {
 const ALAT_TO_SHEETS: Record<InstrumentType, string> = {
   CA660: 'Sysmex CA-660',
   EASYLITE: 'Easylite',
+  ONCALL: 'On Call Sure',
 };
 
 const SHEETS_TO_ALAT: Record<string, InstrumentType> = {
   'Sysmex CA-660': 'CA660',
   'Easylite': 'EASYLITE',
+  'On Call Sure': 'ONCALL',
 };
 
 // Status mapping: Sheets uses 'ooc', React uses 'oos'
@@ -138,8 +140,12 @@ export interface ReadStrukResult {
   Na?: number | null;
   K?: number | null;
   Cl?: number | null;
+  GDA?: number | null;
   NORMAL?: { Na?: number | null; K?: number | null; Cl?: number | null };
   HIGH?: { Na?: number | null; K?: number | null; Cl?: number | null };
+  CTRL0?: { GDA?: number | null };
+  CTRL1?: { GDA?: number | null };
+  CTRL2?: { GDA?: number | null };
   parseError?: boolean;
 }
 
