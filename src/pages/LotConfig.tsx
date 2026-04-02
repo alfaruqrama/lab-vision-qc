@@ -1,32 +1,20 @@
 import { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
-import type { LotConfig, CA660LotConfig, EasyliteLotConfig, ParamConfig } from '@/lib/types';
+import type { LotConfig, CA660LotConfig, EasyliteLotConfig, OnCallLotConfig, ParamConfig } from '@/lib/types';
 import { Trash2, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type TabType = 'CA660' | 'EASYLITE';
+type TabType = 'CA660' | 'EASYLITE' | 'ONCALL';
 
 function ParamRow({ label, config, onChange }: { label: string; config: ParamConfig; onChange: (c: ParamConfig) => void }) {
   return (
     <tr className="border-b border-border">
       <td className="px-2 py-2 text-sm font-semibold">{label}</td>
       <td className="px-2 py-1">
-        <input
-          type="number"
-          step="any"
-          value={config.mean}
-          onChange={e => onChange({ ...config, mean: parseFloat(e.target.value) || 0 })}
-          className="w-full px-2 py-1 rounded-md border border-border bg-background text-sm font-mono-data text-center"
-        />
+        <input type="number" step="any" value={config.mean} onChange={e => onChange({ ...config, mean: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded-md border border-border bg-background text-sm font-mono-data text-center" />
       </td>
       <td className="px-2 py-1">
-        <input
-          type="number"
-          step="any"
-          value={config.sd}
-          onChange={e => onChange({ ...config, sd: parseFloat(e.target.value) || 0 })}
-          className="w-full px-2 py-1 rounded-md border border-border bg-background text-sm font-mono-data text-center"
-        />
+        <input type="number" step="any" value={config.sd} onChange={e => onChange({ ...config, sd: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 rounded-md border border-border bg-background text-sm font-mono-data text-center" />
       </td>
     </tr>
   );
@@ -73,7 +61,6 @@ function EasyliteCard({ lot, onUpdate, onDelete }: { lot: EasyliteLotConfig; onU
   function updateLevel(level: 'NORMAL' | 'HIGH', param: 'Na' | 'K' | 'Cl', config: ParamConfig) {
     onUpdate({ ...lot, [level]: { ...lot[level], [param]: config } });
   }
-
   return (
     <div className="card-clinical overflow-hidden">
       <div className="bg-navy px-4 py-3 flex items-center justify-between">
@@ -112,6 +99,43 @@ function EasyliteCard({ lot, onUpdate, onDelete }: { lot: EasyliteLotConfig; onU
   );
 }
 
+function OnCallCard({ lot, onUpdate, onDelete }: { lot: OnCallLotConfig; onUpdate: (l: OnCallLotConfig) => void; onDelete: () => void }) {
+  return (
+    <div className="card-clinical overflow-hidden">
+      <div className="bg-navy px-4 py-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-navy-foreground">{lot.lot || 'Lot Baru'}</p>
+          <p className="text-[10px] text-navy-foreground/60">On Call Sure</p>
+        </div>
+        <button onClick={onDelete} className="text-navy-foreground/60 hover:text-destructive transition-colors"><Trash2 size={16} /></button>
+      </div>
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-muted-foreground">No. Lot</label>
+            <input value={lot.lot} onChange={e => onUpdate({ ...lot, lot: e.target.value })} className="w-full mt-1 px-2 py-1.5 rounded-md border border-border bg-background text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Exp. Date</label>
+            <input type="date" value={lot.exp} onChange={e => onUpdate({ ...lot, exp: e.target.value })} className="w-full mt-1 px-2 py-1.5 rounded-md border border-border bg-background text-sm font-mono-data" />
+          </div>
+        </div>
+        {(['CTRL0', 'CTRL1', 'CTRL2'] as const).map(ctrl => (
+          <div key={ctrl}>
+            <p className="text-xs font-semibold text-muted-foreground mb-1">{ctrl.replace('CTRL', 'CTRL ')}</p>
+            <table className="w-full text-xs">
+              <thead><tr className="bg-muted"><th className="px-2 py-1 text-left">Parameter</th><th className="px-2 py-1 text-center">Mean</th><th className="px-2 py-1 text-center">SD</th></tr></thead>
+              <tbody>
+                <ParamRow label="GDA (mg/dL)" config={lot[ctrl].GDA} onChange={c => onUpdate({ ...lot, [ctrl]: { GDA: c } })} />
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LotConfigPage() {
   const { config, updateConfig } = useQCStore();
   const [tab, setTab] = useState<TabType>('CA660');
@@ -136,6 +160,18 @@ export default function LotConfigPage() {
     }));
   }
 
+  function addOnCallLot() {
+    setLocalConfig(prev => ({
+      ...prev,
+      ONCALL: [...prev.ONCALL, {
+        lot: '', exp: '',
+        CTRL0: { GDA: { mean: 0, sd: 0 } },
+        CTRL1: { GDA: { mean: 0, sd: 0 } },
+        CTRL2: { GDA: { mean: 0, sd: 0 } },
+      }],
+    }));
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -156,54 +192,55 @@ export default function LotConfigPage() {
       </div>
 
       {/* Tab switch */}
-      <div className="flex gap-2">
-        <button onClick={() => setTab('CA660')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'CA660' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-          Sysmex CA-660
-        </button>
-        <button onClick={() => setTab('EASYLITE')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === 'EASYLITE' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-          Easylite
-        </button>
+      <div className="flex gap-2 overflow-x-auto">
+        {([
+          { key: 'CA660' as TabType, label: 'Sysmex CA-660' },
+          { key: 'EASYLITE' as TabType, label: 'Easylite' },
+          { key: 'ONCALL' as TabType, label: 'On Call Sure' },
+        ]).map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Lot cards */}
       <div className="space-y-4">
-        {tab === 'CA660' ? (
+        {tab === 'CA660' && (
           <>
             {localConfig.CA660.map((lot, i) => (
-              <CA660Card
-                key={i}
-                lot={lot}
-                onUpdate={updated => {
-                  const arr = [...localConfig.CA660];
-                  arr[i] = updated;
-                  setLocalConfig(prev => ({ ...prev, CA660: arr }));
-                }}
-                onDelete={() => {
-                  setLocalConfig(prev => ({ ...prev, CA660: prev.CA660.filter((_, j) => j !== i) }));
-                }}
+              <CA660Card key={i} lot={lot}
+                onUpdate={updated => { const arr = [...localConfig.CA660]; arr[i] = updated; setLocalConfig(prev => ({ ...prev, CA660: arr })); }}
+                onDelete={() => setLocalConfig(prev => ({ ...prev, CA660: prev.CA660.filter((_, j) => j !== i) }))}
               />
             ))}
             <button onClick={addCA660Lot} className="w-full py-4 rounded-lg border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
               <Plus size={16} /> Tambah Lot Baru
             </button>
           </>
-        ) : (
+        )}
+        {tab === 'EASYLITE' && (
           <>
             {localConfig.EASYLITE.map((lot, i) => (
-              <EasyliteCard
-                key={i}
-                lot={lot}
-                onUpdate={updated => {
-                  const arr = [...localConfig.EASYLITE];
-                  arr[i] = updated;
-                  setLocalConfig(prev => ({ ...prev, EASYLITE: arr }));
-                }}
-                onDelete={() => {
-                  setLocalConfig(prev => ({ ...prev, EASYLITE: prev.EASYLITE.filter((_, j) => j !== i) }));
-                }}
+              <EasyliteCard key={i} lot={lot}
+                onUpdate={updated => { const arr = [...localConfig.EASYLITE]; arr[i] = updated; setLocalConfig(prev => ({ ...prev, EASYLITE: arr })); }}
+                onDelete={() => setLocalConfig(prev => ({ ...prev, EASYLITE: prev.EASYLITE.filter((_, j) => j !== i) }))}
               />
             ))}
             <button onClick={addEasyliteLot} className="w-full py-4 rounded-lg border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
+              <Plus size={16} /> Tambah Lot Baru
+            </button>
+          </>
+        )}
+        {tab === 'ONCALL' && (
+          <>
+            {localConfig.ONCALL.map((lot, i) => (
+              <OnCallCard key={i} lot={lot}
+                onUpdate={updated => { const arr = [...localConfig.ONCALL]; arr[i] = updated; setLocalConfig(prev => ({ ...prev, ONCALL: arr })); }}
+                onDelete={() => setLocalConfig(prev => ({ ...prev, ONCALL: prev.ONCALL.filter((_, j) => j !== i) }))}
+              />
+            ))}
+            <button onClick={addOnCallLot} className="w-full py-4 rounded-lg border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
               <Plus size={16} /> Tambah Lot Baru
             </button>
           </>
