@@ -27,7 +27,12 @@ export function QCProvider({ children }: { children: React.ReactNode }) {
       if (connected) {
         const [recs, cfg] = await Promise.all([api.fetchAllRecords(), api.fetchConfig()]);
         setRecords(recs);
-        setConfig(cfg);
+        // Merge with defaults so new instruments (ONCALL) always have config
+        setConfig({
+          CA660: cfg.CA660 || DEFAULT_LOT_CONFIG.CA660,
+          EASYLITE: cfg.EASYLITE || DEFAULT_LOT_CONFIG.EASYLITE,
+          ONCALL: cfg.ONCALL || DEFAULT_LOT_CONFIG.ONCALL,
+        });
       } else {
         const storedConfig = localStorage.getItem('labqc_config');
         const storedRecords = localStorage.getItem('labqc_records');
