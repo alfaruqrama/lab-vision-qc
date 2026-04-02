@@ -44,6 +44,9 @@ export default function MonthlyReport() {
           if (r.alat === 'CA660') {
             const lot = config.CA660.find(l => l.lot === r.lot);
             meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
+          } else if (r.alat === 'ONCALL') {
+            const lot = config.ONCALL.find(l => l.lot === r.lot);
+            meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else {
             const lot = config.EASYLITE.find(l => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
