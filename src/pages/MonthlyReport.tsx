@@ -103,6 +103,7 @@ export default function MonthlyReport() {
             <option value="ALL">Semua</option>
             <option value="CA660">Sysmex CA-660</option>
             <option value="EASYLITE">Easylite</option>
+            <option value="ONCALL">On Call Sure</option>
           </select>
         </div>
         <div className="flex items-end">

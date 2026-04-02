@@ -79,7 +79,7 @@ export default function Dashboard() {
                 <div key={record.id} className="card-clinical p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <span className="text-sm font-semibold">{record.alat === 'CA660' ? 'Sysmex CA-660' : 'Easylite'}</span>
+                      <span className="text-sm font-semibold">{record.alat === 'CA660' ? 'Sysmex CA-660' : record.alat === 'ONCALL' ? 'On Call Sure' : 'Easylite'}</span>
                       <span className="text-xs text-muted-foreground ml-2">{record.level}</span>
                     </div>
                     <StatusPill status={overallStatus} />
