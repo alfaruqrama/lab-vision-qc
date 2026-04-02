@@ -9,7 +9,7 @@ export default function MonthlyReport() {
   const { records, config } = useQCStore();
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE'>('ALL');
+  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE' | 'ONCALL'>('ALL');
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -44,11 +44,14 @@ export default function MonthlyReport() {
           if (r.alat === 'CA660') {
             const lot = config.CA660.find(l => l.lot === r.lot);
             meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
+          } else if (r.alat === 'ONCALL') {
+            const lot = config.ONCALL.find(l => l.lot === r.lot);
+            meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else {
             const lot = config.EASYLITE.find(l => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
           }
-          groups[key] = { param: p, alat: r.alat === 'CA660' ? 'Sysmex CA-660' : 'Easylite', level: r.level, values: [], statuses: [], meanTarget };
+          groups[key] = { param: p, alat: r.alat === 'CA660' ? 'Sysmex CA-660' : r.alat === 'ONCALL' ? 'On Call Sure' : 'Easylite', level: r.level, values: [], statuses: [], meanTarget };
         }
         groups[key].values.push(r.params[p]!);
         groups[key].statuses.push(r.status[p] || 'ok');
@@ -100,6 +103,7 @@ export default function MonthlyReport() {
             <option value="ALL">Semua</option>
             <option value="CA660">Sysmex CA-660</option>
             <option value="EASYLITE">Easylite</option>
+            <option value="ONCALL">On Call Sure</option>
           </select>
         </div>
         <div className="flex items-end">
