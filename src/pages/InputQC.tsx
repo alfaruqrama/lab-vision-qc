@@ -316,11 +316,11 @@ export default function InputQC() {
   // Step 3: Form
   return (
     <div className="space-y-5">
-      <button onClick={() => alat === 'EASYLITE' ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <button onClick={() => (alat === 'EASYLITE' || alat === 'ONCALL') ? setStep(2) : setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft size={16} /> Kembali
       </button>
       <div>
-        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : 'Easylite'}</h1>
+        <h1 className="text-xl font-bold">Input QC — {alat === 'CA660' ? 'Sysmex CA-660' : alat === 'ONCALL' ? 'On Call Sure' : 'Easylite'}</h1>
         <p className="text-sm text-muted-foreground">Level: {level}</p>
       </div>
 
