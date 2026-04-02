@@ -7,7 +7,7 @@ import { ChevronLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS
+  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { toast } from 'sonner';
@@ -448,13 +448,15 @@ export default function KunjunganDashboard() {
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
 
+  const currentMonthName = BULAN_ORDER[new Date().getMonth()];
+
   const [month, setMonth] = useState(() => {
     const months = availableMonths('omzet');
-    return months[months.length - 1] || 'JANUARI';
+    return months.includes(currentMonthName) ? currentMonthName : (months[months.length - 1] || 'JANUARI');
   });
   const [mcuMonth, setMcuMonth] = useState(() => {
     const months = availableMonths('mcu');
-    return months[months.length - 1] || 'JANUARI';
+    return months.includes(currentMonthName) ? currentMonthName : (months[months.length - 1] || 'JANUARI');
   });
 
   // Auto-update ke bulan terbaru saat data berubah (misal: live refresh dapat bulan baru)
@@ -540,11 +542,20 @@ export default function KunjunganDashboard() {
 
       {/* Content */}
       <div className="pt-4">
-        {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
-        {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
-        {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
-        {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
-          {tab === 'input' && <InputHarianTab />}
+        {status === 'loading' ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
+            <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+            <p className="text-sm font-medium">Memuat data...</p>
+          </div>
+        ) : (
+          <>
+            {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
+            {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
+            {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
+            {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
+            {tab === 'input' && <InputHarianTab />}
+          </>
+        )}
       </div>
     </div>
   );
