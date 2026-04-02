@@ -140,8 +140,12 @@ export interface ReadStrukResult {
   Na?: number | null;
   K?: number | null;
   Cl?: number | null;
+  GDA?: number | null;
   NORMAL?: { Na?: number | null; K?: number | null; Cl?: number | null };
   HIGH?: { Na?: number | null; K?: number | null; Cl?: number | null };
+  CTRL0?: { GDA?: number | null };
+  CTRL1?: { GDA?: number | null };
+  CTRL2?: { GDA?: number | null };
   parseError?: boolean;
 }
 
