@@ -9,7 +9,7 @@ export default function MonthlyReport() {
   const { records, config } = useQCStore();
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE'>('ALL');
+  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE' | 'ONCALL'>('ALL');
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
