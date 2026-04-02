@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
@@ -457,7 +457,17 @@ export default function KunjunganDashboard() {
     return months[months.length - 1] || 'JANUARI';
   });
 
-  // Update months when data changes
+  // Auto-update ke bulan terbaru saat data berubah (misal: live refresh dapat bulan baru)
+  useEffect(() => {
+    const months = availableMonths('omzet');
+    if (months.length > 0) setMonth(months[months.length - 1]);
+  }, [availableMonths]);
+
+  useEffect(() => {
+    const months = availableMonths('mcu');
+    if (months.length > 0) setMcuMonth(months[months.length - 1]);
+  }, [availableMonths]);
+
   const activeMonthsList = useMemo(() => {
     return availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
   }, [tab, availableMonths]);
