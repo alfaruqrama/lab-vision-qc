@@ -555,9 +555,22 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   const colH = ['KET','JAMINAN','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL'];
   const aoa: any[][] = [['LAPORAN HARIAN KUNJUNGAN LABORATORIUM A. YANI'],['Tanggal :', tanggal], colH];
 
+  const DEFAULT_NAMES_ORDER = DEFAULT_ROWS.map(r => r.namaPenjamin);
   const groups: Record<string, KunjunganInputRow[]> = {};
   for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
-  for (const [badge, rows] of Object.entries(groups)) {
+  // Sort within each badge by DEFAULT_ROWS order, then extras alphabetically
+  for (const badge of Object.keys(groups)) {
+    groups[badge].sort((a, b) => {
+      const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
+      const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
+      return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
+    });
+  }
+  // Output in REKAP_LABEL_ORDER, then any remaining badges
+  const badgeOrder = [...REKAP_LABEL_ORDER, ...Object.keys(groups).filter(b => !REKAP_LABEL_ORDER.includes(b))];
+  for (const badge of badgeOrder) {
+    const rows = groups[badge];
+    if (!rows || rows.length === 0) continue;
     rows.forEach((r,i) => aoa.push([
       i===0?(REKAP_LABEL_MAP[badge]||badge):null, r.namaPenjamin,
       r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
@@ -1072,11 +1085,12 @@ export default function InputHarianTab() {
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
-    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0);
+    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0);
+    const ri  = rows.reduce((s,r)=>s+r.riYani,0);
     const igd = rows.reduce((s,r)=>s+r.igd,0);
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
-    return { label, rj, igd, mcu, total };
+    return { label, rj, ri, igd, mcu, total };
   }).filter(l=>l.total>0);
   const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
   const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
@@ -1161,6 +1175,7 @@ export default function InputHarianTab() {
                 <tbody>
                   {([
                     { key: 'rj'  as const, label: 'RAWAT JALAN' },
+                    { key: 'ri'  as const, label: 'RAWAT INAP' },
                     { key: 'igd' as const, label: 'IGD' },
                     { key: 'mcu' as const, label: 'MCU' },
                   ]).map(({ key, label }) => {
