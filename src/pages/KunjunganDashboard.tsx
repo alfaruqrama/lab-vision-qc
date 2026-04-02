@@ -16,6 +16,8 @@ import InputHarianTab from '@/components/kunjungan/InputHarianTab';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan' | 'input';
 
+const CURRENT_MONTH_NAME = BULAN_ORDER[new Date().getMonth()];
+
 // ─── KPI Card ───
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
@@ -448,20 +450,16 @@ export default function KunjunganDashboard() {
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
 
-  const currentMonthName = BULAN_ORDER[new Date().getMonth()];
+  const [month, setMonth] = useState(CURRENT_MONTH_NAME);
+  const [mcuMonth, setMcuMonth] = useState(CURRENT_MONTH_NAME);
 
-  const [month, setMonth] = useState(() => {
-    const months = availableMonths('omzet');
-    return months.includes(currentMonthName) ? currentMonthName : (months[months.length - 1] || 'JANUARI');
-  });
-  const [mcuMonth, setMcuMonth] = useState(() => {
-    const months = availableMonths('mcu');
-    return months.includes(currentMonthName) ? currentMonthName : (months[months.length - 1] || 'JANUARI');
-  });
-
-  // Update months when data changes
+  // Selalu sertakan bulan sekarang di daftar pilihan meski data belum ada
   const activeMonthsList = useMemo(() => {
-    return availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
+    const months = availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
+    if (!months.includes(CURRENT_MONTH_NAME)) {
+      return sortMonths([...months, CURRENT_MONTH_NAME]);
+    }
+    return months;
   }, [tab, availableMonths]);
 
   const activeMonth = tab === 'mcu' ? mcuMonth : month;
@@ -532,19 +530,21 @@ export default function KunjunganDashboard() {
 
       {/* Content */}
       <div className="pt-4">
-        {status === 'loading' ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
-            <RefreshCw className="w-8 h-8 animate-spin text-accent" />
-            <p className="text-sm font-medium">Memuat data...</p>
-          </div>
-        ) : (
-          <>
-            {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
-            {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
-            {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
-            {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
-            {tab === 'input' && <InputHarianTab />}
-          </>
+        {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
+        {tab === 'input' && <InputHarianTab />}
+        {tab !== 'laporan' && tab !== 'input' && (
+          status === 'loading' ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
+              <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+              <p className="text-sm font-medium">Memuat data...</p>
+            </div>
+          ) : (
+            <>
+              {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
+              {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
+              {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
+            </>
+          )
         )}
       </div>
     </div>
