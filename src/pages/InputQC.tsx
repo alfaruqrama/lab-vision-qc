@@ -69,7 +69,7 @@ export default function InputQC() {
       setLevel(null);
       setStep(2);
     }
-    const firstLot = instrument === 'CA660' ? config.CA660[0] : config.EASYLITE[0];
+    const firstLot = instrument === 'CA660' ? config.CA660[0] : instrument === 'ONCALL' ? config.ONCALL[0] : config.EASYLITE[0];
     setLotNumber(firstLot?.lot || '');
   }
 
