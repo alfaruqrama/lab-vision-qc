@@ -51,7 +51,7 @@ export default function MonthlyReport() {
             const lot = config.EASYLITE.find(l => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
           }
-          groups[key] = { param: p, alat: r.alat === 'CA660' ? 'Sysmex CA-660' : 'Easylite', level: r.level, values: [], statuses: [], meanTarget };
+          groups[key] = { param: p, alat: r.alat === 'CA660' ? 'Sysmex CA-660' : r.alat === 'ONCALL' ? 'On Call Sure' : 'Easylite', level: r.level, values: [], statuses: [], meanTarget };
         }
         groups[key].values.push(r.params[p]!);
         groups[key].statuses.push(r.status[p] || 'ok');
