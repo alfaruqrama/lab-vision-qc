@@ -291,20 +291,23 @@ export default function InputQC() {
 
   // Step 2: Select level (Easylite only)
   if (step === 2) {
+    const isOncall = alat === 'ONCALL';
+    const levelChoices: { lvl: ControlLevel; label: string }[] = isOncall
+      ? [{ lvl: 'CTRL0', label: 'CTRL 0' }, { lvl: 'CTRL1', label: 'CTRL 1' }, { lvl: 'CTRL2', label: 'CTRL 2' }]
+      : [{ lvl: 'NORMAL', label: 'Normal' }, { lvl: 'HIGH', label: 'High' }];
     return (
       <div className="space-y-5">
         <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft size={16} /> Kembali
         </button>
         <h1 className="text-xl font-bold">Pilih Level Kontrol</h1>
-        <p className="text-sm text-muted-foreground">Easylite</p>
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => handleLevelSelect('NORMAL')} className="card-clinical p-6 text-center hover:border-primary transition-colors">
-            <h3 className="font-bold">Normal</h3>
-          </button>
-          <button onClick={() => handleLevelSelect('HIGH')} className="card-clinical p-6 text-center hover:border-primary transition-colors">
-            <h3 className="font-bold">High</h3>
-          </button>
+        <p className="text-sm text-muted-foreground">{isOncall ? 'On Call Sure' : 'Easylite'}</p>
+        <div className={`grid gap-3 ${isOncall ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {levelChoices.map(({ lvl, label }) => (
+            <button key={lvl} onClick={() => handleLevelSelect(lvl)} className="card-clinical p-6 text-center hover:border-primary transition-colors">
+              <h3 className="font-bold">{label}</h3>
+            </button>
+          ))}
         </div>
       </div>
     );
