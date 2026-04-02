@@ -46,6 +46,9 @@ export default function InputQC() {
     if (alat === 'CA660') {
       const lot = selectedLot as any;
       return lot.Kontrol?.[param] || null;
+    } else if (alat === 'ONCALL') {
+      const lot = selectedLot as any;
+      return lot[level]?.[param] || null;
     } else {
       const lot = selectedLot as any;
       return lot[level]?.[param] || null;
