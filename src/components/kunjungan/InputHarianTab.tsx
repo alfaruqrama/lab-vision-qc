@@ -558,44 +558,30 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   const DEFAULT_NAMES_ORDER = DEFAULT_ROWS.map(r => r.namaPenjamin);
   const groups: Record<string, KunjunganInputRow[]> = {};
   for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
-  // Sort within each badge by DEFAULT_ROWS order, then extras alphabetically
-  for (const badge of Object.keys(groups)) {
-    groups[badge].sort((a, b) => {
-      const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
-      const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
-      return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
-    });
+
+  // Urutkan semua baris: DEFAULT_ROWS order dulu, lalu extras alfabetis
+  const sortedRows = [...kunjungan].sort((a, b) => {
+    const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
+    const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return a.namaPenjamin.localeCompare(b.namaPenjamin);
+  });
+
+  // Track KET label: tampilkan hanya sekali per badge group
+  let lastBadge = '';
+  for (const r of sortedRows) {
+    const ket = r.badge !== lastBadge ? (REKAP_LABEL_MAP[r.badge] || r.badge) : null;
+    lastBadge = r.badge;
+    aoa.push([ket, r.namaPenjamin, r.rjYani, r.riYani, r.igd, r.mcuAuto, r.promo, r.dokter, r.exc, r.prior, r.grhuRj, r.grhuRi, r.sat, r.ppk1, r.total]);
   }
-  // Output in REKAP_LABEL_ORDER, then any remaining badges
-  const badgeOrder = [...REKAP_LABEL_ORDER, ...Object.keys(groups).filter(b => !REKAP_LABEL_ORDER.includes(b))];
-  for (const badge of badgeOrder) {
-    const rows = groups[badge];
-    if (!rows || rows.length === 0) continue;
-    rows.forEach((r,i) => aoa.push([
-      i===0?(REKAP_LABEL_MAP[badge]||badge):null, r.namaPenjamin,
-      r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
-    ]));
-  }
-  const tot: any[] = ['TOTAL',null];
+
+  const tot: any[] = ['TOTAL', null];
   KUNJUNGAN_COLS.forEach(c => tot.push(kunjungan.reduce((s,r)=>s+(r as any)[c.k],0)));
   tot.push(kunjungan.reduce((s,r)=>s+r.total,0));
+  aoa.push(tot);
 
-  // Rekap per label (ordered, with proper names)
-  aoa.push(tot, [], ['REKAP PER LABEL'],
-    ['LABEL','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL']);
-  for (const badge of REKAP_LABEL_ORDER) {
-    const rows = groups[badge] || [];
-    if (rows.length === 0) continue;
-    aoa.push([REKAP_LABEL_MAP[badge]||badge,
-      rows.reduce((s,r)=>s+r.rjYani,0), rows.reduce((s,r)=>s+r.riYani,0),
-      rows.reduce((s,r)=>s+r.igd,0),    rows.reduce((s,r)=>s+r.mcuAuto,0),
-      rows.reduce((s,r)=>s+r.promo,0),  rows.reduce((s,r)=>s+r.dokter,0),
-      rows.reduce((s,r)=>s+r.exc,0),    rows.reduce((s,r)=>s+r.prior,0),
-      rows.reduce((s,r)=>s+r.grhuRj,0), rows.reduce((s,r)=>s+r.grhuRi,0),
-      rows.reduce((s,r)=>s+r.sat,0),    rows.reduce((s,r)=>s+r.ppk1,0),
-      rows.reduce((s,r)=>s+r.total,0),
-    ]);
-  }
   const ws1 = XLSX.utils.aoa_to_sheet(aoa);
   ws1['!cols'] = [{ wch:20 },{ wch:36 },...Array(13).fill({ wch:10 })];
   XLSX.utils.book_append_sheet(wb, ws1, 'Laporan Harian');
