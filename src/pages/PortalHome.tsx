@@ -105,10 +105,11 @@ export default function PortalHome() {
         {/* Footer */}
         <div className="card-clinical p-4 flex items-center gap-3 text-xs text-muted-foreground">
           <Shield size={14} className="shrink-0" />
-          <div>
+          <div className="flex-1">
             <span className="font-medium">Portal Lab Internal v1.0 · RS Petrokimia Gresik · 2026</span>
             <span className="block text-[10px]">Data internal rumah sakit — tidak untuk publik</span>
           </div>
+          <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/60">Developed by RAMA</span>
         </div>
       </div>
     </div>
