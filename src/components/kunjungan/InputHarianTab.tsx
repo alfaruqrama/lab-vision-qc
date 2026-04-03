@@ -471,12 +471,12 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
 const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
   { namaPenjamin: 'KARYAWAN PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KARYAWAN PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PASIEN UMUM',               badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)',badge: 'JKK',            rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
 ];
