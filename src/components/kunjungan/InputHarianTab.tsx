@@ -1368,7 +1368,7 @@ export default function InputHarianTab() {
                             if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-0`)?.focus();return;}
                             numericKeyDown(e);
                           }}
-                          className="h-6 text-[9px] text-center w-full" placeholder="0"/>
+                          className="h-6 text-[8px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="text" inputMode="numeric"
