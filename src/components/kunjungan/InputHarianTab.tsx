@@ -666,7 +666,7 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
   const openDropdown = () => {
     if (isDefault || !inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
-    setDropPos({ top: rect.bottom + 2, left: rect.left });
+    setDropPos({ top: rect.bottom + window.scrollY + 2, left: rect.left + window.scrollX });
     setOpen(true);
   };
 
@@ -690,7 +690,7 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
       {open && (filtered.length > 0 || noResult) && createPortal(
         <div
           ref={dropRef}
-          style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, zIndex: 9999, width: '288px' }}
+          style={{ position: 'absolute', top: dropPos.top, left: dropPos.left, zIndex: 9999, width: '288px' }}
           className="bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto"
         >
           {filtered.map(p => {
