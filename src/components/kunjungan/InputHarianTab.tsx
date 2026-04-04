@@ -1104,7 +1104,7 @@ export default function InputHarianTab() {
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
     return { label, rj, ri, igd, mcu, total };
-  }).filter(l=>l.total>0);
+  });
   const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
   const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
 
@@ -1171,9 +1171,8 @@ export default function InputHarianTab() {
             <SummaryCard label="MCU"         value={unitSummary.mcu}   color="#0891b2" sub={`${mcuTotalPeserta} peserta`} />
             <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
           </div>
-          {labelSummary.length>0 && (
-            <div className="overflow-x-auto">
-              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${labelSummary.length * 70 + 120}px` }}>
+          <div className="overflow-x-auto">
+              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${ALL_LABELS.length * 70 + 120}px` }}>
                 <thead>
                   <tr className="border-b border-border">
                     <th className="py-1 text-left text-[9px] text-muted-foreground font-semibold pr-3 whitespace-nowrap">KUNJUNGAN</th>
@@ -1213,7 +1212,6 @@ export default function InputHarianTab() {
                 </tbody>
               </table>
             </div>
-          )}
         </div>
 
         {/* Tabel Kunjungan */}
@@ -1256,7 +1254,7 @@ export default function InputHarianTab() {
                           onOpenSettings={openAdminSettings}
                         />
                       </td>
-                      {KUNJUNGAN_COLS.map(c=>{
+                      {KUNJUNGAN_COLS.map((c, ci)=>{
                         const isAuto = !!c.readOnly;
                         const val = (row as any)[c.k] as number;
                         return (
@@ -1267,11 +1265,15 @@ export default function InputHarianTab() {
                               </div>
                             ):(
                               <Input type="number" min={0}
+                                id={`kv-${i}-${ci}`}
                                 value={val===0?'':val}
                                 disabled={isEmpty || !isValid}
                                 onChange={e=>updateKunjungan(row.id,c.k,e.target.value)}
-                                onKeyDown={numericKeyDown}
-                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
+                                onKeyDown={e=>{
+                                  if(e.key==='Enter'){e.preventDefault();document.getElementById(`kv-${i+1}-${ci}`)?.focus();return;}
+                                  numericKeyDown(e);
+                                }}
+                                className={`h-6 text-[9px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
                                 placeholder="—" title={isEmpty?'Isi nama penjamin dulu': !isValid ? 'Nama penjamin tidak sesuai dengan list' : ''}
                               />
                             )}
@@ -1331,7 +1333,7 @@ export default function InputHarianTab() {
                   <th className="px-1 py-1.5 text-center w-14 text-[9px]">PESERTA</th>
                   <th className="px-1 py-1.5 text-right w-32 text-[9px]">NOMINAL/ORG</th>
                   <th className="px-1 py-1.5 text-right w-32 text-[9px]">TOTAL</th>
-                  <th className="px-1 py-1.5 text-center w-12 text-[9px]">LINK</th>
+                  <th className="px-1 py-1.5 text-center w-24 text-[9px] whitespace-nowrap">LINK</th>
                   <th className="w-6"/>
                 </tr>
               </thead>
@@ -1365,8 +1367,9 @@ export default function InputHarianTab() {
                           className="h-6 text-[10px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
-                        <Input type="number" min={0} value={row.nominal||''}
-                          onChange={e=>updateMcu(row.id,'nominal',e.target.value)}
+                        <Input type="text" inputMode="numeric"
+                          value={row.nominal ? row.nominal.toLocaleString('id-ID') : ''}
+                          onChange={e=>updateMcu(row.id,'nominal',e.target.value.replace(/\./g,''))}
                           onKeyDown={numericKeyDown}
                           className="h-6 text-[10px] text-right w-full" placeholder="0"/>
                       </td>
@@ -1376,8 +1379,8 @@ export default function InputHarianTab() {
                       <td className="px-1 py-0.5 text-center">
                         {row.namaPenjamin && (
                           isLinked
-                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded">✓ linked</span>
-                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">not in tabel</span>
+                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded whitespace-nowrap">✓ linked</span>
+                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded whitespace-nowrap">not in tabel</span>
                         )}
                       </td>
                       <td className="px-0.5 py-0.5">
