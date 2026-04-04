@@ -1222,9 +1222,9 @@ export default function InputHarianTab() {
             <h3 className="text-xs font-bold">Kunjungan per Penjamin</h3>
             <span className="text-[9px] text-muted-foreground">{kunjungan.length} baris</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[480px]">
             <table className="w-full font-mono-data" style={{ minWidth:'820px', fontSize:'10px' }}>
-              <thead>
+              <thead className="sticky top-0 z-10 bg-muted">
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
