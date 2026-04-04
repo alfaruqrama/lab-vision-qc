@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -640,7 +641,10 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.length >= 1 && !isDefault
     ? list.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
@@ -649,17 +653,30 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => {
+      if (
+        ref.current && !ref.current.contains(e.target as Node) &&
+        (!dropRef.current || !dropRef.current.contains(e.target as Node))
+      ) setOpen(false);
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  const openDropdown = () => {
+    if (isDefault || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + 2, left: rect.left });
+    setOpen(true);
+  };
+
   return (
     <div ref={ref} className="relative flex items-center gap-1">
       <Input
+        ref={inputRef}
         value={query}
-        onChange={e => { if (!isDefault) { setQuery(e.target.value); setOpen(true); } }}
-        onFocus={() => { if (!isDefault) setOpen(true); }}
+        onChange={e => { if (!isDefault) { setQuery(e.target.value); openDropdown(); } }}
+        onFocus={openDropdown}
         disabled={isDefault}
         className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''} ${isInvalid ? 'border-red-500 bg-red-50' : ''}`}
         placeholder="Cari penjamin..."
@@ -670,8 +687,12 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
           {badge}
         </span>
       )}
-      {open && (filtered.length > 0 || noResult) && (
-        <div className="absolute z-50 top-7 left-0 w-72 bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
+      {open && (filtered.length > 0 || noResult) && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, zIndex: 9999, width: '288px' }}
+          className="bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto"
+        >
           {filtered.map(p => {
             const isUsed = usedNames.includes(p.nama);
             return (
@@ -702,7 +723,8 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -1305,11 +1327,11 @@ export default function InputHarianTab() {
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
-                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'120px' }}>PAKET</th>
-                  <th className="px-1 py-1.5 text-center w-16 text-[9px]">PESERTA</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">NOMINAL/ORG</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">TOTAL</th>
-                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">LINK</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'80px' }}>PAKET</th>
+                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">PESERTA</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">NOMINAL/ORG</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">TOTAL</th>
+                  <th className="px-1 py-1.5 text-center w-12 text-[9px]">LINK</th>
                   <th className="w-6"/>
                 </tr>
               </thead>
