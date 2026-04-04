@@ -1362,16 +1362,24 @@ export default function InputHarianTab() {
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} value={row.peserta||''}
+                          id={`mv-${i}-0`}
                           onChange={e=>updateMcu(row.id,'peserta',e.target.value)}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-center w-full" placeholder="0"/>
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-0`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[9px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="text" inputMode="numeric"
+                          id={`mv-${i}-1`}
                           value={row.nominal ? row.nominal.toLocaleString('id-ID') : ''}
                           onChange={e=>updateMcu(row.id,'nominal',e.target.value.replace(/\./g,''))}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-right w-full" placeholder="0"/>
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-1`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[9px] text-right w-full" placeholder="0"/>
                       </td>
                       <td className="px-1 py-0.5 text-right font-bold text-[#0a9e87] text-[10px]">
                         {row.total>0?row.total.toLocaleString('id-ID'):'—'}
