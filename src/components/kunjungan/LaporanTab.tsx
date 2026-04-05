@@ -71,33 +71,25 @@ function readInputHarianDraft(tanggal: string) {
     const draft = JSON.parse(raw) as { tanggal: string; kunjungan: any[]; mcu?: any[] };
     if (draft.tanggal !== tanggal) return null;
     const rows: any[] = draft.kunjungan || [];
-
-    const RJ_COLS = ['rjYani','promo','dokter','exc','prior','grhuRj','sat','ppk1'];
-    const RI_COLS = ['riYani','grhuRi'];
-
-    const sumCols = (rs: any[], cols: string[]) =>
-      rs.reduce((s, r) => s + cols.reduce((ss, k) => ss + (Number(r[k]) || 0), 0), 0);
-
-    const nonBpjsRows = rows.filter(r => r.badge !== 'BPJS');
-
-    const rj  = sumCols(rows, RJ_COLS);
-    const ri  = sumCols(rows, RI_COLS);
-    const igd = rows.reduce((s, r) => s + (Number(r.igd) || 0), 0);
-
+    const sum = (key: string) => rows.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+    const bpjsRows = rows.filter((r: any) => r.badge === 'BPJS');
+    const sumBpjs = (key: string) => bpjsRows.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+    const rj  = sum('rjYani');
+    const ri  = sum('riYani');
+    const igd = sum('igd');
     const mcuRows: any[] = draft.mcu || [];
-    const pendapatanMCU = mcuRows.reduce((s, r) => s + (Number(r.total) || 0), 0);
-
+    const pendapatanMCU = mcuRows.reduce((s: number, r: any) => s + (Number(r.total) || 0), 0);
     return {
-      rj,  nonBpjsRJ:  sumCols(nonBpjsRows, RJ_COLS),
-      ri,  nonBpjsRI:  sumCols(nonBpjsRows, RI_COLS),
-      igd, nonBpjsIGD: nonBpjsRows.reduce((s, r) => s + (Number(r.igd) || 0), 0),
-      mcu: rows.reduce((s, r) => s + (Number(r.mcuAuto) || 0), 0),
-      rujukanGrahu:      rows.reduce((s, r) => s + (Number(r.grhuRj) || 0) + (Number(r.grhuRi) || 0), 0),
-      rujukanPPK1:       rows.reduce((s, r) => s + (Number(r.ppk1) || 0), 0),
-      rujukanSatkal:     rows.reduce((s, r) => s + (Number(r.sat) || 0), 0),
-      rujukanDokterLuar: rows.reduce((s, r) => s + (Number(r.dokter) || 0), 0),
-      poliExclusive:     rows.reduce((s, r) => s + (Number(r.exc) || 0), 0),
-      poliPrioritas:     rows.reduce((s, r) => s + (Number(r.prior) || 0), 0),
+      rj,  nonBpjsRJ:  rj  - sumBpjs('rjYani'),
+      ri,  nonBpjsRI:  ri  - sumBpjs('riYani'),
+      igd, nonBpjsIGD: igd - sumBpjs('igd'),
+      mcu: sum('mcuAuto'),
+      rujukanGrahu:      sum('grhuRj') + sum('grhuRi'),
+      rujukanPPK1:       sum('ppk1'),
+      rujukanSatkal:     sum('sat'),
+      rujukanDokterLuar: sum('dokter'),
+      poliExclusive:     sum('exc'),
+      poliPrioritas:     sum('prior'),
       pendapatanMCU,
     };
   } catch { return null; }
