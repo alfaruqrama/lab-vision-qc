@@ -1098,7 +1098,7 @@ export default function InputHarianTab() {
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
-    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0);
+    const rj  = rows.reduce((s,r)=>s+r.rjYani,0);
     const ri  = rows.reduce((s,r)=>s+r.riYani,0);
     const igd = rows.reduce((s,r)=>s+r.igd,0);
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
