@@ -21,7 +21,7 @@ interface PromoItem { label: string; value: number }
 const DEFAULT_PROMO: PromoItem[] = [
   { label: 'paket Basic pekerja (umum)', value: 0 },
   { label: 'Paket sahabat ginjal (umum)', value: 0 },
-  { label: 'Screaning paket B', value: 0 },
+  { label: 'Screening paket B', value: 0 },
   { label: 'Pre marital silver', value: 0 },
   { label: 'Promo alergi', value: 0 },
   { label: 'Sehat Bugar', value: 0 },
@@ -259,13 +259,13 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`* Rujukan dokter Luar : ${form.rujukanDokterLuar}`);
     lines.push(`* Poli Exclusive : ${form.poliExclusive}`);
     lines.push(`* Poli Prioritas : ${form.poliPrioritas}`);
-    lines.push(`* Pasien BRI LIFE PG:`);
-    lines.push(`1. Igd BRI Life Kry PG : ${form.briIgdKry}`);
-    lines.push(`2. Igd BRI Life Kel PG : ${form.briIgdKel}`);
-    lines.push(`3. Rajal BRI Life Kry PG : ${form.briRajalKry}`);
-    lines.push(`4. Rajal BRI Life Kel  PG : ${form.briRajalKel}`);
-    lines.push(`5. Rawin BRI Life Kry PG : ${form.briRawinKry}`);
-    lines.push(`6. Rawin BRI Life Kel PG : ${form.briRawinKel}`);
+    lines.push(`* Pasien PG:`);
+    lines.push(`1. Igd Kry PG : ${form.briIgdKry}`);
+    lines.push(`2. Igd Kel PG : ${form.briIgdKel}`);
+    lines.push(`3. Rajal Kry PG : ${form.briRajalKry}`);
+    lines.push(`4. Rajal Kel  PG : ${form.briRajalKel}`);
+    lines.push(`5. Rawin Kry PG : ${form.briRawinKry}`);
+    lines.push(`6. Rawin Kel PG : ${form.briRawinKel}`);
     lines.push(`* Promo Lab : `);
     form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${p.value}`); });
     lines.push(`* Pasien AS Morulla `);
@@ -282,7 +282,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(`---------------`);
     lines.push(`================`);
-    lines.push(`CAPAIAN 01- ${tglAkhir} ${namaBulan} ${tahun}`);
+    lines.push(`CAPAIAN 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
     lines.push(`* Total pendapatan : Rp ${fmtRpWA(form.kumOmzet)} (${pctKumOmzet}%)`);
     lines.push(`* Total kunjungan  :   ${form.kumKunj} (${pctKumKunj}%)`);
     lines.push(`----------------------------------`);
@@ -361,14 +361,14 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
 
           {/* C: BRI Life */}
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien BRI Life PG</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="IGD BRI Life Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
-              <NumInput label="IGD BRI Life Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
-              <NumInput label="Rajal BRI Life Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
-              <NumInput label="Rajal BRI Life Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
-              <NumInput label="Rawin BRI Life Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
-              <NumInput label="Rawin BRI Life Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
+              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
+              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
+              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
+              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
+              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
+              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
             </AccordionContent>
           </AccordionItem>
 
