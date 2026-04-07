@@ -482,7 +482,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
             <span>
-              Total kunjungan laporan <strong>{totalKunjungan}</strong> tidak sama dengan total di Tab Input Harian <strong>{inputHarianGrandTotal}</strong>. Cek kembali data.
+              Total kunjungan laporan <strong>{totalKunjungan}</strong>, tidak sama dengan total di Tab Input Harian <strong>{inputHarianGrandTotal}</strong>. Cek kembali yaa.
             </span>
           </div>
         )}
