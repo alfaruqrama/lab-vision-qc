@@ -37,7 +37,6 @@ interface FormData {
   mcu: number;
   rujukanGrahu: number; rujukanPPK1: number; rujukanSatkal: number; rujukanDokterLuar: number;
   poliExclusive: number; poliPrioritas: number;
-  promoInputHarian: number;
   briIgdKry: number; briIgdKel: number; briRajalKry: number; briRajalKel: number; briRawinKry: number; briRawinKel: number;
   promoItems: PromoItem[];
   morullaTerjadwal: number; morullaHadir: number;
@@ -54,7 +53,7 @@ function defaultForm(): FormData {
     tanggal: todayISO(),
     rj: 0, nonBpjsRJ: 0, ri: 0, nonBpjsRI: 0, igd: 0, nonBpjsIGD: 0, mcu: 0,
     rujukanGrahu: 0, rujukanPPK1: 0, rujukanSatkal: 0, rujukanDokterLuar: 0,
-    poliExclusive: 0, poliPrioritas: 0, promoInputHarian: 0,
+    poliExclusive: 0, poliPrioritas: 0,
     briIgdKry: 0, briIgdKel: 0, briRajalKry: 0, briRajalKel: 0, briRawinKry: 0, briRawinKel: 0,
     promoItems: DEFAULT_PROMO.map(p => ({ ...p })),
     morullaTerjadwal: 0, morullaHadir: 0,
@@ -94,7 +93,6 @@ function readInputHarianDraft(tanggal: string) {
       rujukanDokterLuar: sum('dokter'),
       poliExclusive:     sum('exc'),
       poliPrioritas:     sum('prior'),
-      promoInputHarian:  sum('promo'),
       pendapatanMCU,
       grandTotal,
     };
@@ -231,9 +229,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   }, []);
 
   // Calculations
+  const totalPromoLab = form.promoItems.reduce((s, p) => s + p.value, 0);
   const totalKunjungan = form.rj + form.ri + form.igd + form.mcu
     + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar
-    + form.poliExclusive + form.poliPrioritas + form.promoInputHarian;
+    + form.poliExclusive + form.poliPrioritas + totalPromoLab;
   const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
   const pendapatanSelainMCU = Math.max(0, form.totalOmzet - form.pendapatanMCU);
   const totalPendapatan = form.totalOmzet;
