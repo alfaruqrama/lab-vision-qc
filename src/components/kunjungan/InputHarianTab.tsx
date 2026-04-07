@@ -1090,15 +1090,15 @@ export default function InputHarianTab() {
   const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
   const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
-    rj:  kunjungan.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0),
-    ri:  kunjungan.reduce((s,r)=>s+r.riYani+r.grhuRi,0),
+    rj:  kunjungan.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0),
+    ri:  kunjungan.reduce((s,r)=>s+r.riYani,0),
     igd: kunjungan.reduce((s,r)=>s+r.igd,0),
     mcu: kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
-    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0);
-    const ri  = rows.reduce((s,r)=>s+r.riYani+r.grhuRi,0);
+    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0);
+    const ri  = rows.reduce((s,r)=>s+r.riYani,0);
     const igd = rows.reduce((s,r)=>s+r.igd,0);
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
