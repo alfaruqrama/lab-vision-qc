@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -79,6 +79,9 @@ function readInputHarianDraft(tanggal: string) {
     const igd = sum('igd');
     const mcuRows: any[] = draft.mcu || [];
     const pendapatanMCU = mcuRows.reduce((s: number, r: any) => s + (Number(r.total) || 0), 0);
+    const grandTotal = rows.reduce((s: number, r: any) =>
+      s + ['rjYani','riYani','igd','mcuAuto','promo','dokter','exc','prior','grhuRj','grhuRi','sat','ppk1']
+        .reduce((rs, k) => rs + (Number(r[k])||0), 0), 0);
     return {
       rj,  nonBpjsRJ:  rj  - sumBpjs('rjYani'),
       ri,  nonBpjsRI:  ri  - sumBpjs('riYani'),
@@ -91,6 +94,7 @@ function readInputHarianDraft(tanggal: string) {
       poliExclusive:     sum('exc'),
       poliPrioritas:     sum('prior'),
       pendapatanMCU,
+      grandTotal,
     };
   } catch { return null; }
 }
@@ -156,6 +160,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     return null;
   });
   const [autoFields, setAutoFields] = useState<Set<string>>(new Set());
+  const [inputHarianGrandTotal, setInputHarianGrandTotal] = useState<number | null>(null);
 
   // Auto-fill Section B from InputHarian draft when tanggal matches
   const syncFromInputHarian = useCallback((silent = false) => {
@@ -164,8 +169,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
       if (!silent) toast.error('Data Input Harian untuk tanggal ini tidak ditemukan');
       return;
     }
-    setForm(prev => ({ ...prev, ...data }));
-    setAutoFields(new Set(Object.keys(data)));
+    setInputHarianGrandTotal(data.grandTotal ?? null);
+    const { grandTotal: _, ...formData } = data;
+    setForm(prev => ({ ...prev, ...formData }));
+    setAutoFields(new Set(Object.keys(formData)));
     if (!silent) toast.success('Data kunjungan disinkronkan dari Input Harian');
   }, [form.tanggal]);
 
@@ -222,7 +229,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   }, []);
 
   // Calculations
-  const totalKunjungan = form.rj + form.ri + form.igd + form.mcu;
+  const totalPromoLab = form.promoItems.reduce((s, p) => s + p.value, 0);
+  const totalKunjungan = form.rj + form.ri + form.igd + form.mcu
+    + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar
+    + form.poliExclusive + form.poliPrioritas + totalPromoLab;
   const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
   const pendapatanSelainMCU = Math.max(0, form.totalOmzet - form.pendapatanMCU);
   const totalPendapatan = form.totalOmzet;
@@ -468,6 +478,14 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
       {/* RIGHT: Preview */}
       <div className="space-y-3">
         <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+        {inputHarianGrandTotal !== null && totalKunjungan !== inputHarianGrandTotal && (
+          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+            <span>
+              Total kunjungan laporan <strong>{totalKunjungan}</strong> tidak sama dengan total di Tab Input Harian <strong>{inputHarianGrandTotal}</strong>. Cek kembali data.
+            </span>
+          </div>
+        )}
         <div className="rounded-lg bg-[#0b141a] text-[#e9edef] p-4 overflow-auto max-h-[70vh] lg:max-h-[80vh]">
           <pre className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono">{outputTeks}</pre>
         </div>
