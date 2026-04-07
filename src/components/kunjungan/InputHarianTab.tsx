@@ -1090,16 +1090,15 @@ export default function InputHarianTab() {
   const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
   const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
-    rj:    kunjungan.reduce((s,r)=>s+r.rjYani,0),
-    ri:    kunjungan.reduce((s,r)=>s+r.riYani,0),
-    igd:   kunjungan.reduce((s,r)=>s+r.igd,0),
-    mcu:   kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
-    promo: kunjungan.reduce((s,r)=>s+r.promo,0),
+    rj:  kunjungan.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0),
+    ri:  kunjungan.reduce((s,r)=>s+r.riYani+r.grhuRi,0),
+    igd: kunjungan.reduce((s,r)=>s+r.igd,0),
+    mcu: kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
-    const rj  = rows.reduce((s,r)=>s+r.rjYani,0);
-    const ri  = rows.reduce((s,r)=>s+r.riYani,0);
+    const rj  = rows.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0);
+    const ri  = rows.reduce((s,r)=>s+r.riYani+r.grhuRi,0);
     const igd = rows.reduce((s,r)=>s+r.igd,0);
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
@@ -1165,8 +1164,8 @@ export default function InputHarianTab() {
         <div className="card-clinical p-3 space-y-2">
           <h3 className="text-xs font-bold">Summary — {tanggal}</h3>
           <div className="flex gap-1.5 flex-wrap">
-            <SummaryCard label="RJ A.Yani"   value={unitSummary.rj}    color="#2563eb" />
-            <SummaryCard label="RI A.Yani"   value={unitSummary.ri}    color="#7c3aed" />
+            <SummaryCard label="Rawat Jalan" value={unitSummary.rj}    color="#2563eb" />
+            <SummaryCard label="Rawat Inap" value={unitSummary.ri}    color="#7c3aed" />
             <SummaryCard label="IGD"         value={unitSummary.igd}   color="#dc2626" />
             <SummaryCard label="MCU"         value={unitSummary.mcu}   color="#0891b2" sub={`${mcuTotalPeserta} peserta`} />
             <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
