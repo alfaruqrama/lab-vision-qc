@@ -35,8 +35,9 @@ export interface InputHarianDraft {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DRAFT_KEY    = 'input-harian-draft';
-const PENJAMIN_KEY = 'penjamin-list-custom';
+const DRAFT_KEY         = 'input-harian-draft';
+const PENJAMIN_KEY      = 'penjamin-list-custom';
+const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
 
 export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
@@ -207,7 +208,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'GLOBAL ASST. & HEALTHCARE, PT',                     badge: 'AS' },
   { nama: 'GREAT EASTERN (ADMEDIKA)',                          badge: 'AS' },
   { nama: 'HANWHA LIFE (ADMEDIKA)',                            badge: 'AS' },
-  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'AS' },
+  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'NPG' },
   { nama: 'INTERNATIONAL PACIFIC CROSS (ADMEDIKA)',            badge: 'AS' },
   { nama: 'MAGNA SEHAT ADMEDIKA',                              badge: 'AS' },
   { nama: 'PERTAMINA (ADMEDIKA)',                              badge: 'AS' },
@@ -510,10 +511,15 @@ function usePenjaminList() {
   const [custom, setCustom] = useState<PenjaminEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem(PENJAMIN_KEY) || '[]'); } catch { return []; }
   });
+  const [badgeOverrides, setBadgeOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(BADGE_OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
 
   const allList: PenjaminEntry[] = [
-    ...BUILTIN_PENJAMIN,
-    ...custom.filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama)),
+    ...BUILTIN_PENJAMIN.map(p => ({ ...p, badge: badgeOverrides[p.nama] ?? p.badge })),
+    ...custom
+      .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
+      .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
   ];
 
   const addPenjamin = (entry: PenjaminEntry) => {
@@ -530,9 +536,21 @@ function usePenjaminList() {
     localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
   };
 
+  const editBadge = (nama: string, badge: string) => {
+    const nextOv = { ...badgeOverrides, [nama]: badge };
+    setBadgeOverrides(nextOv);
+    localStorage.setItem(BADGE_OVERRIDE_KEY, JSON.stringify(nextOv));
+    // also update custom list directly so it stays consistent
+    if (custom.some(c => c.nama === nama)) {
+      const nextC = custom.map(c => c.nama === nama ? { ...c, badge } : c);
+      setCustom(nextC);
+      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    }
+  };
+
   const isBuiltin = (nama: string) => BUILTIN_PENJAMIN.some(p => p.nama === nama);
 
-  return { allList, custom, addPenjamin, removePenjamin, isBuiltin };
+  return { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin };
 }
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
@@ -814,11 +832,12 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
-function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
+function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onClose, isBuiltin }: {
   list: PenjaminEntry[];
   custom: PenjaminEntry[];
   onAdd: (e: PenjaminEntry) => boolean;
   onRemove: (nama: string) => void;
+  onEditBadge: (nama: string, badge: string) => void;
   onClose: () => void;
   isBuiltin: (nama: string) => boolean;
 }) {
@@ -889,9 +908,12 @@ function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
           {filtered.map(p => (
             <div key={p.nama}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
-              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>
-                {p.badge}
-              </span>
+              <select
+                value={p.badge}
+                onChange={e => { onEditBadge(p.nama, e.target.value); toast.success(`Label ${p.nama} diubah ke ${e.target.value}`); }}
+                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${labelClass(p.badge)}`}>
+                {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
               <span className="text-[11px] flex-1 truncate">{p.nama}</span>
               {isBuiltin(p.nama)
                 ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
@@ -933,7 +955,7 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const { allList, custom, addPenjamin, removePenjamin, isBuiltin } = usePenjaminList();
+  const { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin } = usePenjaminList();
 
   const [tanggal,    setTanggal]    = useState(todayISO());
   const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
@@ -1142,6 +1164,7 @@ export default function InputHarianTab() {
         <SettingsModal
           list={allList} custom={custom}
           onAdd={addPenjamin} onRemove={removePenjamin}
+          onEditBadge={editBadge}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
         />
       )}
