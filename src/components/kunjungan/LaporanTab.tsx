@@ -136,7 +136,7 @@ function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChan
           type="text" inputMode="numeric"
           value={value ? fmtRpWA(value) : ''}
           onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
-          className={cn("w-32 h-8 text-right text-xs font-mono pl-7", gsAutoFill && "bg-accent/5 border-accent/30")}
+          className={cn("w-40 h-8 text-right text-[10px] font-mono pl-7", gsAutoFill && "bg-accent/5 border-accent/30")}
           placeholder="0"
         />
       </div>
@@ -425,7 +425,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
               <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} auto={isAuto('pendapatanMCU')} />
               <div className="flex items-center gap-2">
                 <label className="text-xs text-muted-foreground flex-1">Pendapatan Selain MCU <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
-                <span className="w-32 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 text-muted-foreground">Rp {fmtRpWA(pendapatanSelainMCU)}</span>
+                <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 text-muted-foreground">Rp {fmtRpWA(pendapatanSelainMCU)}</span>
               </div>
               <div className="pt-2 border-t border-border space-y-1">
                 <div className="flex justify-between text-xs">
