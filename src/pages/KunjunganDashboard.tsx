@@ -10,6 +10,7 @@ import {
   normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import LaporanTab from '@/components/kunjungan/LaporanTab';
 import InputHarianTab from '@/components/kunjungan/InputHarianTab';
@@ -475,12 +476,14 @@ export default function KunjunganDashboard() {
     toast.success('Data di-refresh');
   }, [refresh]);
 
+  const { canAccess } = useAuth();
+
   const tabs: { key: TabType; label: string; emoji: string }[] = [
     { key: 'omzet', label: 'Omzet', emoji: '💰' },
     { key: 'kunjungan', label: 'Kunjungan', emoji: '👥' },
     { key: 'mcu', label: 'Omzet MCU', emoji: '🔬' },
     { key: 'laporan', label: 'Laporan', emoji: '📋' },
-    { key: 'input', label: 'Input Harian', emoji: '✏️' },
+    ...(canAccess('input-harian') ? [{ key: 'input' as TabType, label: 'Input Harian', emoji: '✏️' }] : []),
   ];
 
   return (
