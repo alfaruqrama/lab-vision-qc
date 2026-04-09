@@ -3,8 +3,10 @@ import { AuthUser, UserRole } from '@/lib/auth-types';
 import { 
   login as apiLogin, 
   logout as apiLogout, 
+  validateToken as apiValidateToken,
   getStoredAuth, 
-  validateSession,
+  storeAuth,
+  isSessionTimeValid,
   clearAuth as apiClearAuth,
 } from '@/lib/auth-api';
 
@@ -24,9 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check session on mount
+  // Check session on mount — validasi ke server, bukan hanya localStorage
   useEffect(() => {
-    const checkSession = () => {
+    const checkSession = async () => {
       const storedAuth = getStoredAuth();
 
       if (storedAuth && validateSession()) {
@@ -54,7 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkSession();
   }, []);
 
-  // Auto-check session every minute
+  // Auto-check session setiap 60 detik
+  // Cek waktu + validasi token ke server
   useEffect(() => {
     // TEMPORARY: bypass login — skip session validation loop saat GAS backend fixed
     return;
@@ -65,8 +68,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         apiClearAuth();
         setUser(null);
         window.location.href = '/login';
+        return;
       }
-    }, 60 * 1000); // Check every 60 seconds
+
+      // Periodic server validation — cek apakah token masih valid
+      try {
+        const serverUser = await apiValidateToken(user.token);
+        if (!serverUser) {
+          // Token di-revoke di server (misal admin hapus user, atau logout dari device lain)
+          apiClearAuth();
+          setUser(null);
+          window.location.href = '/login';
+        }
+      } catch {
+        // Network error — skip, coba lagi di interval berikutnya
+      }
+    }, 60 * 1000);
 
     return () => clearInterval(interval);
   }, [user]);
