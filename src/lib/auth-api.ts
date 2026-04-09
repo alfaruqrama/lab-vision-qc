@@ -12,10 +12,33 @@ import {
 
 // Get GAS URL with hybrid approach (localStorage override > environment variable > null)
 function getAuthUrl(): string | null {
-  // Priority: localStorage override > environment variable > null
   return localStorage.getItem(AUTH_URL_KEY) || 
          import.meta.env.VITE_GAS_AUTH_URL || 
          null;
+}
+
+// Helper: POST ke GAS tanpa CORS preflight
+// GAS tidak support OPTIONS request, jadi kita pakai text/plain
+// agar browser tidak kirim preflight request
+async function postToGAS(url: string, payload: Record<string, unknown>): Promise<any> {
+  // GAS melakukan redirect setelah POST.
+  // Pakai text/plain agar browser TIDAK kirim preflight OPTIONS (yang GAS tidak support).
+  // redirect: 'follow' memastikan browser ikuti redirect otomatis.
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    redirect: 'follow',
+    body: JSON.stringify(payload),
+  });
+
+  // GAS kadang return HTML jika ada error — handle gracefully
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error('GAS response bukan JSON:', text.slice(0, 200));
+    throw new Error('Response dari server tidak valid');
+  }
 }
 
 // Store auth data in localStorage
@@ -62,19 +85,7 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'login',
-        username,
-        password,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'login', username, password });
     
     if (data.success && data.user) {
       const authUser: AuthUser = {
@@ -107,16 +118,7 @@ export async function logout(token: string): Promise<void> {
   }
 
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'logout',
-        token,
-      }),
-    });
+    await postToGAS(url, { action: 'logout', token });
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
@@ -130,18 +132,7 @@ export async function validateToken(token: string): Promise<AuthUser | null> {
   if (!url) return null;
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'validateToken',
-        token,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'validateToken', token });
     
     if (data.success && data.user) {
       return data.user;
@@ -160,18 +151,7 @@ export async function getUsers(token: string): Promise<User[]> {
   if (!url) return [];
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'getUsers',
-        token,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'getUsers', token });
     
     if (data.success && data.users) {
       return data.users;
@@ -188,33 +168,15 @@ export async function getUsers(token: string): Promise<User[]> {
 export async function createUser(token: string, userData: CreateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
-    return {
-      success: false,
-      message: 'URL GAS auth belum dikonfigurasi',
-    };
+    return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'createUser',
-        token,
-        ...userData,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'createUser', token, ...userData });
     return data;
   } catch (error) {
     console.error('Create user error:', error);
-    return {
-      success: false,
-      message: 'Gagal membuat user',
-    };
+    return { success: false, message: 'Gagal membuat user' };
   }
 }
 
@@ -222,33 +184,15 @@ export async function createUser(token: string, userData: CreateUserRequest): Pr
 export async function updateUser(token: string, userData: UpdateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
-    return {
-      success: false,
-      message: 'URL GAS auth belum dikonfigurasi',
-    };
+    return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'updateUser',
-        token,
-        ...userData,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'updateUser', token, ...userData });
     return data;
   } catch (error) {
     console.error('Update user error:', error);
-    return {
-      success: false,
-      message: 'Gagal mengupdate user',
-    };
+    return { success: false, message: 'Gagal mengupdate user' };
   }
 }
 
@@ -256,33 +200,15 @@ export async function updateUser(token: string, userData: UpdateUserRequest): Pr
 export async function resetPassword(token: string, resetData: ResetPasswordRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
-    return {
-      success: false,
-      message: 'URL GAS auth belum dikonfigurasi',
-    };
+    return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'resetPassword',
-        token,
-        ...resetData,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'resetPassword', token, ...resetData });
     return data;
   } catch (error) {
     console.error('Reset password error:', error);
-    return {
-      success: false,
-      message: 'Gagal reset password',
-    };
+    return { success: false, message: 'Gagal reset password' };
   }
 }
 
@@ -290,32 +216,14 @@ export async function resetPassword(token: string, resetData: ResetPasswordReque
 export async function deleteUser(token: string, username: string): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
-    return {
-      success: false,
-      message: 'URL GAS auth belum dikonfigurasi',
-    };
+    return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'deleteUser',
-        token,
-        username,
-      }),
-    });
-
-    const data = await response.json();
+    const data = await postToGAS(url, { action: 'deleteUser', token, username });
     return data;
   } catch (error) {
     console.error('Delete user error:', error);
-    return {
-      success: false,
-      message: 'Gagal menghapus user',
-    };
+    return { success: false, message: 'Gagal menghapus user' };
   }
 }
