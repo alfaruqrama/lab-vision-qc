@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Activity, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,20 +13,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Kalau sudah login, redirect ke home
+  if (isAuthenticated) {
+    navigate('/');
+    return null;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
     
     if (!username || !password) {
-      toast({
-        title: 'Error',
-        description: 'Username dan password harus diisi',
-        variant: 'destructive',
-      });
+      setErrorMessage('Username dan password harus diisi');
       return;
     }
 
@@ -42,18 +46,11 @@ export default function LoginPage() {
         });
         navigate('/');
       } else {
-        toast({
-          title: 'Login gagal',
-          description: result.message || 'Username atau password salah',
-          variant: 'destructive',
-        });
+        setErrorMessage(result.message || 'Username atau password salah');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan saat login',
-        variant: 'destructive',
-      });
+      console.error('Login error:', error);
+      setErrorMessage('Gagal terhubung ke server. Periksa koneksi internet.');
     } finally {
       setIsLoading(false);
     }
@@ -73,6 +70,14 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Inline error message */}
+            {errorMessage && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input
@@ -80,7 +85,7 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Masukkan username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => { setUsername(e.target.value); setErrorMessage(''); }}
                 disabled={isLoading}
                 autoComplete="username"
               />
@@ -92,12 +97,13 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Masukkan password"
+                  placeholder="Nomor badge (hanya angka)"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
                   disabled={isLoading}
                   autoComplete="current-password"
                   className="pr-10"
+                  inputMode="numeric"
                 />
                 <button
                   type="button"
@@ -112,6 +118,9 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Password default adalah nomor badge Anda
+              </p>
             </div>
 
             <Button

@@ -106,41 +106,49 @@ function validateAdmin(token) {
   return user.role === 'admin';
 }
 
-// ─── Main Handler ───
+// ─── Main Handlers ───
 
+// doGet — handle request via GET (query parameter ?payload={JSON})
+// Safari ITP memblokir POST ke google.com, jadi Safari pakai GET
+// Chrome/Firefox tetap pakai POST (password di body, lebih aman)
+function doGet(e) {
+  try {
+    var raw = e.parameter.payload;
+    if (!raw) {
+      return jsonResponse({ success: false, message: 'Missing payload parameter' });
+    }
+    var data = JSON.parse(raw);
+    return handleAction(data);
+  } catch (error) {
+    return jsonResponse({ success: false, message: error.toString() });
+  }
+}
+
+// doPost — handle request via POST (body berisi JSON)
+// Dipakai oleh Chrome/Firefox untuk sensitive actions (login, dll)
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-    
-    switch (action) {
-      case 'login':
-        return handleLogin(data);
-      case 'logout':
-        return handleLogout(data);
-      case 'validateToken':
-        return handleValidateToken(data);
-      case 'getUsers':
-        return handleGetUsers(data);
-      case 'createUser':
-        return handleCreateUser(data);
-      case 'updateUser':
-        return handleUpdateUser(data);
-      case 'resetPassword':
-        return handleResetPassword(data);
-      case 'deleteUser':
-        return handleDeleteUser(data);
-      default:
-        return ContentService.createTextOutput(JSON.stringify({
-          success: false,
-          message: 'Invalid action'
-        })).setMimeType(ContentService.MimeType.JSON);
-    }
+    var data = JSON.parse(e.postData.contents);
+    return handleAction(data);
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      message: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ success: false, message: error.toString() });
+  }
+}
+
+// Router — dispatch action ke handler yang sesuai
+function handleAction(data) {
+  var action = data.action;
+  switch (action) {
+    case 'login':         return handleLogin(data);
+    case 'logout':        return handleLogout(data);
+    case 'validateToken': return handleValidateToken(data);
+    case 'getUsers':      return handleGetUsers(data);
+    case 'createUser':    return handleCreateUser(data);
+    case 'updateUser':    return handleUpdateUser(data);
+    case 'resetPassword': return handleResetPassword(data);
+    case 'deleteUser':    return handleDeleteUser(data);
+    default:
+      return jsonResponse({ success: false, message: 'Invalid action' });
   }
 }
 

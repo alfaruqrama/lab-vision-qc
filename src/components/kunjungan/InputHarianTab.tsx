@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,8 +35,9 @@ export interface InputHarianDraft {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DRAFT_KEY    = 'input-harian-draft';
-const PENJAMIN_KEY = 'penjamin-list-custom';
+const DRAFT_KEY         = 'input-harian-draft';
+const PENJAMIN_KEY      = 'penjamin-list-custom';
+const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
 
 export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
@@ -206,7 +208,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'GLOBAL ASST. & HEALTHCARE, PT',                     badge: 'AS' },
   { nama: 'GREAT EASTERN (ADMEDIKA)',                          badge: 'AS' },
   { nama: 'HANWHA LIFE (ADMEDIKA)',                            badge: 'AS' },
-  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'AS' },
+  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'NPG' },
   { nama: 'INTERNATIONAL PACIFIC CROSS (ADMEDIKA)',            badge: 'AS' },
   { nama: 'MAGNA SEHAT ADMEDIKA',                              badge: 'AS' },
   { nama: 'PERTAMINA (ADMEDIKA)',                              badge: 'AS' },
@@ -471,12 +473,12 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
 const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
   { namaPenjamin: 'KARYAWAN PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KARYAWAN PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PASIEN UMUM',               badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)',badge: 'JKK',            rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
 ];
@@ -509,10 +511,15 @@ function usePenjaminList() {
   const [custom, setCustom] = useState<PenjaminEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem(PENJAMIN_KEY) || '[]'); } catch { return []; }
   });
+  const [badgeOverrides, setBadgeOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(BADGE_OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
 
   const allList: PenjaminEntry[] = [
-    ...BUILTIN_PENJAMIN,
-    ...custom.filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama)),
+    ...BUILTIN_PENJAMIN.map(p => ({ ...p, badge: badgeOverrides[p.nama] ?? p.badge })),
+    ...custom
+      .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
+      .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
   ];
 
   const addPenjamin = (entry: PenjaminEntry) => {
@@ -529,9 +536,21 @@ function usePenjaminList() {
     localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
   };
 
+  const editBadge = (nama: string, badge: string) => {
+    const nextOv = { ...badgeOverrides, [nama]: badge };
+    setBadgeOverrides(nextOv);
+    localStorage.setItem(BADGE_OVERRIDE_KEY, JSON.stringify(nextOv));
+    // also update custom list directly so it stays consistent
+    if (custom.some(c => c.nama === nama)) {
+      const nextC = custom.map(c => c.nama === nama ? { ...c, badge } : c);
+      setCustom(nextC);
+      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    }
+  };
+
   const isBuiltin = (nama: string) => BUILTIN_PENJAMIN.some(p => p.nama === nama);
 
-  return { allList, custom, addPenjamin, removePenjamin, isBuiltin };
+  return { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin };
 }
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
@@ -558,44 +577,30 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   const DEFAULT_NAMES_ORDER = DEFAULT_ROWS.map(r => r.namaPenjamin);
   const groups: Record<string, KunjunganInputRow[]> = {};
   for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
-  // Sort within each badge by DEFAULT_ROWS order, then extras alphabetically
-  for (const badge of Object.keys(groups)) {
-    groups[badge].sort((a, b) => {
-      const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
-      const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
-      return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
-    });
+
+  // Urutkan semua baris: DEFAULT_ROWS order dulu, lalu extras alfabetis
+  const sortedRows = [...kunjungan].sort((a, b) => {
+    const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
+    const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return a.namaPenjamin.localeCompare(b.namaPenjamin);
+  });
+
+  // Track KET label: tampilkan hanya sekali per badge group
+  let lastBadge = '';
+  for (const r of sortedRows) {
+    const ket = r.badge !== lastBadge ? (REKAP_LABEL_MAP[r.badge] || r.badge) : null;
+    lastBadge = r.badge;
+    aoa.push([ket, r.namaPenjamin, r.rjYani, r.riYani, r.igd, r.mcuAuto, r.promo, r.dokter, r.exc, r.prior, r.grhuRj, r.grhuRi, r.sat, r.ppk1, r.total]);
   }
-  // Output in REKAP_LABEL_ORDER, then any remaining badges
-  const badgeOrder = [...REKAP_LABEL_ORDER, ...Object.keys(groups).filter(b => !REKAP_LABEL_ORDER.includes(b))];
-  for (const badge of badgeOrder) {
-    const rows = groups[badge];
-    if (!rows || rows.length === 0) continue;
-    rows.forEach((r,i) => aoa.push([
-      i===0?(REKAP_LABEL_MAP[badge]||badge):null, r.namaPenjamin,
-      r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
-    ]));
-  }
-  const tot: any[] = ['TOTAL',null];
+
+  const tot: any[] = ['TOTAL', null];
   KUNJUNGAN_COLS.forEach(c => tot.push(kunjungan.reduce((s,r)=>s+(r as any)[c.k],0)));
   tot.push(kunjungan.reduce((s,r)=>s+r.total,0));
+  aoa.push(tot);
 
-  // Rekap per label (ordered, with proper names)
-  aoa.push(tot, [], ['REKAP PER LABEL'],
-    ['LABEL','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL']);
-  for (const badge of REKAP_LABEL_ORDER) {
-    const rows = groups[badge] || [];
-    if (rows.length === 0) continue;
-    aoa.push([REKAP_LABEL_MAP[badge]||badge,
-      rows.reduce((s,r)=>s+r.rjYani,0), rows.reduce((s,r)=>s+r.riYani,0),
-      rows.reduce((s,r)=>s+r.igd,0),    rows.reduce((s,r)=>s+r.mcuAuto,0),
-      rows.reduce((s,r)=>s+r.promo,0),  rows.reduce((s,r)=>s+r.dokter,0),
-      rows.reduce((s,r)=>s+r.exc,0),    rows.reduce((s,r)=>s+r.prior,0),
-      rows.reduce((s,r)=>s+r.grhuRj,0), rows.reduce((s,r)=>s+r.grhuRi,0),
-      rows.reduce((s,r)=>s+r.sat,0),    rows.reduce((s,r)=>s+r.ppk1,0),
-      rows.reduce((s,r)=>s+r.total,0),
-    ]);
-  }
   const ws1 = XLSX.utils.aoa_to_sheet(aoa);
   ws1['!cols'] = [{ wch:20 },{ wch:36 },...Array(13).fill({ wch:10 })];
   XLSX.utils.book_append_sheet(wb, ws1, 'Laporan Harian');
@@ -608,11 +613,16 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     [`REKAP KUNJUNGAN - ${tanggal}`],
     ['KUNJUNGAN', ...activeCols, 'TOTAL KUNJUNGAN'],
   ];
-  // RAWAT JALAN = semua kolom kecuali IGD dan MCU
+  // RAWAT JALAN = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
   const rjVals = activeLabels.map(badge =>
-    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0)
+    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0)
   );
   rekapAoa.push(['RAWAT JALAN', ...rjVals, rjVals.reduce((a,b)=>a+b,0)]);
+  // RAWAT INAP = riYani + grhuRi
+  const riVals = activeLabels.map(badge =>
+    (groups[badge]||[]).reduce((s,r)=>s+r.riYani+r.grhuRi,0)
+  );
+  rekapAoa.push(['RAWAT INAP', ...riVals, riVals.reduce((a,b)=>a+b,0)]);
   const igdVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.igd,0));
   rekapAoa.push(['IGD', ...igdVals, igdVals.reduce((a,b)=>a+b,0)]);
   const mcuVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.mcuAuto,0));
@@ -649,7 +659,10 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.length >= 1 && !isDefault
     ? list.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
@@ -658,17 +671,30 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => {
+      if (
+        ref.current && !ref.current.contains(e.target as Node) &&
+        (!dropRef.current || !dropRef.current.contains(e.target as Node))
+      ) setOpen(false);
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  const openDropdown = () => {
+    if (isDefault || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY + 2, left: rect.left + window.scrollX });
+    setOpen(true);
+  };
+
   return (
     <div ref={ref} className="relative flex items-center gap-1">
       <Input
+        ref={inputRef}
         value={query}
-        onChange={e => { if (!isDefault) { setQuery(e.target.value); setOpen(true); } }}
-        onFocus={() => { if (!isDefault) setOpen(true); }}
+        onChange={e => { if (!isDefault) { setQuery(e.target.value); openDropdown(); } }}
+        onFocus={openDropdown}
         disabled={isDefault}
         className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''} ${isInvalid ? 'border-red-500 bg-red-50' : ''}`}
         placeholder="Cari penjamin..."
@@ -679,8 +705,12 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
           {badge}
         </span>
       )}
-      {open && (filtered.length > 0 || noResult) && (
-        <div className="absolute z-50 top-7 left-0 w-72 bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
+      {open && (filtered.length > 0 || noResult) && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: 'absolute', top: dropPos.top, left: dropPos.left, zIndex: 9999, width: '288px' }}
+          className="bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto"
+        >
           {filtered.map(p => {
             const isUsed = usedNames.includes(p.nama);
             return (
@@ -711,7 +741,8 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -801,11 +832,12 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
-function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
+function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onClose, isBuiltin }: {
   list: PenjaminEntry[];
   custom: PenjaminEntry[];
   onAdd: (e: PenjaminEntry) => boolean;
   onRemove: (nama: string) => void;
+  onEditBadge: (nama: string, badge: string) => void;
   onClose: () => void;
   isBuiltin: (nama: string) => boolean;
 }) {
@@ -876,9 +908,12 @@ function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
           {filtered.map(p => (
             <div key={p.nama}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
-              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>
-                {p.badge}
-              </span>
+              <select
+                value={p.badge}
+                onChange={e => { onEditBadge(p.nama, e.target.value); toast.success(`Label ${p.nama} diubah ke ${e.target.value}`); }}
+                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${labelClass(p.badge)}`}>
+                {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
               <span className="text-[11px] flex-1 truncate">{p.nama}</span>
               {isBuiltin(p.nama)
                 ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
@@ -920,7 +955,7 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const { allList, custom, addPenjamin, removePenjamin, isBuiltin } = usePenjaminList();
+  const { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin } = usePenjaminList();
 
   const [tanggal,    setTanggal]    = useState(todayISO());
   const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
@@ -1077,11 +1112,10 @@ export default function InputHarianTab() {
   const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
   const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
-    rj:    kunjungan.reduce((s,r)=>s+r.rjYani,0),
-    ri:    kunjungan.reduce((s,r)=>s+r.riYani,0),
-    igd:   kunjungan.reduce((s,r)=>s+r.igd,0),
-    mcu:   kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
-    promo: kunjungan.reduce((s,r)=>s+r.promo,0),
+    rj:  kunjungan.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0),
+    ri:  kunjungan.reduce((s,r)=>s+r.riYani,0),
+    igd: kunjungan.reduce((s,r)=>s+r.igd,0),
+    mcu: kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
@@ -1091,7 +1125,7 @@ export default function InputHarianTab() {
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
     return { label, rj, ri, igd, mcu, total };
-  }).filter(l=>l.total>0);
+  });
   const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
   const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
 
@@ -1130,6 +1164,7 @@ export default function InputHarianTab() {
         <SettingsModal
           list={allList} custom={custom}
           onAdd={addPenjamin} onRemove={removePenjamin}
+          onEditBadge={editBadge}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
         />
       )}
@@ -1152,15 +1187,14 @@ export default function InputHarianTab() {
         <div className="card-clinical p-3 space-y-2">
           <h3 className="text-xs font-bold">Summary — {tanggal}</h3>
           <div className="flex gap-1.5 flex-wrap">
-            <SummaryCard label="RJ A.Yani"   value={unitSummary.rj}    color="#2563eb" />
-            <SummaryCard label="RI A.Yani"   value={unitSummary.ri}    color="#7c3aed" />
+            <SummaryCard label="Rawat Jalan" value={unitSummary.rj}    color="#2563eb" />
+            <SummaryCard label="Rawat Inap" value={unitSummary.ri}    color="#7c3aed" />
             <SummaryCard label="IGD"         value={unitSummary.igd}   color="#dc2626" />
             <SummaryCard label="MCU"         value={unitSummary.mcu}   color="#0891b2" sub={`${mcuTotalPeserta} peserta`} />
             <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
           </div>
-          {labelSummary.length>0 && (
-            <div className="overflow-x-auto">
-              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${labelSummary.length * 70 + 120}px` }}>
+          <div className="overflow-x-auto">
+              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${ALL_LABELS.length * 70 + 120}px` }}>
                 <thead>
                   <tr className="border-b border-border">
                     <th className="py-1 text-left text-[9px] text-muted-foreground font-semibold pr-3 whitespace-nowrap">KUNJUNGAN</th>
@@ -1200,7 +1234,6 @@ export default function InputHarianTab() {
                 </tbody>
               </table>
             </div>
-          )}
         </div>
 
         {/* Tabel Kunjungan */}
@@ -1209,9 +1242,9 @@ export default function InputHarianTab() {
             <h3 className="text-xs font-bold">Kunjungan per Penjamin</h3>
             <span className="text-[9px] text-muted-foreground">{kunjungan.length} baris</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[480px]">
             <table className="w-full font-mono-data" style={{ minWidth:'820px', fontSize:'10px' }}>
-              <thead>
+              <thead className="sticky top-0 z-10 bg-muted">
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
@@ -1243,7 +1276,7 @@ export default function InputHarianTab() {
                           onOpenSettings={openAdminSettings}
                         />
                       </td>
-                      {KUNJUNGAN_COLS.map(c=>{
+                      {KUNJUNGAN_COLS.map((c, ci)=>{
                         const isAuto = !!c.readOnly;
                         const val = (row as any)[c.k] as number;
                         return (
@@ -1254,11 +1287,15 @@ export default function InputHarianTab() {
                               </div>
                             ):(
                               <Input type="number" min={0}
+                                id={`kv-${i}-${ci}`}
                                 value={val===0?'':val}
                                 disabled={isEmpty || !isValid}
                                 onChange={e=>updateKunjungan(row.id,c.k,e.target.value)}
-                                onKeyDown={numericKeyDown}
-                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
+                                onKeyDown={e=>{
+                                  if(e.key==='Enter'){e.preventDefault();document.getElementById(`kv-${i+1}-${ci}`)?.focus();return;}
+                                  numericKeyDown(e);
+                                }}
+                                className={`h-6 text-[9px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
                                 placeholder="—" title={isEmpty?'Isi nama penjamin dulu': !isValid ? 'Nama penjamin tidak sesuai dengan list' : ''}
                               />
                             )}
@@ -1314,11 +1351,11 @@ export default function InputHarianTab() {
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
-                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'120px' }}>PAKET</th>
-                  <th className="px-1 py-1.5 text-center w-16 text-[9px]">PESERTA</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">NOMINAL/ORG</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">TOTAL</th>
-                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">LINK</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'80px' }}>PAKET</th>
+                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">PESERTA</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">NOMINAL/ORG</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">TOTAL</th>
+                  <th className="px-1 py-1.5 text-center w-24 text-[9px] whitespace-nowrap">LINK</th>
                   <th className="w-6"/>
                 </tr>
               </thead>
@@ -1347,15 +1384,24 @@ export default function InputHarianTab() {
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} value={row.peserta||''}
+                          id={`mv-${i}-0`}
                           onChange={e=>updateMcu(row.id,'peserta',e.target.value)}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-center w-full" placeholder="0"/>
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-0`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[8px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
-                        <Input type="number" min={0} value={row.nominal||''}
-                          onChange={e=>updateMcu(row.id,'nominal',e.target.value)}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-right w-full" placeholder="0"/>
+                        <Input type="text" inputMode="numeric"
+                          id={`mv-${i}-1`}
+                          value={row.nominal ? row.nominal.toLocaleString('id-ID') : ''}
+                          onChange={e=>updateMcu(row.id,'nominal',e.target.value.replace(/\./g,''))}
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-1`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[9px] text-right w-full" placeholder="0"/>
                       </td>
                       <td className="px-1 py-0.5 text-right font-bold text-[#0a9e87] text-[10px]">
                         {row.total>0?row.total.toLocaleString('id-ID'):'—'}
@@ -1363,8 +1409,8 @@ export default function InputHarianTab() {
                       <td className="px-1 py-0.5 text-center">
                         {row.namaPenjamin && (
                           isLinked
-                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded">✓ linked</span>
-                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">not in tabel</span>
+                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded whitespace-nowrap">✓ linked</span>
+                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded whitespace-nowrap">not in tabel</span>
                         )}
                       </td>
                       <td className="px-0.5 py-0.5">
