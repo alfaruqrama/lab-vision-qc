@@ -26,67 +26,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check session on mount — validasi ke server, bukan hanya localStorage
+  // TEMPORARY: bypass login — revert saat GAS backend fixed
+  // Auto-login sebagai admin mock supaya portal bisa diakses tanpa GAS.
+  // Original session check & periodic server validation di-disable sementara.
   useEffect(() => {
-    const checkSession = async () => {
-      const storedAuth = getStoredAuth();
-
-      if (storedAuth && validateSession()) {
-        setUser(storedAuth);
-      } else if (storedAuth) {
-        // Session expired
-        apiClearAuth();
-        setUser(null);
-      } else {
-        // TEMPORARY: bypass login — revert saat GAS backend fixed
-        // Auto-login sebagai admin mock supaya portal bisa diakses tanpa GAS
-        const bypassUser: AuthUser = {
-          username: 'bypass',
-          nama: 'Bypass User',
-          role: 'admin',
-          token: 'bypass-token',
-          loginAt: Date.now(),
-        };
-        setUser(bypassUser);
-      }
-
-      setIsLoading(false);
+    const bypassUser: AuthUser = {
+      username: 'bypass',
+      nama: 'Bypass User',
+      role: 'admin',
+      token: 'bypass-token',
+      loginAt: Date.now(),
     };
-
-    checkSession();
+    setUser(bypassUser);
+    setIsLoading(false);
   }, []);
-
-  // Auto-check session setiap 60 detik
-  // Cek waktu + validasi token ke server
-  useEffect(() => {
-    // TEMPORARY: bypass login — skip session validation loop saat GAS backend fixed
-    return;
-
-    const interval = setInterval(() => {
-      if (user && !validateSession()) {
-        // Session expired
-        apiClearAuth();
-        setUser(null);
-        window.location.href = '/login';
-        return;
-      }
-
-      // Periodic server validation — cek apakah token masih valid
-      try {
-        const serverUser = await apiValidateToken(user.token);
-        if (!serverUser) {
-          // Token di-revoke di server (misal admin hapus user, atau logout dari device lain)
-          apiClearAuth();
-          setUser(null);
-          window.location.href = '/login';
-        }
-      } catch {
-        // Network error — skip, coba lagi di interval berikutnya
-      }
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   const login = useCallback(async (username: string, password: string) => {
     const result = await apiLogin(username, password);
