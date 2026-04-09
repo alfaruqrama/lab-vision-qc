@@ -106,27 +106,36 @@ function validateAdmin(token) {
   return user.role === 'admin';
 }
 
-// ─── Main Handler ───
+// ─── Main Handlers ───
 
-// doGet — handle semua request via GET (menghindari CORS issue)
-// Frontend kirim data sebagai query parameter ?payload={JSON}
+// doGet — untuk read-only actions (validateToken, getUsers)
+// Data dikirim sebagai query parameter ?payload={JSON}
+// TIDAK BOLEH dipakai untuk action yang mengandung password
 function doGet(e) {
   try {
-    const raw = e.parameter.payload;
+    var raw = e.parameter.payload;
     if (!raw) {
       return jsonResponse({ success: false, message: 'Missing payload parameter' });
     }
-    const data = JSON.parse(raw);
+    var data = JSON.parse(raw);
+
+    // SECURITY: hanya izinkan read-only actions via GET
+    var readOnlyActions = ['validateToken', 'getUsers'];
+    if (readOnlyActions.indexOf(data.action) === -1) {
+      return jsonResponse({ success: false, message: 'Action ini harus menggunakan POST' });
+    }
+
     return handleAction(data);
   } catch (error) {
     return jsonResponse({ success: false, message: error.toString() });
   }
 }
 
-// doPost — fallback untuk POST requests
+// doPost — untuk sensitive actions (login, logout, create/update/delete user, reset password)
+// Password dan data sensitif dikirim di body, BUKAN di URL
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    var data = JSON.parse(e.postData.contents);
     return handleAction(data);
   } catch (error) {
     return jsonResponse({ success: false, message: error.toString() });
@@ -135,7 +144,7 @@ function doPost(e) {
 
 // Router — dispatch action ke handler yang sesuai
 function handleAction(data) {
-  const action = data.action;
+  var action = data.action;
   switch (action) {
     case 'login':         return handleLogin(data);
     case 'logout':        return handleLogout(data);
