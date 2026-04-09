@@ -28,15 +28,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkSession = () => {
       const storedAuth = getStoredAuth();
-      
+
       if (storedAuth && validateSession()) {
         setUser(storedAuth);
       } else if (storedAuth) {
         // Session expired
         apiClearAuth();
         setUser(null);
+      } else {
+        // TEMPORARY: bypass login — revert saat GAS backend fixed
+        // Auto-login sebagai admin mock supaya portal bisa diakses tanpa GAS
+        const bypassUser: AuthUser = {
+          username: 'bypass',
+          nama: 'Bypass User',
+          role: 'admin',
+          token: 'bypass-token',
+          loginAt: Date.now(),
+        };
+        setUser(bypassUser);
       }
-      
+
       setIsLoading(false);
     };
 
@@ -45,6 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-check session every minute
   useEffect(() => {
+    // TEMPORARY: bypass login — skip session validation loop saat GAS backend fixed
+    return;
+
     const interval = setInterval(() => {
       if (user && !validateSession()) {
         // Session expired
