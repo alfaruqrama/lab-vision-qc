@@ -18,7 +18,6 @@ import LeveyJennings from "@/pages/LeveyJennings";
 import MonthlyReport from "@/pages/MonthlyReport";
 import LotConfig from "@/pages/LotConfig";
 import NotFound from "@/pages/NotFound";
-import PinAccess from "@/pages/PinAccess";
 import LoginPage from "@/pages/LoginPage";
 import AdminUserPanel from "@/pages/AdminUserPanel";
 
@@ -35,9 +34,6 @@ const App = () => (
               <Routes>
                 {/* Login page - no auth required */}
                 <Route path="/login" element={<LoginPage />} />
-
-                {/* Halaman PIN — untuk akses dari luar jaringan RS */}
-                <Route path="/pin" element={<PinAccess />} />
 
                 {/* Protected routes - Portal pages with top navbar */}
                 <Route path="/" element={<ProtectedRoute><PortalLayout><PortalHome /></PortalLayout></ProtectedRoute>} />
