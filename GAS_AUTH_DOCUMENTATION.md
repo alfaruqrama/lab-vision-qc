@@ -108,9 +108,9 @@ function validateAdmin(token) {
 
 // ─── Main Handlers ───
 
-// doGet — untuk read-only actions (validateToken, getUsers)
-// Data dikirim sebagai query parameter ?payload={JSON}
-// TIDAK BOLEH dipakai untuk action yang mengandung password
+// doGet — handle request via GET (query parameter ?payload={JSON})
+// Safari ITP memblokir POST ke google.com, jadi Safari pakai GET
+// Chrome/Firefox tetap pakai POST (password di body, lebih aman)
 function doGet(e) {
   try {
     var raw = e.parameter.payload;
@@ -118,21 +118,14 @@ function doGet(e) {
       return jsonResponse({ success: false, message: 'Missing payload parameter' });
     }
     var data = JSON.parse(raw);
-
-    // SECURITY: hanya izinkan read-only actions via GET
-    var readOnlyActions = ['validateToken', 'getUsers'];
-    if (readOnlyActions.indexOf(data.action) === -1) {
-      return jsonResponse({ success: false, message: 'Action ini harus menggunakan POST' });
-    }
-
     return handleAction(data);
   } catch (error) {
     return jsonResponse({ success: false, message: error.toString() });
   }
 }
 
-// doPost — untuk sensitive actions (login, logout, create/update/delete user, reset password)
-// Password dan data sensitif dikirim di body, BUKAN di URL
+// doPost — handle request via POST (body berisi JSON)
+// Dipakai oleh Chrome/Firefox untuk sensitive actions (login, dll)
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);

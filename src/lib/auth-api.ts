@@ -18,28 +18,31 @@ function getAuthUrl(): string | null {
 }
 
 // ─── Transport Layer ───
-// POST text/plain — untuk sensitive actions (password, create user, dll)
-// Tidak memicu CORS preflight karena Content-Type text/plain = "simple request"
-async function gasPost(url: string, payload: Record<string, unknown>): Promise<any> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(payload),
-  });
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    console.error('GAS response bukan JSON:', text.slice(0, 200));
-    throw new Error('Response dari server tidak valid');
-  }
-}
 
-// GET — untuk read-only actions (validate token, get users)
-// Tidak ada data sensitif di query string
-async function gasGet(url: string, payload: Record<string, unknown>): Promise<any> {
-  const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
-  const res = await fetch(fullUrl);
+// Detect Safari — Safari ITP memblokir POST cross-origin ke google.com
+// karena Google dianggap tracker. POST redirect chain (302) diblokir.
+// Solusi: Safari fallback ke GET untuk semua request.
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+// Unified request — pilih POST atau GET berdasarkan browser
+// Chrome/Firefox: POST text/plain (password aman di body)
+// Safari: GET dengan payload di query string (workaround ITP)
+async function gasRequest(url: string, payload: Record<string, unknown>): Promise<any> {
+  let res: Response;
+
+  if (isSafari) {
+    // Safari: GET — satu-satunya cara yang reliable karena ITP
+    const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
+    res = await fetch(fullUrl);
+  } else {
+    // Chrome/Firefox: POST text/plain — password tidak di URL
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload),
+    });
+  }
+
   const text = await res.text();
   try {
     return JSON.parse(text);
@@ -78,7 +81,7 @@ export function isSessionTimeValid(): boolean {
 
 // ─── Auth Actions ───
 
-// Login — POST (password di body, tidak di URL)
+// Login
 export async function login(username: string, password: string): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
@@ -86,7 +89,7 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 
   try {
-    const data = await gasPost(url, { action: 'login', username, password });
+    const data = await gasRequest(url, { action: 'login', username, password });
     
     if (data.success && data.user) {
       const authUser: AuthUser = { ...data.user, loginAt: Date.now() };
@@ -101,12 +104,12 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 }
 
-// Logout — POST (menghapus token di server)
+// Logout
 export async function logout(token: string): Promise<void> {
   const url = getAuthUrl();
   if (url) {
     try {
-      await gasPost(url, { action: 'logout', token });
+      await gasRequest(url, { action: 'logout', token });
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -114,14 +117,13 @@ export async function logout(token: string): Promise<void> {
   clearAuth();
 }
 
-// Validate token — GET (token bukan rahasia, hanya session ID)
-// Dipanggil saat app mount untuk verifikasi ke server
+// Validate token — dipanggil saat app mount untuk verifikasi ke server
 export async function validateToken(token: string): Promise<AuthUser | null> {
   const url = getAuthUrl();
   if (!url) return null;
 
   try {
-    const data = await gasGet(url, { action: 'validateToken', token });
+    const data = await gasRequest(url, { action: 'validateToken', token });
     if (data.success && data.user) {
       return data.user;
     }
@@ -134,13 +136,13 @@ export async function validateToken(token: string): Promise<AuthUser | null> {
 
 // ─── User Management (Admin) ───
 
-// Get users — GET (read-only, no sensitive data)
+// Get users
 export async function getUsers(token: string): Promise<User[]> {
   const url = getAuthUrl();
   if (!url) return [];
 
   try {
-    const data = await gasGet(url, { action: 'getUsers', token });
+    const data = await gasRequest(url, { action: 'getUsers', token });
     return data.success && data.users ? data.users : [];
   } catch (error) {
     console.error('Get users error:', error);
@@ -148,52 +150,52 @@ export async function getUsers(token: string): Promise<User[]> {
   }
 }
 
-// Create user — POST (password di body)
+// Create user
 export async function createUser(token: string, userData: CreateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
 
   try {
-    return await gasPost(url, { action: 'createUser', token, ...userData });
+    return await gasRequest(url, { action: 'createUser', token, ...userData });
   } catch (error) {
     console.error('Create user error:', error);
     return { success: false, message: 'Gagal membuat user' };
   }
 }
 
-// Update user — POST (mengubah data)
+// Update user
 export async function updateUser(token: string, userData: UpdateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
 
   try {
-    return await gasPost(url, { action: 'updateUser', token, ...userData });
+    return await gasRequest(url, { action: 'updateUser', token, ...userData });
   } catch (error) {
     console.error('Update user error:', error);
     return { success: false, message: 'Gagal mengupdate user' };
   }
 }
 
-// Reset password — POST (password baru di body)
+// Reset password
 export async function resetPassword(token: string, resetData: ResetPasswordRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
 
   try {
-    return await gasPost(url, { action: 'resetPassword', token, ...resetData });
+    return await gasRequest(url, { action: 'resetPassword', token, ...resetData });
   } catch (error) {
     console.error('Reset password error:', error);
     return { success: false, message: 'Gagal reset password' };
   }
 }
 
-// Delete user — POST (mengubah data)
+// Delete user
 export async function deleteUser(token: string, username: string): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
 
   try {
-    return await gasPost(url, { action: 'deleteUser', token, username });
+    return await gasRequest(url, { action: 'deleteUser', token, username });
   } catch (error) {
     console.error('Delete user error:', error);
     return { success: false, message: 'Gagal menghapus user' };
