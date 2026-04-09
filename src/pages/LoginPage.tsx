@@ -97,12 +97,13 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Masukkan password"
+                  placeholder="Nomor badge (hanya angka)"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
                   disabled={isLoading}
                   autoComplete="current-password"
                   className="pr-10"
+                  inputMode="numeric"
                 />
                 <button
                   type="button"
@@ -117,6 +118,9 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Password default adalah nomor badge Anda
+              </p>
             </div>
 
             <Button
