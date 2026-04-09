@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
 import { getOverallStatus } from '@/lib/westgard';
 import type { WestgardStatus } from '@/lib/types';
@@ -16,6 +17,7 @@ function formatTodayID() {
 export default function PortalHome() {
   const navigate = useNavigate();
   const { records, connected } = useQCStore();
+  const { user, canAccess } = useAuth();
 
   const todayKey = useMemo(() => {
     const d = new Date();
@@ -38,6 +40,7 @@ export default function PortalHome() {
       colorClass: 'bg-accent text-accent-foreground',
       badge: connected ? { label: 'LIVE · Google Sheets', live: true } : { label: 'OFFLINE', live: false },
       chips: ['Total Kunjungan', 'Omzet Harian', '% Target'],
+      visible: canAccess('dashboard'),
     },
     {
       title: 'Monitor Suhu Lab',
@@ -47,6 +50,7 @@ export default function PortalHome() {
       colorClass: 'bg-accent2 text-accent2-foreground',
       badge: { label: 'DUMMY DATA', live: false },
       chips: ['6 Ruangan', '1 Alert'],
+      visible: canAccess('suhu'),
     },
     {
       title: 'Lab QC',
@@ -59,15 +63,26 @@ export default function PortalHome() {
         `${qcToday.length} run hari ini`,
         lastStatus ? (lastStatus === 'ok' ? '✓ Pass' : lastStatus === 'warning' ? '⚠ Warning' : '✕ Fail') : 'Belum ada data',
       ],
+      visible: canAccess('qc'),
     },
-  ];
+    {
+      title: 'Kelola User',
+      desc: 'Manajemen user dan hak akses sistem',
+      icon: Users,
+      path: '/admin/users',
+      colorClass: 'bg-red-50 text-red-700',
+      badge: { label: 'ADMIN ONLY', live: false },
+      chips: ['User Management', 'Role & Access'],
+      visible: canAccess('admin-users'),
+    },
+  ].filter(mod => mod.visible);
 
   return (
     <div className="grid-bg min-h-[calc(100vh-3.5rem)]">
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-bold">Selamat datang,</h1>
+          <h1 className="text-2xl md:text-3xl font-display font-bold">Selamat datang, {user?.nama || 'User'}</h1>
           <h2 className="text-xl md:text-2xl font-display font-bold text-accent">{formatTodayID()}</h2>
           <p className="text-sm text-muted-foreground mt-1">Pilih modul untuk mulai bekerja</p>
         </div>
