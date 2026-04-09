@@ -20,18 +20,12 @@ function getAuthUrl(): string | null {
 // Helper: POST ke GAS tanpa CORS preflight
 // GAS tidak support OPTIONS request, jadi kita pakai text/plain
 // agar browser tidak kirim preflight request
+// Kirim request ke GAS via GET (query params) — paling reliable, no CORS issue
+// Semua data dikirim sebagai query parameter `payload` (JSON string encoded)
 async function postToGAS(url: string, payload: Record<string, unknown>): Promise<any> {
-  // GAS melakukan redirect setelah POST.
-  // Pakai text/plain agar browser TIDAK kirim preflight OPTIONS (yang GAS tidak support).
-  // redirect: 'follow' memastikan browser ikuti redirect otomatis.
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    redirect: 'follow',
-    body: JSON.stringify(payload),
-  });
+  const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
+  const response = await fetch(fullUrl);
 
-  // GAS kadang return HTML jika ada error — handle gracefully
   const text = await response.text();
   try {
     return JSON.parse(text);
