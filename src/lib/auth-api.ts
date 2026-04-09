@@ -22,26 +22,9 @@ function getAuthUrl(): string | null {
 // Detect Safari — Safari ITP memblokir POST cross-origin ke google.com
 // karena Google dianggap tracker. POST redirect chain (302) diblokir.
 // Solusi: Safari fallback ke GET untuk semua request.
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-// Unified request — pilih POST atau GET berdasarkan browser
-// Chrome/Firefox: POST text/plain (password aman di body)
-// Safari: GET dengan payload di query string (workaround ITP)
 async function gasRequest(url: string, payload: Record<string, unknown>): Promise<any> {
-  let res: Response;
-
-  if (isSafari) {
-    // Safari: GET — satu-satunya cara yang reliable karena ITP
-    const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
-    res = await fetch(fullUrl);
-  } else {
-    // Chrome/Firefox: POST text/plain — password tidak di URL
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload),
-    });
-  }
+  const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
+  const res = await fetch(fullUrl);
 
   const text = await res.text();
   try {
