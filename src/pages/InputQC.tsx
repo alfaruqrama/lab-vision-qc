@@ -1,16 +1,28 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { useAuth } from '@/hooks/use-auth';
 import { evaluateWestgard } from '@/lib/westgard';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import * as api from '@/lib/api';
-import { Camera, ArrowLeft, Loader2, Sparkles, RotateCcw } from 'lucide-react';
+import { Camera, ArrowLeft, Loader2, Sparkles, RotateCcw, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InputQC() {
   const navigate = useNavigate();
   const { config, addRecord, connected } = useQCStore();
+  const { canAccess } = useAuth();
+
+  // Check access permission
+  useEffect(() => {
+    if (!canAccess('input-qc')) {
+      toast.error('Akses ditolak', {
+        description: 'Hanya admin dan petugas yang dapat mengakses halaman ini',
+      });
+      navigate('/qc');
+    }
+  }, [canAccess, navigate]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [alat, setAlat] = useState<InstrumentType | null>(null);
