@@ -639,7 +639,6 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   // Helper: format angka ke "Rp1.234.567"
   const fmtRpTotal = (v: number) => v ? `Rp${v.toLocaleString('id-ID')}` : 'Rp0';
 
-  const MIN_MCU_ROWS = 28;
   const mcuAoa: any[][] = [
     ['RINCIAN MCU HARIAN'],
     ['NO','PERUSAHAAN','PESERTA','NOMINAL SATUAN','TOTAL','KET. PAKET'],
@@ -651,15 +650,151 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
       fmtRpTotal(r.total),
       r.paket,
     ]),
+    ['TOTAL', null, mcu.reduce((s,r)=>s+r.peserta,0), null, fmtRpTotal(mcu.reduce((s,r)=>s+r.total,0)), null],
   ];
-  // Tambah baris kosong sampai minimal MIN_MCU_ROWS baris data
-  const filledRows = mcu.length;
-  for (let i = filledRows; i < MIN_MCU_ROWS; i++) {
-    mcuAoa.push([i + 1, '', '', '', 'Rp0', '']);
-  }
   const ws2 = XLSX.utils.aoa_to_sheet(mcuAoa);
   ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:10 },{ wch:20 },{ wch:16 },{ wch:14 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'MCU Harian');
+
+  // ── Sheet KUNJUNGAN 2026 ──────────────────────────────────────────────────
+  // Format: 12 blok bulan, tiap blok punya header + 31 baris hari + TOTAL + Sub Total + separator
+  const BULAN_NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+  // 9 payer untuk RJ/RI/IGD
+  const PAYER_9 = ['PT PETROKIMIA','PERUSAHAAN LAIN','BRI (PG)','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
+  // Badge → index di PAYER_9
+  const BADGE_TO_IDX: Record<string, number> = {
+    'PG': 0, 'NPG': 1, 'BRI LIFE PG': 2, 'AS': 3,
+    'PROKESPEN': 4, 'PROKESPEN BPJS': 5, 'BPJS': 6, 'JKK': 7, 'UMUM': 8,
+  };
+  // MCU hanya 4 kolom: PT PETROKIMIA, PERUSAHAAN LAIN, ASURANSI KOMERSIAL, UMUM
+  const MCU_PAYERS = ['PT PETROKIMIA','PERUSAHAAN LAIN','ASURANSI KOMERSIAL','UMUM'];
+  const MCU_BADGE_TO_IDX: Record<string, number> = { 'PG': 0, 'NPG': 1, 'AS': 2, 'UMUM': 3 };
+
+  // Parse tanggal → day & month index
+  // Format dari <input type="date"> selalu YYYY-MM-DD (ISO), contoh: "2026-04-09"
+  // Juga support "9 April 2026" dan "DD-MM-YYYY"
+  const BULAN_MAP_PARSE: Record<string, number> = {
+    'januari':0,'februari':1,'maret':2,'april':3,'mei':4,'juni':5,
+    'juli':6,'agustus':7,'september':8,'oktober':9,'november':10,'desember':11,
+  };
+  let dayNum = 0, monthIdx = -1;
+  const tglParts = tanggal.trim().split(/[\s\-\/]+/);
+  if (tglParts.length >= 3) {
+    const p0 = parseInt(tglParts[0], 10);
+    if (!isNaN(p0) && p0 >= 1000) {
+      // Format YYYY-MM-DD (ISO)
+      const m = parseInt(tglParts[1], 10);
+      const d = parseInt(tglParts[2], 10);
+      if (!isNaN(m) && !isNaN(d)) { dayNum = d; monthIdx = m - 1; }
+    } else if (!isNaN(p0) && BULAN_MAP_PARSE[tglParts[1].toLowerCase()] !== undefined) {
+      // Format "9 April 2026"
+      dayNum = p0; monthIdx = BULAN_MAP_PARSE[tglParts[1].toLowerCase()];
+    } else {
+      // Format DD-MM-YYYY atau DD/MM/YYYY
+      const m = parseInt(tglParts[1], 10);
+      if (!isNaN(p0) && !isNaN(m) && m >= 1 && m <= 12) { dayNum = p0; monthIdx = m - 1; }
+    }
+  }
+
+  // Hitung data per badge untuk hari ini
+  // RJ per badge = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
+  const rjPerBadge: number[] = Array(9).fill(0);
+  const riPerBadge: number[] = Array(9).fill(0);
+  const igdPerBadge: number[] = Array(9).fill(0);
+  const mcuPerBadge: number[] = Array(4).fill(0);
+
+  for (const r of kunjungan) {
+    const idx = BADGE_TO_IDX[r.badge];
+    if (idx === undefined) continue;
+    rjPerBadge[idx] += r.rjYani + r.promo + r.dokter + r.exc + r.prior + r.grhuRj + r.sat + r.ppk1;
+    riPerBadge[idx] += r.riYani + r.grhuRi;
+    igdPerBadge[idx] += r.igd;
+    // MCU per badge (hanya 4 kolom)
+    const mcuIdx = MCU_BADGE_TO_IDX[r.badge];
+    if (mcuIdx !== undefined) mcuPerBadge[mcuIdx] += r.mcuAuto;
+  }
+
+  const ROWS_PER_MONTH = 36; // header1 + header2 + 31 days + TOTAL + Sub Total + 1 separator
+  const kunjAoa: any[][] = [];
+
+  for (let mi = 0; mi < 12; mi++) {
+    const bulan = BULAN_NAMES[mi];
+    // Header row 1: bulan, RAWAT JALAN (9 cols), RAWAT INAP (9 cols), IGD (9 cols), MCU (4 cols), TOTAL, TARGET, CAPAIAN
+    const h1: any[] = [bulan];
+    h1.push('RAWAT JALAN', ...Array(8).fill(null));
+    h1.push('RAWAT INAP', ...Array(8).fill(null));
+    h1.push('IGD', ...Array(8).fill(null));
+    h1.push('MCU', ...Array(3).fill(null));
+    h1.push('TOTAL KUNJUNGN', 'TARGET', 'CAPAIAN (%)');
+    kunjAoa.push(h1);
+
+    // Header row 2: sub-headers (payer names)
+    const h2: any[] = [null];
+    // RJ payers
+    h2.push(...PAYER_9);
+    // RI payers
+    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    // IGD payers
+    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    // MCU payers
+    h2.push(...MCU_PAYERS);
+    h2.push(null, null, null);
+    kunjAoa.push(h2);
+
+    // 31 day rows
+    for (let d = 1; d <= 31; d++) {
+      const row: any[] = [d];
+      if (mi === monthIdx && d === dayNum) {
+        // Fill data hari ini
+        row.push(...rjPerBadge);
+        row.push(...riPerBadge);
+        row.push(...igdPerBadge);
+        row.push(...mcuPerBadge);
+        const totalKunj = rjPerBadge.reduce((a,b)=>a+b,0) + riPerBadge.reduce((a,b)=>a+b,0)
+          + igdPerBadge.reduce((a,b)=>a+b,0) + mcuPerBadge.reduce((a,b)=>a+b,0);
+        row.push(totalKunj, null, null);
+      } else {
+        row.push(...Array(34).fill(null));
+      }
+      kunjAoa.push(row);
+    }
+
+    // TOTAL row
+    const totRow: any[] = ['TOTAL'];
+    if (mi === monthIdx) {
+      totRow.push(...rjPerBadge);
+      totRow.push(...riPerBadge);
+      totRow.push(...igdPerBadge);
+      totRow.push(...mcuPerBadge);
+      const totalKunj = rjPerBadge.reduce((a,b)=>a+b,0) + riPerBadge.reduce((a,b)=>a+b,0)
+        + igdPerBadge.reduce((a,b)=>a+b,0) + mcuPerBadge.reduce((a,b)=>a+b,0);
+      totRow.push(totalKunj, null, null);
+    } else {
+      totRow.push(...Array(34).fill(0));
+    }
+    kunjAoa.push(totRow);
+
+    // Sub Total row
+    const subRow: any[] = ['Sub Total'];
+    const rjSub = mi === monthIdx ? rjPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const riSub = mi === monthIdx ? riPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const igdSub = mi === monthIdx ? igdPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const mcuSub = mi === monthIdx ? mcuPerBadge.reduce((a,b)=>a+b,0) : 0;
+    subRow.push(`RAWAT JALAN :`, rjSub, ...Array(7).fill(null));
+    subRow.push(`RAWAT INAP :`, riSub, ...Array(7).fill(null));
+    subRow.push(`IGD :`, igdSub, ...Array(7).fill(null));
+    subRow.push(`MCU : `, mcuSub, ...Array(2).fill(null));
+    subRow.push(null, null, null);
+    kunjAoa.push(subRow);
+
+    // Separator row
+    kunjAoa.push(Array(35).fill(null));
+  }
+
+  const ws4 = XLSX.utils.aoa_to_sheet(kunjAoa);
+  ws4['!cols'] = [{ wch:12 }, ...Array(34).fill({ wch:8 })];
+  XLSX.utils.book_append_sheet(wb, ws4, 'KUNJUNGAN 2026');
+
   XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);
 }
 
