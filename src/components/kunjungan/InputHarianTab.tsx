@@ -1246,15 +1246,39 @@ export default function InputHarianTab() {
     if (empty.length) { toast.error(`${empty.length} baris ada angka tapi nama penjamin kosong`); return; }
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     if (!GS_URL) { toast.error('VITE_GAS_INPUT_URL belum diset di .env'); return; }
+
+    // Cek apakah data hari ini sudah ada di sheet (warning overwrite)
+    try {
+      const checkRes = await fetch(`${GS_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.hasData) {
+          const ok = window.confirm(
+            `⚠️ Data tanggal ${tanggal} (${checkData.bulan} hari ${checkData.dayNum}) sudah ada di sheet!\n` +
+            `Total kunjungan saat ini: ${checkData.totalKunjungan}\n\n` +
+            `Lanjutkan overwrite?`
+          );
+          if (!ok) return;
+        }
+      }
+    } catch {
+      // Jika checkDay gagal (misal GAS belum support), lanjut saja
+    }
+
     setSubmitting(true);
     try {
-      await fetch(GS_URL, {
-        method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'application/json'},
+      const res = await fetch(GS_URL, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain'},
         body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
       });
-      toast.success('Data berhasil dikirim ke Sheets!');
-      localStorage.removeItem(DRAFT_KEY);
+      const result = await res.json();
+      if (result.error) {
+        toast.error(`Gagal: ${result.error}`);
+      } else {
+        toast.success(`${result.message || 'Data berhasil dikirim!'} (${result.totalKunjungan || 0} kunjungan)`);
+        localStorage.removeItem(DRAFT_KEY);
+      }
     } catch (err: any) {
       toast.error(`Gagal kirim: ${err.message}`);
     } finally { setSubmitting(false); }
