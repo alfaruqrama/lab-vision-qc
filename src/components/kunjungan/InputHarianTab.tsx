@@ -634,14 +634,31 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   ws3['!cols'] = [{ wch:18 }, ...Array(activeLabels.length+1).fill({ wch:16 })];
   XLSX.utils.book_append_sheet(wb, ws3, 'Rekap Kunjungan');
 
+  // Helper: format angka ke "Rp1.234.567,00"
+  const fmtRpSatuan = (v: number) => v ? `Rp${v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Rp0';
+  // Helper: format angka ke "Rp1.234.567"
+  const fmtRpTotal = (v: number) => v ? `Rp${v.toLocaleString('id-ID')}` : 'Rp0';
+
+  const MIN_MCU_ROWS = 28;
   const mcuAoa: any[][] = [
-    [`MCU HARIAN - ${tanggal}`],
-    ['No.','Nama Penjamin','Paket','Peserta','Nominal/Orang','Total'],
-    ...mcu.map((r,i) => [i+1,r.namaPenjamin,r.paket,r.peserta,r.nominal,r.total]),
-    ['TOTAL',null,null,mcu.reduce((s,r)=>s+r.peserta,0),null,mcu.reduce((s,r)=>s+r.total,0)],
+    ['RINCIAN MCU HARIAN'],
+    ['NO','PERUSAHAAN','PESERTA','NOMINAL SATUAN','TOTAL','KET. PAKET'],
+    ...mcu.map((r,i) => [
+      i+1,
+      r.namaPenjamin,
+      r.peserta || '',
+      r.nominal ? fmtRpSatuan(r.nominal) : '',
+      fmtRpTotal(r.total),
+      r.paket,
+    ]),
   ];
+  // Tambah baris kosong sampai minimal MIN_MCU_ROWS baris data
+  const filledRows = mcu.length;
+  for (let i = filledRows; i < MIN_MCU_ROWS; i++) {
+    mcuAoa.push([i + 1, '', '', '', 'Rp0', '']);
+  }
   const ws2 = XLSX.utils.aoa_to_sheet(mcuAoa);
-  ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:20 },{ wch:10 },{ wch:14 },{ wch:14 }];
+  ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:10 },{ wch:20 },{ wch:16 },{ wch:14 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'MCU Harian');
   XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);
 }
