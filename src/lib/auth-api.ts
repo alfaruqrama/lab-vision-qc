@@ -20,17 +20,37 @@ function getAuthUrl(): string | null {
 // ─── Transport Layer ───
 
 // Detect Safari — Safari ITP memblokir POST cross-origin ke google.com
-// karena Google dianggap tracker. POST redirect chain (302) diblokir.
-// Solusi: Safari fallback ke GET untuk semua request.
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+// Unified request — pilih POST atau GET berdasarkan browser
 async function gasRequest(url: string, payload: Record<string, unknown>): Promise<any> {
-  const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
-  const res = await fetch(fullUrl);
+  let res: Response;
+
+  if (isSafari) {
+    // Safari: GET — workaround ITP blocking POST to google.com
+    const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
+    res = await fetch(fullUrl);
+  } else {
+    // Chrome/Firefox: POST text/plain — password aman di body
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload),
+    });
+  }
 
   const text = await res.text();
+
+  // Detect GAS error page (HTML instead of JSON)
+  if (text.includes('<!DOCTYPE html>') || text.includes('Halaman Tidak Ditemukan')) {
+    console.error('GAS URL tidak valid atau deployment expired');
+    throw new Error('URL server tidak valid. Hubungi admin untuk update URL GAS.');
+  }
+
   try {
     return JSON.parse(text);
   } catch {
-    console.error('GAS response bukan JSON:', text.slice(0, 200));
+    console.error('GAS response bukan JSON:', text.slice(0, 300));
     throw new Error('Response dari server tidak valid');
   }
 }
@@ -55,7 +75,6 @@ export function clearAuth(): void {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
-// Cek waktu session di client (quick check sebelum server validation)
 export function isSessionTimeValid(): boolean {
   const auth = getStoredAuth();
   if (!auth) return false;
@@ -68,7 +87,7 @@ export function isSessionTimeValid(): boolean {
 export async function login(username: string, password: string): Promise<LoginResponse> {
   const url = getAuthUrl();
   if (!url) {
-    return { success: false, message: 'URL GAS auth belum dikonfigurasi. Simpan di localStorage dengan key "gs-url-auth"' };
+    return { success: false, message: 'URL server belum dikonfigurasi. Hubungi admin.' };
   }
 
   try {
@@ -83,7 +102,8 @@ export async function login(username: string, password: string): Promise<LoginRe
     return { success: false, message: data.message || 'Login gagal' };
   } catch (error) {
     console.error('Login error:', error);
-    return { success: false, message: 'Gagal terhubung ke server' };
+    const msg = error instanceof Error ? error.message : 'Gagal terhubung ke server';
+    return { success: false, message: msg };
   }
 }
 
@@ -100,7 +120,7 @@ export async function logout(token: string): Promise<void> {
   clearAuth();
 }
 
-// Validate token — dipanggil saat app mount untuk verifikasi ke server
+// Validate token
 export async function validateToken(token: string): Promise<AuthUser | null> {
   const url = getAuthUrl();
   if (!url) return null;
@@ -119,7 +139,6 @@ export async function validateToken(token: string): Promise<AuthUser | null> {
 
 // ─── User Management (Admin) ───
 
-// Get users
 export async function getUsers(token: string): Promise<User[]> {
   const url = getAuthUrl();
   if (!url) return [];
@@ -133,10 +152,9 @@ export async function getUsers(token: string): Promise<User[]> {
   }
 }
 
-// Create user
 export async function createUser(token: string, userData: CreateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
+  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
     return await gasRequest(url, { action: 'createUser', token, ...userData });
@@ -146,10 +164,9 @@ export async function createUser(token: string, userData: CreateUserRequest): Pr
   }
 }
 
-// Update user
 export async function updateUser(token: string, userData: UpdateUserRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
+  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
     return await gasRequest(url, { action: 'updateUser', token, ...userData });
@@ -159,10 +176,9 @@ export async function updateUser(token: string, userData: UpdateUserRequest): Pr
   }
 }
 
-// Reset password
 export async function resetPassword(token: string, resetData: ResetPasswordRequest): Promise<LoginResponse> {
   const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
+  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
     return await gasRequest(url, { action: 'resetPassword', token, ...resetData });
@@ -172,10 +188,9 @@ export async function resetPassword(token: string, resetData: ResetPasswordReque
   }
 }
 
-// Delete user
 export async function deleteUser(token: string, username: string): Promise<LoginResponse> {
   const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL GAS auth belum dikonfigurasi' };
+  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
     return await gasRequest(url, { action: 'deleteUser', token, username });
