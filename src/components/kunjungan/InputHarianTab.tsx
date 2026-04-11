@@ -1120,6 +1120,7 @@ export default function InputHarianTab() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [showSubmitPreview, setShowSubmitPreview] = useState(false);
   const [sheetCheckData, setSheetCheckData] = useState<{ hasData: boolean; bulan: string; dayNum: number; totalKunjungan: number } | null>(null);
+  const [sheetCheckStatus, setSheetCheckStatus] = useState<'idle' | 'checking' | 'ok' | 'failed'>('idle');
   const openAdminSettings = () => setShowPinModal(true);
 
   // Tanggal validation
@@ -1261,16 +1262,24 @@ export default function InputHarianTab() {
 
     // Cek apakah data sudah ada di sheet
     setSheetCheckData(null);
+    setSheetCheckStatus('checking');
+    setShowSubmitPreview(true);
     try {
       const checkRes = await fetch(`${GS_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`);
       if (checkRes.ok) {
         const d = await checkRes.json();
-        if (d.status === 'ok') setSheetCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan });
+        if (d.status === 'ok') {
+          setSheetCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan });
+          setSheetCheckStatus('ok');
+        } else {
+          setSheetCheckStatus('failed');
+        }
+      } else {
+        setSheetCheckStatus('failed');
       }
-    } catch { /* lanjut tanpa info sheet */ }
-
-    // Buka preview modal
-    setShowSubmitPreview(true);
+    } catch {
+      setSheetCheckStatus('failed');
+    }
   };
 
   const handleConfirmSubmit = async () => {
@@ -1384,15 +1393,40 @@ export default function InputHarianTab() {
                 )}
               </div>
 
-              {/* Warning overwrite */}
-              {sheetCheckData?.hasData && (
+              {/* Status cek sheet */}
+              {sheetCheckStatus === 'checking' && (
+                <div className="rounded-md p-2.5 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    Mengecek status sheet Google Sheets...
+                  </p>
+                </div>
+              )}
+              {sheetCheckStatus === 'ok' && sheetCheckData && !sheetCheckData.hasData && (
+                <div className="rounded-md p-2.5 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                    <span className="text-emerald-500">&#10003;</span> Sheet {sheetCheckData.bulan} hari {sheetCheckData.dayNum} masih kosong — aman untuk dikirim.
+                  </p>
+                </div>
+              )}
+              {sheetCheckStatus === 'ok' && sheetCheckData?.hasData && (
                 <div className="rounded-md p-2.5 bg-red-50 border border-red-300 dark:bg-red-950/40 dark:border-red-700">
                   <p className="text-xs font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" /> Data sudah ada di Google Sheets!
                   </p>
                   <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-                    {sheetCheckData.bulan} hari {sheetCheckData.dayNum} sudah terisi ({sheetCheckData.totalKunjungan} kunjungan).
+                    {sheetCheckData.bulan} hari {sheetCheckData.dayNum} sudah terisi (<strong>{sheetCheckData.totalKunjungan} kunjungan</strong>).
                     Submit akan <strong>menimpa</strong> data yang ada.
+                  </p>
+                </div>
+              )}
+              {sheetCheckStatus === 'failed' && (
+                <div className="rounded-md p-2.5 bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Tidak bisa mengecek status sheet
+                  </p>
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                    Pastikan GAS sudah di-deploy dan VITE_GAS_INPUT_URL sudah diset. Data di sheet <strong>mungkin sudah ada</strong> dan akan tertimpa.
                   </p>
                 </div>
               )}
@@ -1489,10 +1523,11 @@ export default function InputHarianTab() {
                 Batal
               </Button>
               <Button size="sm"
-                className={`h-7 text-xs text-white ${sheetCheckData?.hasData ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'}`}
+                disabled={sheetCheckStatus === 'checking'}
+                className={`h-7 text-xs text-white ${sheetCheckData?.hasData || sheetCheckStatus === 'failed' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'}`}
                 onClick={handleConfirmSubmit}>
                 <Send className="w-3 h-3 mr-1" />
-                {sheetCheckData?.hasData ? 'Overwrite & Kirim' : 'Kirim ke Sheets'}
+                {sheetCheckStatus === 'checking' ? 'Mengecek...' : sheetCheckData?.hasData ? 'Overwrite & Kirim' : sheetCheckStatus === 'failed' ? 'Kirim (belum dicek)' : 'Kirim ke Sheets'}
               </Button>
             </div>
           </div>
