@@ -1487,6 +1487,11 @@ export default function InputHarianTab() {
                       </p>
                     </div>
                   )}
+                  {status === 'ok' && data?.debug && (
+                    <p className="text-[8px] text-muted-foreground/50 font-mono">
+                      {label}: {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
+                    </p>
+                  )}
                   {status === 'failed' && (
                     <div className="rounded-md p-2 bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700">
                       <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
