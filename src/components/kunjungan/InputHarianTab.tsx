@@ -39,6 +39,7 @@ export interface InputHarianDraft {
 const DRAFT_KEY         = 'input-harian-draft';
 const PENJAMIN_KEY      = 'penjamin-list-custom';
 const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
+const NAME_OVERRIDE_KEY  = 'penjamin-name-overrides';
 
 export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
@@ -81,7 +82,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'KELUARGA PG INHEALTH', badge: 'PG' },
   { nama: 'BPJS KESEHATAN', badge: 'BPJS' },
   { nama: 'BPJS KESEHATAN - KAPITASI', badge: 'NPG' },
-  { nama: 'BPJS NAIK KELAS.', badge: 'BPJS' },
+  { nama: 'BPJS NAIK KELAS', badge: 'BPJS' },
   { nama: 'KARYAWAN PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'KELUARGA PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'PROKESPEN MURNI', badge: 'PROKESPEN' },
@@ -479,7 +480,7 @@ const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
   { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS NAIK KELAS',           badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PASIEN UMUM',               badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)',badge: 'JKK',            rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
 ];
@@ -515,9 +516,12 @@ function usePenjaminList() {
   const [badgeOverrides, setBadgeOverrides] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem(BADGE_OVERRIDE_KEY) || '{}'); } catch { return {}; }
   });
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(NAME_OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
 
   const allList: PenjaminEntry[] = [
-    ...BUILTIN_PENJAMIN.map(p => ({ ...p, badge: badgeOverrides[p.nama] ?? p.badge })),
+    ...BUILTIN_PENJAMIN.map(p => ({ nama: nameOverrides[p.nama] ?? p.nama, badge: badgeOverrides[p.nama] ?? p.badge })),
     ...custom
       .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
       .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
@@ -538,10 +542,11 @@ function usePenjaminList() {
   };
 
   const editBadge = (nama: string, badge: string) => {
-    const nextOv = { ...badgeOverrides, [nama]: badge };
+    // Untuk builtin, gunakan original key (bukan overridden name)
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
+    const nextOv = { ...badgeOverrides, [origKey]: badge };
     setBadgeOverrides(nextOv);
     localStorage.setItem(BADGE_OVERRIDE_KEY, JSON.stringify(nextOv));
-    // also update custom list directly so it stays consistent
     if (custom.some(c => c.nama === nama)) {
       const nextC = custom.map(c => c.nama === nama ? { ...c, badge } : c);
       setCustom(nextC);
@@ -549,9 +554,37 @@ function usePenjaminList() {
     }
   };
 
-  const isBuiltin = (nama: string) => BUILTIN_PENJAMIN.some(p => p.nama === nama);
+  const editNama = (oldNama: string, newNama: string) => {
+    const trimmed = newNama.trim().toUpperCase();
+    if (!trimmed || trimmed === oldNama) return false;
+    if (allList.some(p => p.nama.toUpperCase() === trimmed && p.nama !== oldNama)) return false;
 
-  return { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin };
+    // Cek apakah ini builtin (cari original key)
+    const builtinEntry = BUILTIN_PENJAMIN.find(p => p.nama === oldNama);
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === oldNama)?.[0];
+
+    if (builtinEntry || origKey) {
+      // Builtin: simpan sebagai name override
+      const key = origKey || oldNama;
+      const nextOv = { ...nameOverrides, [key]: trimmed };
+      setNameOverrides(nextOv);
+      localStorage.setItem(NAME_OVERRIDE_KEY, JSON.stringify(nextOv));
+    } else {
+      // Custom: edit langsung di custom list
+      const nextC = custom.map(c => c.nama === oldNama ? { ...c, nama: trimmed } : c);
+      setCustom(nextC);
+      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    }
+    return true;
+  };
+
+  const isBuiltin = (nama: string) => {
+    if (BUILTIN_PENJAMIN.some(p => p.nama === nama)) return true;
+    // Juga cek jika nama adalah override dari builtin
+    return Object.values(nameOverrides).includes(nama);
+  };
+
+  return { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin };
 }
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
@@ -980,18 +1013,21 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
-function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onClose, isBuiltin }: {
+function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin }: {
   list: PenjaminEntry[];
   custom: PenjaminEntry[];
   onAdd: (e: PenjaminEntry) => boolean;
   onRemove: (nama: string) => void;
   onEditBadge: (nama: string, badge: string) => void;
+  onEditNama: (oldNama: string, newNama: string) => boolean;
   onClose: () => void;
   isBuiltin: (nama: string) => boolean;
 }) {
   const [newNama,  setNewNama]  = useState('');
   const [newBadge, setNewBadge] = useState('NPG');
   const [search,   setSearch]   = useState('');
+  const [editingNama, setEditingNama] = useState<string | null>(null);
+  const [editNamaValue, setEditNamaValue] = useState('');
 
   const filtered = list.filter(p =>
     p.nama.toLowerCase().includes(search.toLowerCase()) ||
@@ -1062,7 +1098,36 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onClose, is
                 className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${labelClass(p.badge)}`}>
                 {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
-              <span className="text-[11px] flex-1 truncate">{p.nama}</span>
+              {editingNama === p.nama ? (
+                <Input
+                  autoFocus
+                  value={editNamaValue}
+                  onChange={e => setEditNamaValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const ok = onEditNama(p.nama, editNamaValue);
+                      if (ok) { toast.success(`Nama diubah: ${p.nama} → ${editNamaValue.trim().toUpperCase()}`); setEditingNama(null); }
+                      else toast.error('Nama sudah ada atau tidak valid');
+                    }
+                    if (e.key === 'Escape') setEditingNama(null);
+                  }}
+                  onBlur={() => {
+                    const trimmed = editNamaValue.trim().toUpperCase();
+                    if (trimmed && trimmed !== p.nama) {
+                      const ok = onEditNama(p.nama, editNamaValue);
+                      if (ok) toast.success(`Nama diubah: ${p.nama} → ${trimmed}`);
+                    }
+                    setEditingNama(null);
+                  }}
+                  className="h-6 text-[11px] flex-1"
+                />
+              ) : (
+                <span
+                  className="text-[11px] flex-1 truncate cursor-pointer hover:underline hover:text-primary"
+                  onClick={() => { setEditingNama(p.nama); setEditNamaValue(p.nama); }}
+                  title="Klik untuk edit nama"
+                >{p.nama}</span>
+              )}
               {isBuiltin(p.nama)
                 ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
                 : (
@@ -1103,7 +1168,7 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin } = usePenjaminList();
+  const { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin } = usePenjaminList();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -1404,7 +1469,7 @@ export default function InputHarianTab() {
         <SettingsModal
           list={allList} custom={custom}
           onAdd={addPenjamin} onRemove={removePenjamin}
-          onEditBadge={editBadge}
+          onEditBadge={editBadge} onEditNama={editNama}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
         />
       )}
