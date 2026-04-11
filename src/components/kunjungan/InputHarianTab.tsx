@@ -1425,10 +1425,10 @@ export default function InputHarianTab() {
                   <span className="text-muted-foreground">Tanggal web:</span>
                   <span className="font-bold">{tanggal}</span>
                 </div>
-                {sheetCheckTanggal && sheetCheckStatus === 'ok' && sheetCheckData && (
+                {sheetCheckTanggal && (kunjCheckStatus === 'ok' || lapCheckStatus === 'ok') && (kunjCheckData || lapCheckData) && (
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-muted-foreground">Tanggal sheet dicek:</span>
-                    <span className="font-bold">{sheetCheckTanggal} <span className="font-normal text-muted-foreground">({sheetCheckData.bulan} hari {sheetCheckData.dayNum})</span></span>
+                    <span className="font-bold">{sheetCheckTanggal} <span className="font-normal text-muted-foreground">({(kunjCheckData || lapCheckData)!.bulan} hari {(kunjCheckData || lapCheckData)!.dayNum})</span></span>
                   </div>
                 )}
                 {!isToday && !isFuture && (
