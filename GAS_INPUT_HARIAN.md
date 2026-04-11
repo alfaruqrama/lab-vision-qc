@@ -125,9 +125,10 @@ function handleCheckDay(params) {
   var headerRow = findMonthHeaderRow(sheet, parsed.monthIdx);
   if (headerRow < 0) return jsonResponse({ error: 'Bulan ' + BULAN_NAMES[parsed.monthIdx] + ' tidak ditemukan di sheet' });
 
-  // Baris data hari = headerRow + 2 + (dayNum - 1), 1-indexed
-  var dayRow = headerRow + 2 + parsed.dayNum;
-  // Cek kolom B-AF (kolom 2-32) apakah ada data > 0
+  // Baris data hari: headerRow = bulan header (1-indexed), +1 = sub-header, +1+d = hari d
+  // Hari 1 = headerRow + 2, Hari d = headerRow + 1 + d
+  var dayRow = headerRow + 1 + parsed.dayNum;
+  // Cek kolom B-AF (kolom 2-32, 31 kolom) apakah ada data > 0
   var range = sheet.getRange(dayRow, 2, 1, 31); // B sampai AF
   var values = range.getValues()[0];
   var hasData = values.some(function(v) { return typeof v === 'number' && v > 0; });
@@ -201,7 +202,8 @@ function handleInputHarian(body) {
   // headerRow sudah 1-indexed, sub-header = headerRow+1, hari 1 = headerRow+2
   var dayRow = headerRow + 1 + dayNum;
 
-  // Bangun array 32 kolom: 9 RJ + 9 RI + 9 IGD + 4 MCU + 1 TOTAL
+  // Bangun array 31 kolom: 9 RJ + 9 RI + 9 IGD + 4 MCU
+  // TIDAK menulis kolom AG (TOTAL KUNJUNGN) — biarkan formula di Google Sheets
   var rowData = [];
   for (var i = 0; i < 9; i++) rowData.push(rj[i]);
   for (var i = 0; i < 9; i++) rowData.push(ri[i]);
@@ -210,9 +212,8 @@ function handleInputHarian(body) {
 
   var totalKunj = 0;
   for (var i = 0; i < rowData.length; i++) totalKunj += rowData[i];
-  rowData.push(totalKunj); // TOTAL KUNJUNGN
 
-  // Tulis ke kolom B-AG (kolom 2 sampai 33), 32 values
+  // Tulis ke kolom B-AF (kolom 2 sampai 32), 31 values — skip AG (formula gsheet)
   sheet.getRange(dayRow, 2, 1, rowData.length).setValues([rowData]);
 
   // ── Update baris TOTAL ──
@@ -251,17 +252,18 @@ function updateTotalRow(sheet, headerRow, monthIdx) {
   // Baris hari 1-31: headerRow+2 sampai headerRow+32
   // Baris TOTAL: cari baris dengan "TOTAL" di kolom A setelah hari 31
   // Baris Sub Total: baris setelah TOTAL
+  // TIDAK menulis kolom AG (TOTAL KUNJUNGN) — biarkan formula di Google Sheets
 
   var firstDayRow = headerRow + 2;
   var lastDayRow = headerRow + 32; // hari 31
 
-  // Baca semua 31 baris data (kolom B-AG = kolom 2-33, 32 kolom)
-  var dataRange = sheet.getRange(firstDayRow, 2, 31, 32);
+  // Baca semua 31 baris data (kolom B-AF = kolom 2-32, 31 kolom)
+  var dataRange = sheet.getRange(firstDayRow, 2, 31, 31);
   var allData = dataRange.getValues();
 
-  // Hitung total per kolom
-  var totals = new Array(32);
-  for (var c = 0; c < 32; c++) {
+  // Hitung total per kolom (31 kolom data saja, tanpa AG)
+  var totals = new Array(31);
+  for (var c = 0; c < 31; c++) {
     totals[c] = 0;
     for (var r = 0; r < 31; r++) {
       var v = allData[r][c];
@@ -278,8 +280,8 @@ function updateTotalRow(sheet, headerRow, monthIdx) {
   }
 
   if (totalRow > 0) {
-    // Tulis totals ke baris TOTAL (kolom B-AG)
-    sheet.getRange(totalRow, 2, 1, 32).setValues([totals]);
+    // Tulis totals ke baris TOTAL (kolom B-AF saja, skip AG)
+    sheet.getRange(totalRow, 2, 1, 31).setValues([totals]);
 
     // Cari baris Sub Total (biasanya totalRow + 1)
     for (var i = totalRow + 1; i <= totalRow + 3; i++) {
@@ -291,11 +293,11 @@ function updateTotalRow(sheet, headerRow, monthIdx) {
     }
 
     if (subTotalRow > 0) {
-      // Sub Total format:
-      // B="RAWAT JALAN :", C=sum RJ, D-J=null
-      // K="RAWAT INAP :", L=sum RI, M-S=null
-      // T="IGD :", U=sum IGD, V-AB=null
-      // AC="MCU : ", AD=sum MCU, AE-AF=null
+      // Sub Total format (kolom B-AF, 31 kolom):
+      // B="RAWAT JALAN :", C=sum RJ, D-J=kosong (9 kolom)
+      // K="RAWAT INAP :", L=sum RI, M-S=kosong (9 kolom)
+      // T="IGD :", U=sum IGD, V-AB=kosong (9 kolom)
+      // AC="MCU : ", AD=sum MCU, AE-AF=kosong (4 kolom)
       var rjTotal = 0, riTotal = 0, igdTotal = 0, mcuTotal = 0;
       for (var i = 0; i < 9; i++) rjTotal += totals[i];
       for (var i = 9; i < 18; i++) riTotal += totals[i];
@@ -306,7 +308,7 @@ function updateTotalRow(sheet, headerRow, monthIdx) {
       subRow.push('RAWAT JALAN :', rjTotal, '', '', '', '', '', '', '');   // B-J (9)
       subRow.push('RAWAT INAP :', riTotal, '', '', '', '', '', '', '');    // K-S (9)
       subRow.push('IGD :', igdTotal, '', '', '', '', '', '', '');          // T-AB (9)
-      subRow.push('MCU : ', mcuTotal, '', '', '');                         // AC-AF + AG (5)
+      subRow.push('MCU : ', mcuTotal, '', '');                             // AC-AF (4)
       sheet.getRange(subTotalRow, 2, 1, subRow.length).setValues([subRow]);
     }
   }
