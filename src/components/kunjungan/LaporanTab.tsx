@@ -196,60 +196,51 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal]);
 
-  // Auto-fill targets: prioritas dari GAS getTarget (sheet OMSET HARIAN 2026), fallback ke kumulatif
+  // Auto-fill kumulatif dari GAS lama (kumOmzet, kumKunj, tglAkhir)
+  useEffect(() => {
+    if (!kumulatif) return;
+    setForm(prev => ({
+      ...prev,
+      kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
+      kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
+      tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kumulatif]);
+
+  // Auto-fill targets dari GAS getTarget (sheet OMSET HARIAN 2026)
   useEffect(() => {
     let cancelled = false;
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    if (!GS_URL || !form.tanggal) return;
 
-    // Fetch target harian & bulanan dari sheet OMSET HARIAN 2026
-    if (GS_URL && form.tanggal) {
-      fetch(`${GS_URL}?action=getTarget&tanggal=${encodeURIComponent(form.tanggal)}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(d => {
-          if (cancelled || !d || d.error) return;
-          setForm(prev => ({
-            ...prev,
-            targetKunjungan: d.targetKunjHarian || prev.targetKunjungan,
-            targetOmzet: d.targetOmzetHarian || prev.targetOmzet,
-            targetOmzetBulan: d.targetOmzetBulan || prev.targetOmzetBulan,
-            targetKunjBulan: d.targetKunjBulan || prev.targetKunjBulan,
-          }));
-          setAutoFields(prev => {
-            const s = new Set(prev);
-            if (d.targetKunjHarian) s.add('targetKunjungan');
-            if (d.targetOmzetHarian) s.add('targetOmzet');
-            if (d.targetOmzetBulan) s.add('targetOmzetBulan');
-            if (d.targetKunjBulan) s.add('targetKunjBulan');
-            return s;
-          });
-        })
-        .catch(() => { /* fallback ke kumulatif di bawah */ });
-    }
-
-    // Fallback: kumulatif dari GAS lama (kumOmzet, kumKunj, tglAkhir, dan target jika GAS baru gagal)
-    if (kumulatif) {
-      const d = new Date(form.tanggal + 'T00:00:00');
-      const day = d.getDay();
-      const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
-      const tgtK = kumulatif.targetKunjHarian?.[key];
-      const tgtO = kumulatif.targetOmzetHarian?.[key];
-      setForm(prev => ({
-        ...prev,
-        // Target harian: hanya set jika belum diisi oleh GAS getTarget
-        targetKunjungan: prev.targetKunjungan || tgtK || prev.targetKunjungan,
-        targetOmzet: prev.targetOmzet || tgtO || prev.targetOmzet,
-        // Kumulatif selalu dari GAS lama
-        kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
-        kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
-        targetOmzetBulan: prev.targetOmzetBulan || kumulatif.targetOmzetBulan || prev.targetOmzetBulan,
-        targetKunjBulan: prev.targetKunjBulan || kumulatif.targetKunjBulan || prev.targetKunjBulan,
-        tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
-      }));
-    }
+    fetch(`${GS_URL}?action=getTarget&tanggal=${encodeURIComponent(form.tanggal)}`)
+      .then(res => res.ok ? res.json() : Promise.reject('HTTP ' + res.status))
+      .then(d => {
+        if (cancelled) return;
+        if (d.error) { console.warn('getTarget error:', d.error); return; }
+        console.log('getTarget response:', d);
+        setForm(prev => ({
+          ...prev,
+          targetKunjungan: d.targetKunjHarian || prev.targetKunjungan,
+          targetOmzet: d.targetOmzetHarian || prev.targetOmzet,
+          targetOmzetBulan: d.targetOmzetBulan || prev.targetOmzetBulan,
+          targetKunjBulan: d.targetKunjBulan || prev.targetKunjBulan,
+        }));
+        setAutoFields(prev => {
+          const s = new Set(prev);
+          if (d.targetKunjHarian) s.add('targetKunjungan');
+          if (d.targetOmzetHarian) s.add('targetOmzet');
+          if (d.targetOmzetBulan) s.add('targetOmzetBulan');
+          if (d.targetKunjBulan) s.add('targetKunjBulan');
+          return s;
+        });
+      })
+      .catch(err => console.warn('getTarget fetch failed:', err));
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.tanggal, kumulatif]);
+  }, [form.tanggal]);
 
   // Auto-save
   useEffect(() => {
