@@ -1282,23 +1282,48 @@ export default function InputHarianTab() {
   const handleConfirmSubmit = async () => {
     setShowSubmitPreview(false);
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    const GS_LAPORAN_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
     setSubmitting(true);
-    try {
-      const res = await fetch(GS_URL, {
-        method:'POST',
-        headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
-      });
-      const result = await res.json();
-      if (result.error) {
-        toast.error(`Gagal: ${result.error}`);
-      } else {
-        toast.success(`${result.message || 'Data berhasil dikirim!'} (${result.totalKunjungan || 0} kunjungan)`);
-        localStorage.removeItem(DRAFT_KEY);
-      }
-    } catch (err: any) {
-      toast.error(`Gagal kirim: ${err.message}`);
-    } finally { setSubmitting(false); }
+    const payload = JSON.stringify({ tanggal, kunjungan, mcu });
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    // Submit ke KUNJUNGAN 2026
+    if (GS_URL) {
+      try {
+        const res = await fetch(GS_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
+        });
+        const r = await res.json();
+        if (r.error) errors.push(`Kunjungan: ${r.error}`);
+        else results.push(`Kunjungan 2026: OK`);
+      } catch (err: any) { errors.push(`Kunjungan: ${err.message}`); }
+    }
+
+    // Submit ke LAPORAN HARIAN
+    if (GS_LAPORAN_URL) {
+      try {
+        const res = await fetch(GS_LAPORAN_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ action:'inputLaporan', tanggal, kunjungan, mcu }),
+        });
+        const r = await res.json();
+        if (r.error) errors.push(`Laporan: ${r.error}`);
+        else results.push(`Laporan Harian: OK`);
+      } catch (err: any) { errors.push(`Laporan: ${err.message}`); }
+    }
+
+    if (errors.length > 0) {
+      toast.error(`Gagal: ${errors.join('; ')}`);
+      if (results.length > 0) toast.success(`Berhasil: ${results.join(', ')}`);
+    } else if (results.length > 0) {
+      toast.success(`Data berhasil dikirim! ${results.join(', ')}`);
+      localStorage.removeItem(DRAFT_KEY);
+    } else {
+      toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
+    }
+    setSubmitting(false);
   };
 
   // ── Computed ───────────────────────────────────────────────────────────────
