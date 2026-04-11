@@ -82,6 +82,13 @@ function readInputHarianDraft(tanggal: string) {
     const grandTotal = rows.reduce((s: number, r: any) =>
       s + ['rjYani','riYani','igd','mcuAuto','promo','dokter','exc','prior','grhuRj','grhuRi','sat','ppk1']
         .reduce((rs, k) => rs + (Number(r[k])||0), 0), 0);
+    // Pasien PG: baris 1-4 (KARYAWAN PG, KELUARGA PG, KARYAWAN PG BRI LIFE, KELUARGA PG BRI LIFE)
+    const pgNames = ['KARYAWAN PG', 'KARYAWAN PG BRI LIFE'];
+    const pgKelNames = ['KELUARGA PG', 'KELUARGA PG BRI LIFE'];
+    const pgKryRows = rows.filter((r: any) => pgNames.includes(r.namaPenjamin));
+    const pgKelRows = rows.filter((r: any) => pgKelNames.includes(r.namaPenjamin));
+    const sumRows = (arr: any[], key: string) => arr.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+
     return {
       rj,  nonBpjsRJ:  rj  - sumBpjs('rjYani'),
       ri,  nonBpjsRI:  ri  - sumBpjs('riYani'),
@@ -95,6 +102,13 @@ function readInputHarianDraft(tanggal: string) {
       poliPrioritas:     sum('prior'),
       pendapatanMCU,
       grandTotal,
+      // Pasien PG (auto dari baris 1-4)
+      briIgdKry:    sumRows(pgKryRows, 'igd'),
+      briIgdKel:    sumRows(pgKelRows, 'igd'),
+      briRajalKry:  sumRows(pgKryRows, 'rjYani'),
+      briRajalKel:  sumRows(pgKelRows, 'rjYani'),
+      briRawinKry:  sumRows(pgKryRows, 'riYani'),
+      briRawinKel:  sumRows(pgKelRows, 'riYani'),
     };
   } catch { return null; }
 }
