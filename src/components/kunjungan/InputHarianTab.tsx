@@ -1121,6 +1121,7 @@ export default function InputHarianTab() {
   const [showSubmitPreview, setShowSubmitPreview] = useState(false);
   const [sheetCheckData, setSheetCheckData] = useState<{ hasData: boolean; bulan: string; dayNum: number; totalKunjungan: number } | null>(null);
   const [sheetCheckStatus, setSheetCheckStatus] = useState<'idle' | 'checking' | 'ok' | 'failed'>('idle');
+  const [sheetCheckTanggal, setSheetCheckTanggal] = useState(''); // tanggal yang di-check
   const openAdminSettings = () => setShowPinModal(true);
 
   // Tanggal validation
@@ -1263,6 +1264,7 @@ export default function InputHarianTab() {
     // Cek apakah data sudah ada di sheet
     setSheetCheckData(null);
     setSheetCheckStatus('checking');
+    setSheetCheckTanggal(tanggal);
     setShowSubmitPreview(true);
     try {
       const checkRes = await fetch(`${GS_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`);
@@ -1378,9 +1380,15 @@ export default function InputHarianTab() {
               {/* Tanggal */}
               <div className={`rounded-md p-2.5 text-xs ${isFuture ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : !isToday ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : 'bg-muted border border-border'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Tanggal:</span>
+                  <span className="text-muted-foreground">Tanggal web:</span>
                   <span className="font-bold">{tanggal}</span>
                 </div>
+                {sheetCheckTanggal && sheetCheckStatus === 'ok' && sheetCheckData && (
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-muted-foreground">Tanggal sheet dicek:</span>
+                    <span className="font-bold">{sheetCheckTanggal} <span className="font-normal text-muted-foreground">({sheetCheckData.bulan} hari {sheetCheckData.dayNum})</span></span>
+                  </div>
+                )}
                 {!isToday && !isFuture && (
                   <p className="text-amber-600 dark:text-amber-400 text-[10px] mt-1 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" /> Perhatian: bukan tanggal hari ini!
@@ -1392,6 +1400,19 @@ export default function InputHarianTab() {
                   </p>
                 )}
               </div>
+
+              {/* Warning: tanggal berubah setelah check */}
+              {sheetCheckTanggal && tanggal !== sheetCheckTanggal && (
+                <div className="rounded-md p-2.5 bg-red-50 border border-red-300 dark:bg-red-950/40 dark:border-red-700">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <ShieldAlert className="w-3.5 h-3.5" /> Tanggal tidak sinkron!
+                  </p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                    Tanggal web (<strong>{tanggal}</strong>) berbeda dengan tanggal yang dicek di sheet (<strong>{sheetCheckTanggal}</strong>).
+                    Tutup dialog ini dan klik Submit ulang.
+                  </p>
+                </div>
+              )}
 
               {/* Status cek sheet */}
               {sheetCheckStatus === 'checking' && (
@@ -1523,11 +1544,11 @@ export default function InputHarianTab() {
                 Batal
               </Button>
               <Button size="sm"
-                disabled={sheetCheckStatus === 'checking'}
-                className={`h-7 text-xs text-white ${sheetCheckData?.hasData || sheetCheckStatus === 'failed' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'}`}
+                disabled={sheetCheckStatus === 'checking' || (sheetCheckTanggal !== '' && tanggal !== sheetCheckTanggal)}
+                className={`h-7 text-xs text-white ${sheetCheckData?.hasData || sheetCheckStatus === 'failed' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'} disabled:opacity-50`}
                 onClick={handleConfirmSubmit}>
                 <Send className="w-3 h-3 mr-1" />
-                {sheetCheckStatus === 'checking' ? 'Mengecek...' : sheetCheckData?.hasData ? 'Overwrite & Kirim' : sheetCheckStatus === 'failed' ? 'Kirim (belum dicek)' : 'Kirim ke Sheets'}
+                {sheetCheckStatus === 'checking' ? 'Mengecek...' : (sheetCheckTanggal !== '' && tanggal !== sheetCheckTanggal) ? 'Tanggal tidak sinkron' : sheetCheckData?.hasData ? 'Overwrite & Kirim' : sheetCheckStatus === 'failed' ? 'Kirim (belum dicek)' : 'Kirim ke Sheets'}
               </Button>
             </div>
           </div>
