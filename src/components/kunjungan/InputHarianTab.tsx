@@ -1279,9 +1279,9 @@ export default function InputHarianTab() {
           if (res.ok) {
             const d = await res.json();
             if (d.status === 'ok') { setKunjCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan, debug: d.debug }); setKunjCheckStatus('ok'); }
-            else setKunjCheckStatus('failed');
-          } else setKunjCheckStatus('failed');
-        } catch { setKunjCheckStatus('failed'); }
+            else { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: d.error || d }); setKunjCheckStatus('failed'); }
+          } else { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: `HTTP ${res.status}` }); setKunjCheckStatus('failed'); }
+        } catch (err: any) { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: err.message }); setKunjCheckStatus('failed'); }
       })());
     }
 
@@ -1292,9 +1292,9 @@ export default function InputHarianTab() {
           if (res.ok) {
             const d = await res.json();
             if (d.status === 'ok') { setLapCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum }); setLapCheckStatus('ok'); }
-            else setLapCheckStatus('failed');
-          } else setLapCheckStatus('failed');
-        } catch { setLapCheckStatus('failed'); }
+            else { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: d.error || d }); setLapCheckStatus('failed'); }
+          } else { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: `HTTP ${res.status}` }); setLapCheckStatus('failed'); }
+        } catch (err: any) { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: err.message }); setLapCheckStatus('failed'); }
       })());
     }
 
@@ -1495,6 +1495,11 @@ export default function InputHarianTab() {
                       <p className="text-[9px] text-amber-600 dark:text-amber-400 mt-0.5 ml-4">
                         Data <strong>mungkin sudah ada</strong> dan akan tertimpa.
                       </p>
+                      {data?.debug && (
+                        <p className="text-[8px] text-amber-500/70 mt-0.5 ml-4 font-mono">
+                          {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
+                        </p>
+                      )}
                     </div>
                   )}
                   {status === 'skipped' && (
