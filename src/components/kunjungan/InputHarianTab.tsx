@@ -1114,7 +1114,7 @@ export default function InputHarianTab() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showSubmitPreview, setShowSubmitPreview] = useState(false);
-  const [sheetCheckData, setSheetCheckData] = useState<{ hasData: boolean; bulan: string; dayNum: number; totalKunjungan: number } | null>(null);
+  const [sheetCheckData, setSheetCheckData] = useState<{ hasData: boolean; bulan: string; dayNum: number; totalKunjungan: number; debug?: { headerRow: number; dayRow: number; cellA: string } } | null>(null);
   const [sheetCheckStatus, setSheetCheckStatus] = useState<'idle' | 'checking' | 'ok' | 'failed'>('idle');
   const [sheetCheckTanggal, setSheetCheckTanggal] = useState(''); // tanggal yang di-check
   const openAdminSettings = () => setShowPinModal(true);
@@ -1266,7 +1266,7 @@ export default function InputHarianTab() {
       if (checkRes.ok) {
         const d = await checkRes.json();
         if (d.status === 'ok') {
-          setSheetCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan });
+          setSheetCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan, debug: d.debug });
           setSheetCheckStatus('ok');
         } else {
           setSheetCheckStatus('failed');
@@ -1435,6 +1435,11 @@ export default function InputHarianTab() {
                     Submit akan <strong>menimpa</strong> data yang ada.
                   </p>
                 </div>
+              )}
+              {sheetCheckStatus === 'ok' && sheetCheckData?.debug && (
+                <p className="text-[8px] text-muted-foreground/50 font-mono">
+                  debug: headerRow={sheetCheckData.debug.headerRow}, dayRow={sheetCheckData.debug.dayRow}, cellA="{sheetCheckData.debug.cellA}"
+                </p>
               )}
               {sheetCheckStatus === 'failed' && (
                 <div className="rounded-md p-2.5 bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700">
