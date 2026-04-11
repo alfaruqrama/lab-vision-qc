@@ -221,24 +221,21 @@ function writeMcuData(sheet, dataStartRow, mcu) {
     if (!v) return 'Rp0';
     return 'Rp' + Number(v).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function fmtRpTotal(v) {
-    if (!v) return 'Rp0';
-    return 'Rp' + Number(v).toLocaleString('id-ID');
-  }
 
   for (var i = 0; i < mcu.length; i++) {
     var r = mcu[i];
     var row = dataStartRow + i;
-    // Kolom Q=17(NO), R=18(PERUSAHAAN), S=19(PESERTA), T=20(NOMINAL), U=21(TOTAL), V=22(KET.PAKET)
-    var mcuRow = [
+    // Kolom Q=17(NO), R=18(PERUSAHAAN), S=19(PESERTA), T=20(NOMINAL SATUAN)
+    // SKIP kolom U=21(TOTAL) — biarkan formula di spreadsheet
+    // Kolom V=22(KET. PAKET)
+    sheet.getRange(row, 17, 1, 4).setValues([[
       i + 1,
       r.namaPenjamin || '',
       r.peserta || 0,
-      r.nominal ? fmtRpSatuan(r.nominal) : '',
-      fmtRpTotal(r.total || 0),
-      r.paket || ''
-    ];
-    sheet.getRange(row, 17, 1, 6).setValues([mcuRow]);
+      r.nominal ? fmtRpSatuan(r.nominal) : ''
+    ]]);
+    // Tulis KET. PAKET di kolom V (skip kolom U)
+    sheet.getRange(row, 22).setValue(r.paket || '');
   }
 }
 
