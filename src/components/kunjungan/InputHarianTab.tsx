@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/hooks/use-auth';
 import * as XLSX from 'xlsx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1108,6 +1109,8 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 
 export default function InputHarianTab() {
   const { allList, custom, addPenjamin, removePenjamin, editBadge, isBuiltin } = usePenjaminList();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [tanggal,    setTanggal]    = useState(todayISO());
   const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
@@ -1115,7 +1118,14 @@ export default function InputHarianTab() {
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showSubmitPreview, setShowSubmitPreview] = useState(false);
+  const [sheetCheckData, setSheetCheckData] = useState<{ hasData: boolean; bulan: string; dayNum: number; totalKunjungan: number } | null>(null);
   const openAdminSettings = () => setShowPinModal(true);
+
+  // Tanggal validation
+  const isToday = tanggal === todayISO();
+  const isFuture = tanggal > todayISO();
+  const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
 
   // Load draft
   useEffect(() => {
@@ -1240,31 +1250,32 @@ export default function InputHarianTab() {
     toast.success('Form direset');
   };
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Submit (2-step: preview → confirm → kirim) ─────────────────────────────
+  const handleSubmitClick = async () => {
+    // Validasi dasar
     const empty = kunjungan.filter(r => r.total>0 && !r.namaPenjamin.trim());
     if (empty.length) { toast.error(`${empty.length} baris ada angka tapi nama penjamin kosong`); return; }
+    if (!canSubmitDate) { toast.error('Tidak bisa submit untuk tanggal masa depan. Hubungi admin.'); return; }
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     if (!GS_URL) { toast.error('VITE_GAS_INPUT_URL belum diset di .env'); return; }
 
-    // Cek apakah data hari ini sudah ada di sheet (warning overwrite)
+    // Cek apakah data sudah ada di sheet
+    setSheetCheckData(null);
     try {
       const checkRes = await fetch(`${GS_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`);
       if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        if (checkData.hasData) {
-          const ok = window.confirm(
-            `⚠️ Data tanggal ${tanggal} (${checkData.bulan} hari ${checkData.dayNum}) sudah ada di sheet!\n` +
-            `Total kunjungan saat ini: ${checkData.totalKunjungan}\n\n` +
-            `Lanjutkan overwrite?`
-          );
-          if (!ok) return;
-        }
+        const d = await checkRes.json();
+        if (d.status === 'ok') setSheetCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan });
       }
-    } catch {
-      // Jika checkDay gagal (misal GAS belum support), lanjut saja
-    }
+    } catch { /* lanjut tanpa info sheet */ }
 
+    // Buka preview modal
+    setShowSubmitPreview(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowSubmitPreview(false);
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     setSubmitting(true);
     try {
       const res = await fetch(GS_URL, {
@@ -1322,7 +1333,7 @@ export default function InputHarianTab() {
         <RotateCcw className="w-3 h-3 mr-1" /> Reset
       </Button>
       <Button size="sm" className="h-7 text-xs px-2 bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 text-white"
-        onClick={handleSubmit} disabled={submitting}>
+        onClick={handleSubmitClick} disabled={submitting}>
         <Send className="w-3 h-3 mr-1" />{submitting?'Mengirim...':'Submit ke Sheets'}
       </Button>
     </div>
@@ -1345,14 +1356,171 @@ export default function InputHarianTab() {
         />
       )}
 
+      {/* Submit Preview Modal */}
+      {showSubmitPreview && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowSubmitPreview(false)}>
+          <div className="bg-background border border-border rounded-lg shadow-xl w-[420px] max-w-[95vw] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-border">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5" /> Konfirmasi Submit ke Sheets
+              </h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* Tanggal */}
+              <div className={`rounded-md p-2.5 text-xs ${isFuture ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : !isToday ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : 'bg-muted border border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Tanggal:</span>
+                  <span className="font-bold">{tanggal}</span>
+                </div>
+                {!isToday && !isFuture && (
+                  <p className="text-amber-600 dark:text-amber-400 text-[10px] mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Perhatian: bukan tanggal hari ini!
+                  </p>
+                )}
+                {isFuture && (
+                  <p className="text-amber-600 dark:text-amber-400 text-[10px] mt-1 flex items-center gap-1">
+                    <ShieldAlert className="w-3 h-3" /> Tanggal masa depan (admin override)
+                  </p>
+                )}
+              </div>
+
+              {/* Warning overwrite */}
+              {sheetCheckData?.hasData && (
+                <div className="rounded-md p-2.5 bg-red-50 border border-red-300 dark:bg-red-950/40 dark:border-red-700">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Data sudah ada di Google Sheets!
+                  </p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                    {sheetCheckData.bulan} hari {sheetCheckData.dayNum} sudah terisi ({sheetCheckData.totalKunjungan} kunjungan).
+                    Submit akan <strong>menimpa</strong> data yang ada.
+                  </p>
+                </div>
+              )}
+
+              {/* Ringkasan data */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">RINGKASAN DATA</div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">Rawat Jalan</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-blue-600">{unitSummary.rj}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">Rawat Inap</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-purple-600">{unitSummary.ri}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">IGD</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-red-600">{unitSummary.igd}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">MCU</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-cyan-600">{unitSummary.mcu} <span className="text-[9px] font-normal text-muted-foreground">({mcuTotalPeserta} peserta)</span></td>
+                    </tr>
+                    <tr className="border-t-2 border-border bg-muted/50">
+                      <td className="px-2.5 py-1.5 font-bold">Grand Total</td>
+                      <td className="px-2.5 py-1.5 text-right font-bold text-[#0a9e87] text-sm">{grandTotal}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Detail per badge */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">DETAIL PER PENJAMIN</div>
+                <table className="w-full text-[10px] font-mono-data">
+                  <thead>
+                    <tr className="border-t border-border/50 bg-muted/30">
+                      <th className="px-2 py-1 text-left">Badge</th>
+                      <th className="px-1 py-1 text-center">RJ</th>
+                      <th className="px-1 py-1 text-center">RI</th>
+                      <th className="px-1 py-1 text-center">IGD</th>
+                      <th className="px-1 py-1 text-center">MCU</th>
+                      <th className="px-1 py-1 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {labelSummary.filter(l => l.total > 0).map(l => (
+                      <tr key={l.label} className="border-t border-border/30">
+                        <td className="px-2 py-0.5 font-semibold">{l.label}</td>
+                        <td className="px-1 py-0.5 text-center">{l.rj || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.ri || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.igd || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.mcu || '-'}</td>
+                        <td className="px-1 py-0.5 text-right font-bold">{l.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MCU detail */}
+              {mcu.length > 0 && (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">MCU DETAIL ({mcu.length} baris)</div>
+                  <table className="w-full text-[10px] font-mono-data">
+                    <thead>
+                      <tr className="border-t border-border/50 bg-muted/30">
+                        <th className="px-2 py-1 text-left">Penjamin</th>
+                        <th className="px-1 py-1 text-left">Paket</th>
+                        <th className="px-1 py-1 text-center">Peserta</th>
+                        <th className="px-1 py-1 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mcu.map((r, i) => (
+                        <tr key={r.id} className="border-t border-border/30">
+                          <td className="px-2 py-0.5">{r.namaPenjamin || <span className="text-muted-foreground italic">-</span>}</td>
+                          <td className="px-1 py-0.5">{r.paket || '-'}</td>
+                          <td className="px-1 py-0.5 text-center">{r.peserta}</td>
+                          <td className="px-1 py-0.5 text-right">{r.total.toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 border-t border-border flex justify-end gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowSubmitPreview(false)}>
+                Batal
+              </Button>
+              <Button size="sm"
+                className={`h-7 text-xs text-white ${sheetCheckData?.hasData ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'}`}
+                onClick={handleConfirmSubmit}>
+                <Send className="w-3 h-3 mr-1" />
+                {sheetCheckData?.hasData ? 'Overwrite & Kirim' : 'Kirim ke Sheets'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div className="space-y-3 page-transition">
 
         {/* Topbar */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-muted-foreground">Tanggal</label>
-            <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)} className="w-36 text-xs h-7" />
+            <div className="relative">
+              <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
+                className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isAdmin ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
+            </div>
           </div>
+          {!isToday && !isFuture && (
+            <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5 font-semibold">
+              <AlertTriangle className="w-2.5 h-2.5" /> Bukan hari ini
+            </span>
+          )}
+          {isFuture && (
+            <span className={`text-[9px] flex items-center gap-0.5 font-semibold ${isAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+              <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isAdmin ? ' (admin override)' : ' — tidak bisa submit'}
+            </span>
+          )}
           <span className="text-[9px] text-muted-foreground flex items-center gap-1">
             <Save className="w-2.5 h-2.5" /> Draft tersimpan otomatis
           </span>
