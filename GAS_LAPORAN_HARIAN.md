@@ -73,9 +73,12 @@ function handleCheckDay(params) {
   var dateRow = findDateRow(sheet, parsed.dayNum, parsed.monthIdx, parsed.year);
   if (dateRow < 0) return jsonResponse({ error: 'Tanggal ' + parsed.dayNum + ' tidak ditemukan di sheet' });
 
+  // Verifikasi: ambil display value dari dateRow
+  var dateCell = sheet.getRange(dateRow, 1).getDisplayValue();
+
   // Cari baris data (setelah header KET,JAMINAN,...)
   var dataStartRow = findDataStartRow(sheet, dateRow);
-  if (dataStartRow < 0) return jsonResponse({ status: 'ok', hasData: false, bulan: BULAN_NAMES[parsed.monthIdx], dayNum: parsed.dayNum });
+  if (dataStartRow < 0) return jsonResponse({ status: 'ok', hasData: false, bulan: BULAN_NAMES[parsed.monthIdx], dayNum: parsed.dayNum, debug: { dateRow: dateRow, dateCell: dateCell, dataStartRow: -1 } });
 
   // Cek apakah ada data di kolom C-N (kolom 3-14)
   var range = sheet.getRange(dataStartRow, 3, 20, 12);
@@ -94,7 +97,7 @@ function handleCheckDay(params) {
     dayNum: parsed.dayNum,
     bulan: BULAN_NAMES[parsed.monthIdx],
     hasData: hasData,
-    debug: { dateRow: dateRow, dataStartRow: dataStartRow }
+    debug: { dateRow: dateRow, dateCell: dateCell, dataStartRow: dataStartRow }
   });
 }
 
@@ -115,15 +118,21 @@ function handleInputLaporan(body) {
   var dateRow = findDateRow(sheet, parsed.dayNum, parsed.monthIdx, parsed.year);
   if (dateRow < 0) return jsonResponse({ error: 'Tanggal ' + parsed.dayNum + ' tidak ditemukan di sheet' });
 
+  // Verifikasi: baris dateRow harus berisi tanggal yang diminta
+  var dateCell = sheet.getRange(dateRow, 1).getDisplayValue();
+
   // Cari baris awal data (baris setelah sub-header "R. JALAN, R. INAP")
   var dataStartRow = findDataStartRow(sheet, dateRow);
-  if (dataStartRow < 0) return jsonResponse({ error: 'Header tabel tidak ditemukan untuk tanggal ' + tanggal });
+  if (dataStartRow < 0) return jsonResponse({ error: 'Header tabel tidak ditemukan untuk tanggal ' + tanggal + ' (dateRow=' + dateRow + ', dateCell=' + dateCell + ')' });
+
+  // Verifikasi: baris dataStartRow-2 harus berisi "KET" di kolom A
+  var ketCell = sheet.getRange(dataStartRow - 2, 1).getDisplayValue();
+  var firstDataB = sheet.getRange(dataStartRow, 2).getDisplayValue();
 
   // ── Tulis Tabel Kiri: Laporan Harian per penjamin ──
   writeLaporanData(sheet, dataStartRow, kunjungan);
 
   // ── Tulis Tabel Kanan: Rincian MCU ──
-  // MCU header biasanya di kolom Q-V, mulai dari baris yang sama dengan data
   writeMcuData(sheet, dataStartRow, mcu);
 
   return jsonResponse({
@@ -132,7 +141,8 @@ function handleInputLaporan(body) {
     bulan: BULAN_NAMES[parsed.monthIdx],
     hari: parsed.dayNum,
     totalPenjamin: kunjungan.length,
-    totalMcu: mcu.length
+    totalMcu: mcu.length,
+    debug: { dateRow: dateRow, dateCell: dateCell, dataStartRow: dataStartRow, ketCell: ketCell, firstDataB: firstDataB }
   });
 }
 
@@ -256,9 +266,10 @@ function findMonthSheet(ss, monthIdx) {
 
 function findDateRow(sheet, dayNum, monthIdx, year) {
   var lastRow = Math.min(sheet.getLastRow(), 3000);
-  var colA = sheet.getRange(1, 1, lastRow, 1).getValues();
+  // Gunakan getDisplayValues() untuk hindari timezone issue pada Date objects
+  var colADisplay = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
   
-  // Pattern: "01/April/2026" atau "1/April/2026"
+  // Pattern: "01/April/2026", "1/April/2026", dll
   var bulanName = BULAN_NAMES_SHORT[monthIdx]; // "April"
   var patterns = [
     dayNum + '/' + bulanName + '/' + year,
@@ -267,16 +278,9 @@ function findDateRow(sheet, dayNum, monthIdx, year) {
     ('0' + dayNum).slice(-2) + '/' + BULAN_NAMES[monthIdx] + '/' + year,
   ];
 
-  for (var i = 0; i < colA.length; i++) {
-    var val = colA[i][0];
-    // Jika cell berisi Date object
-    if (val instanceof Date) {
-      if (val.getDate() === dayNum && val.getMonth() === monthIdx && val.getFullYear() === year) {
-        return i + 1;
-      }
-      continue;
-    }
-    var str = String(val).trim();
+  for (var i = 0; i < colADisplay.length; i++) {
+    var str = colADisplay[i][0].trim();
+    if (!str) continue;
     for (var p = 0; p < patterns.length; p++) {
       if (str.toLowerCase() === patterns[p].toLowerCase()) return i + 1;
     }
