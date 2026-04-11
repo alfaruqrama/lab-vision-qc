@@ -128,6 +128,28 @@ function handleCheckDay(params) {
   // Baris data hari: headerRow = bulan header (1-indexed), +1 = sub-header, +1+d = hari d
   // Hari 1 = headerRow + 2, Hari d = headerRow + 1 + d
   var dayRow = headerRow + 1 + parsed.dayNum;
+
+  // Verifikasi: kolom A di dayRow harus berisi nomor hari yang sama
+  var cellA = sheet.getRange(dayRow, 1).getValue();
+  var cellANum = typeof cellA === 'number' ? cellA : parseInt(String(cellA), 10);
+  if (cellANum !== parsed.dayNum) {
+    // Offset tidak cocok — coba cari baris yang benar
+    // Scan dari headerRow+2 sampai headerRow+40 untuk cari baris dengan kolom A = dayNum
+    var found = false;
+    for (var scan = headerRow + 2; scan <= headerRow + 40; scan++) {
+      var scanVal = sheet.getRange(scan, 1).getValue();
+      var scanNum = typeof scanVal === 'number' ? scanVal : parseInt(String(scanVal), 10);
+      if (scanNum === parsed.dayNum) {
+        dayRow = scan;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return jsonResponse({ error: 'Baris hari ' + parsed.dayNum + ' tidak ditemukan di bulan ' + BULAN_NAMES[parsed.monthIdx] + ' (headerRow=' + headerRow + ', expected dayRow=' + (headerRow + 1 + parsed.dayNum) + ', cellA=' + cellA + ')' });
+    }
+  }
+
   // Cek kolom B-AF (kolom 2-32, 31 kolom) apakah ada data > 0
   var range = sheet.getRange(dayRow, 2, 1, 31); // B sampai AF
   var values = range.getValues()[0];
@@ -142,7 +164,8 @@ function handleCheckDay(params) {
     dayNum: parsed.dayNum,
     bulan: BULAN_NAMES[parsed.monthIdx],
     hasData: hasData,
-    totalKunjungan: totalKunj
+    totalKunjungan: totalKunj,
+    debug: { headerRow: headerRow, dayRow: dayRow, cellA: String(cellA) }
   });
 }
 
@@ -201,6 +224,26 @@ function handleInputHarian(body) {
   // Baris target: headerRow + 1 (sub-header) + dayNum
   // headerRow sudah 1-indexed, sub-header = headerRow+1, hari 1 = headerRow+2
   var dayRow = headerRow + 1 + dayNum;
+
+  // Verifikasi: kolom A di dayRow harus berisi nomor hari yang sama
+  var cellA = sheet.getRange(dayRow, 1).getValue();
+  var cellANum = typeof cellA === 'number' ? cellA : parseInt(String(cellA), 10);
+  if (cellANum !== dayNum) {
+    // Scan untuk cari baris yang benar
+    var found = false;
+    for (var scan = headerRow + 2; scan <= headerRow + 40; scan++) {
+      var scanVal = sheet.getRange(scan, 1).getValue();
+      var scanNum = typeof scanVal === 'number' ? scanVal : parseInt(String(scanVal), 10);
+      if (scanNum === dayNum) {
+        dayRow = scan;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return jsonResponse({ error: 'Baris hari ' + dayNum + ' tidak ditemukan di bulan ' + BULAN_NAMES[monthIdx] });
+    }
+  }
 
   // Bangun array 31 kolom: 9 RJ + 9 RI + 9 IGD + 4 MCU
   // TIDAK menulis kolom AG (TOTAL KUNJUNGN) — biarkan formula di Google Sheets
