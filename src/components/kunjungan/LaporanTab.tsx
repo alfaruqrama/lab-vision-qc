@@ -196,24 +196,58 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal]);
 
-  // Auto-fill targets from kumulatif when date changes
+  // Auto-fill targets: prioritas dari GAS getTarget (sheet OMSET HARIAN 2026), fallback ke kumulatif
   useEffect(() => {
-    if (!kumulatif) return;
-    const d = new Date(form.tanggal + 'T00:00:00');
-    const day = d.getDay();
-    const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
-    const tgtK = kumulatif.targetKunjHarian?.[key];
-    const tgtO = kumulatif.targetOmzetHarian?.[key];
-    setForm(prev => ({
-      ...prev,
-      targetKunjungan: tgtK ?? prev.targetKunjungan,
-      targetOmzet: tgtO ?? prev.targetOmzet,
-      kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
-      kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
-      targetOmzetBulan: kumulatif.targetOmzetBulan ?? prev.targetOmzetBulan,
-      targetKunjBulan: kumulatif.targetKunjBulan ?? prev.targetKunjBulan,
-      tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
-    }));
+    let cancelled = false;
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+
+    // Fetch target harian & bulanan dari sheet OMSET HARIAN 2026
+    if (GS_URL && form.tanggal) {
+      fetch(`${GS_URL}?action=getTarget&tanggal=${encodeURIComponent(form.tanggal)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(d => {
+          if (cancelled || !d || d.error) return;
+          setForm(prev => ({
+            ...prev,
+            targetKunjungan: d.targetKunjHarian || prev.targetKunjungan,
+            targetOmzet: d.targetOmzetHarian || prev.targetOmzet,
+            targetOmzetBulan: d.targetOmzetBulan || prev.targetOmzetBulan,
+            targetKunjBulan: d.targetKunjBulan || prev.targetKunjBulan,
+          }));
+          setAutoFields(prev => {
+            const s = new Set(prev);
+            if (d.targetKunjHarian) s.add('targetKunjungan');
+            if (d.targetOmzetHarian) s.add('targetOmzet');
+            if (d.targetOmzetBulan) s.add('targetOmzetBulan');
+            if (d.targetKunjBulan) s.add('targetKunjBulan');
+            return s;
+          });
+        })
+        .catch(() => { /* fallback ke kumulatif di bawah */ });
+    }
+
+    // Fallback: kumulatif dari GAS lama (kumOmzet, kumKunj, tglAkhir, dan target jika GAS baru gagal)
+    if (kumulatif) {
+      const d = new Date(form.tanggal + 'T00:00:00');
+      const day = d.getDay();
+      const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
+      const tgtK = kumulatif.targetKunjHarian?.[key];
+      const tgtO = kumulatif.targetOmzetHarian?.[key];
+      setForm(prev => ({
+        ...prev,
+        // Target harian: hanya set jika belum diisi oleh GAS getTarget
+        targetKunjungan: prev.targetKunjungan || tgtK || prev.targetKunjungan,
+        targetOmzet: prev.targetOmzet || tgtO || prev.targetOmzet,
+        // Kumulatif selalu dari GAS lama
+        kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
+        kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
+        targetOmzetBulan: prev.targetOmzetBulan || kumulatif.targetOmzetBulan || prev.targetOmzetBulan,
+        targetKunjBulan: prev.targetKunjBulan || kumulatif.targetKunjBulan || prev.targetKunjBulan,
+        tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
+      }));
+    }
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal, kumulatif]);
 

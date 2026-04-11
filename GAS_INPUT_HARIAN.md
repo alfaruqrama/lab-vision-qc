@@ -109,6 +109,9 @@ function doGet(e) {
   if (action === 'checkDay') {
     return handleCheckDay(e.parameter);
   }
+  if (action === 'getTarget') {
+    return handleGetTarget(e.parameter);
+  }
   return jsonResponse({ status: 'ok', service: 'inputHarian', message: 'Use POST to submit data' });
 }
 
@@ -166,6 +169,90 @@ function handleCheckDay(params) {
     hasData: hasData,
     totalKunjungan: totalKunj,
     debug: { headerRow: headerRow, dayRow: dayRow, cellA: String(cellA) }
+  });
+}
+
+// ─── Get Target dari sheet OMSET HARIAN 2026 ───
+
+var SHEET_OMSET_HARIAN = 'OMSET HARIAN 2026';
+
+function handleGetTarget(params) {
+  var tanggal = params.tanggal || '';
+  var parsed = parseTanggal(tanggal);
+  if (!parsed) return jsonResponse({ error: 'Invalid tanggal: ' + tanggal });
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_OMSET_HARIAN);
+  if (!sheet) return jsonResponse({ error: 'Sheet "' + SHEET_OMSET_HARIAN + '" tidak ditemukan' });
+
+  // Cari blok bulan: cari baris yang berisi nama bulan di kolom A
+  var bulanName = BULAN_NAMES[parsed.monthIdx];
+  var lastRow = Math.min(sheet.getLastRow(), 2000);
+  var colA = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
+
+  var monthHeaderRow = -1;
+  for (var i = 0; i < colA.length; i++) {
+    var val = colA[i][0].trim().toUpperCase();
+    // Match "JANUARI 2026", "April 2026", dll
+    if (val.indexOf(bulanName) >= 0 && val.indexOf('2026') >= 0) {
+      monthHeaderRow = i + 1; // 1-indexed
+      break;
+    }
+  }
+  if (monthHeaderRow < 0) return jsonResponse({ error: 'Bulan ' + bulanName + ' tidak ditemukan di sheet OMSET HARIAN' });
+
+  // Baris data dimulai 2 baris setelah header bulan (skip header kolom HARI,TANGGAL,...)
+  // monthHeaderRow = "JANUARI 2026"
+  // monthHeaderRow+1 = "HARI, TANGGAL, TARGET, OMZET, ..."
+  // monthHeaderRow+2 = data hari 1
+  var dataStartRow = monthHeaderRow + 2;
+
+  // Cari baris tanggal: scan kolom B (TANGGAL) untuk cari dayNum
+  var targetOmzetHarian = 0;
+  var targetKunjHarian = 0;
+  var dayRow = -1;
+
+  for (var d = 0; d < 31; d++) {
+    var row = dataStartRow + d;
+    var cellB = sheet.getRange(row, 2).getValue();
+    var cellBNum = typeof cellB === 'number' ? cellB : parseInt(String(cellB).trim(), 10);
+    if (cellBNum === parsed.dayNum) {
+      dayRow = row;
+      // Kolom C = TARGET OMZET (kolom 3)
+      var rawC = sheet.getRange(row, 3).getValue();
+      targetOmzetHarian = typeof rawC === 'number' ? rawC : parseFloat(String(rawC).replace(/[^\d.-]/g, '')) || 0;
+      // Kolom G = TARGET KUNJUNGAN HARIAN (kolom 7)
+      var rawG = sheet.getRange(row, 7).getValue();
+      targetKunjHarian = typeof rawG === 'number' ? rawG : parseInt(String(rawG).replace(/[^\d]/g, ''), 10) || 0;
+      break;
+    }
+  }
+
+  // Cari baris "Target Real" untuk target bulanan
+  var targetOmzetBulan = 0;
+  var targetKunjBulan = 0;
+  for (var i = dataStartRow; i < dataStartRow + 40; i++) {
+    var val = String(sheet.getRange(i, 1).getValue()).trim().toLowerCase();
+    if (val.indexOf('target real') >= 0 || val.indexOf('target real') >= 0) {
+      // Kolom C = TARGET OMZET BULAN
+      var rawC2 = sheet.getRange(i, 3).getValue();
+      targetOmzetBulan = typeof rawC2 === 'number' ? rawC2 : parseFloat(String(rawC2).replace(/[^\d.-]/g, '')) || 0;
+      // Kolom G = TARGET KUNJUNGAN BULAN
+      var rawG2 = sheet.getRange(i, 7).getValue();
+      targetKunjBulan = typeof rawG2 === 'number' ? rawG2 : parseInt(String(rawG2).replace(/[^\d]/g, ''), 10) || 0;
+      break;
+    }
+  }
+
+  return jsonResponse({
+    status: 'ok',
+    tanggal: tanggal,
+    bulan: bulanName,
+    dayNum: parsed.dayNum,
+    targetOmzetHarian: targetOmzetHarian,
+    targetKunjHarian: targetKunjHarian,
+    targetOmzetBulan: targetOmzetBulan,
+    targetKunjBulan: targetKunjBulan,
+    debug: { monthHeaderRow: monthHeaderRow, dayRow: dayRow }
   });
 }
 
