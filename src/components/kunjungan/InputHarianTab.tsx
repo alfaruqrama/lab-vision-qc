@@ -742,34 +742,29 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     h2.push(null, null, null);
     kunjAoa.push(h2);
 
-    // 31 day rows
+    // 31 day rows — hanya kolom data (B-AF = 31 kolom), skip TOTAL KUNJUNGN (formula gsheet)
     for (let d = 1; d <= 31; d++) {
       const row: any[] = [d];
       if (mi === monthIdx && d === dayNum) {
-        // Fill data hari ini
         row.push(...rjPerBadge);
         row.push(...riPerBadge);
         row.push(...igdPerBadge);
         row.push(...mcuPerBadge);
-        const totalKunj = rjPerBadge.reduce((a,b)=>a+b,0) + riPerBadge.reduce((a,b)=>a+b,0)
-          + igdPerBadge.reduce((a,b)=>a+b,0) + mcuPerBadge.reduce((a,b)=>a+b,0);
-        row.push(totalKunj, null, null);
+        row.push(null, null, null); // TOTAL KUNJUNGN, TARGET, CAPAIAN — skip
       } else {
         row.push(...Array(34).fill(null));
       }
       kunjAoa.push(row);
     }
 
-    // TOTAL row
+    // TOTAL row — hanya kolom data (B-AF), skip AG
     const totRow: any[] = ['TOTAL'];
     if (mi === monthIdx) {
       totRow.push(...rjPerBadge);
       totRow.push(...riPerBadge);
       totRow.push(...igdPerBadge);
       totRow.push(...mcuPerBadge);
-      const totalKunj = rjPerBadge.reduce((a,b)=>a+b,0) + riPerBadge.reduce((a,b)=>a+b,0)
-        + igdPerBadge.reduce((a,b)=>a+b,0) + mcuPerBadge.reduce((a,b)=>a+b,0);
-      totRow.push(totalKunj, null, null);
+      totRow.push(null, null, null);
     } else {
       totRow.push(...Array(34).fill(0));
     }
