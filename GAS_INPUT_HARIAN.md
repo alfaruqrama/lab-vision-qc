@@ -112,6 +112,9 @@ function doGet(e) {
   if (action === 'getTarget') {
     return handleGetTarget(e.parameter);
   }
+  if (action === 'getKumulatif') {
+    return handleGetKumulatif(e.parameter);
+  }
   return jsonResponse({ status: 'ok', service: 'inputHarian', message: 'Use POST to submit data' });
 }
 
@@ -243,27 +246,6 @@ function handleGetTarget(params) {
     }
   }
 
-  // ── Hitung kumulatif: sum omzet (kolom D) & kunjungan (kolom F) dari hari 1 s/d tanggal terpilih ──
-  var kumOmzet = 0;
-  var kumKunj = 0;
-  if (dayRow > 0) {
-    // Baca dari dataStartRow sampai dayRow (inclusive)
-    var numRows = dayRow - dataStartRow + 1;
-    if (numRows > 0) {
-      // Kolom D (col 4) = omzet aktual, Kolom F (col 6) = kunjungan aktual
-      var rangeDF = sheet.getRange(dataStartRow, 4, numRows, 3); // kolom D,E,F
-      var vals = rangeDF.getValues();
-      for (var r = 0; r < vals.length; r++) {
-        var omzVal = vals[r][0]; // kolom D (index 0 dari range)
-        var knjVal = vals[r][2]; // kolom F (index 2 dari range)
-        if (typeof omzVal === 'number') kumOmzet += omzVal;
-        else { var p = parseFloat(String(omzVal).replace(/[^\d.-]/g, '')); if (!isNaN(p)) kumOmzet += p; }
-        if (typeof knjVal === 'number') kumKunj += knjVal;
-        else { var q = parseInt(String(knjVal).replace(/[^\d]/g, ''), 10); if (!isNaN(q)) kumKunj += q; }
-      }
-    }
-  }
-
   return jsonResponse({
     status: 'ok',
     tanggal: tanggal,
@@ -273,9 +255,85 @@ function handleGetTarget(params) {
     targetKunjHarian: targetKunjHarian,
     targetOmzetBulan: targetOmzetBulan,
     targetKunjBulan: targetKunjBulan,
+    debug: { monthHeaderRow: monthHeaderRow, dayRow: dayRow }
+  });
+}
+
+// ─── Get Kumulatif dari sheet OMSET HARIAN 2026 ───
+// Sum kolom D (omzet) dan kolom F (kunjungan) dari tanggal 1 s/d (tanggal - 1)
+// Karena data hari ini diinput manual di baris F tab Laporan
+
+function handleGetKumulatif(params) {
+  var tanggal = params.tanggal || '';
+  var parsed = parseTanggal(tanggal);
+  if (!parsed) return jsonResponse({ error: 'Invalid tanggal: ' + tanggal });
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_OMSET_HARIAN);
+  if (!sheet) return jsonResponse({ error: 'Sheet "' + SHEET_OMSET_HARIAN + '" tidak ditemukan' });
+
+  // Cari blok bulan
+  var bulanName = BULAN_NAMES[parsed.monthIdx];
+  var lastRow = Math.min(sheet.getLastRow(), 2000);
+  var colA = sheet.getRange(1, 1, lastRow, 1).getDisplayValues();
+
+  var monthHeaderRow = -1;
+  for (var i = 0; i < colA.length; i++) {
+    var val = colA[i][0].trim().toUpperCase();
+    if (val.indexOf(bulanName) >= 0 && val.indexOf('2026') >= 0) {
+      monthHeaderRow = i + 1; // 1-indexed
+      break;
+    }
+  }
+  if (monthHeaderRow < 0) return jsonResponse({ error: 'Bulan ' + bulanName + ' tidak ditemukan di sheet OMSET HARIAN' });
+
+  var dataStartRow = monthHeaderRow + 2;
+
+  // Jika tanggal 1, tidak ada data kemarin → kumulatif = 0
+  if (parsed.dayNum <= 1) {
+    return jsonResponse({
+      status: 'ok',
+      tanggal: tanggal,
+      bulan: bulanName,
+      kumOmzet: 0,
+      kumKunj: 0,
+      tglAkhir: 0,
+      debug: { monthHeaderRow: monthHeaderRow, daysScanned: 0 }
+    });
+  }
+
+  // Sum kolom D (omzet, kolom 4) dan kolom F (kunjungan, kolom 6) dari day 1 s/d day (dayNum - 1)
+  var kumOmzet = 0;
+  var kumKunj = 0;
+  var daysScanned = 0;
+
+  for (var d = 0; d < parsed.dayNum - 1; d++) {
+    var row = dataStartRow + d;
+    // Verifikasi kolom B = tanggal yang benar
+    var cellB = sheet.getRange(row, 2).getValue();
+    var cellBNum = typeof cellB === 'number' ? cellB : parseInt(String(cellB).trim(), 10);
+    if (isNaN(cellBNum) || cellBNum < 1 || cellBNum > 31) continue;
+
+    // Kolom D = omzet harian (kolom 4)
+    var rawD = sheet.getRange(row, 4).getValue();
+    var omzet = typeof rawD === 'number' ? rawD : parseFloat(String(rawD).replace(/[^\d.-]/g, '')) || 0;
+    kumOmzet += omzet;
+
+    // Kolom F = kunjungan harian (kolom 6)
+    var rawF = sheet.getRange(row, 6).getValue();
+    var kunj = typeof rawF === 'number' ? rawF : parseInt(String(rawF).replace(/[^\d]/g, ''), 10) || 0;
+    kumKunj += kunj;
+
+    daysScanned++;
+  }
+
+  return jsonResponse({
+    status: 'ok',
+    tanggal: tanggal,
+    bulan: bulanName,
     kumOmzet: kumOmzet,
     kumKunj: kumKunj,
-    debug: { monthHeaderRow: monthHeaderRow, dayRow: dayRow }
+    tglAkhir: parsed.dayNum - 1,
+    debug: { monthHeaderRow: monthHeaderRow, dataStartRow: dataStartRow, daysScanned: daysScanned }
   });
 }
 
@@ -584,3 +642,24 @@ Response:
 ```
 
 Jika `hasData: true`, frontend menampilkan warning "Data tanggal ini sudah ada (306 kunjungan). Overwrite?"
+
+### Get Kumulatif (GET)
+Frontend memanggil untuk ambil data kumulatif omzet & kunjungan s/d kemarin:
+```
+GET ?action=getKumulatif&tanggal=2026-04-12
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "tanggal": "2026-04-12",
+  "bulan": "APRIL",
+  "kumOmzet": 1250000000,
+  "kumKunj": 3200,
+  "tglAkhir": 11,
+  "debug": { "monthHeaderRow": 5, "dataStartRow": 7, "daysScanned": 11 }
+}
+```
+
+Data diambil dari sheet **OMSET HARIAN 2026**: sum kolom D (omzet) dan kolom F (kunjungan) dari tanggal 1 s/d tanggal sebelum tanggal yang dipilih. Jika tanggal = 1, kumulatif = 0.
