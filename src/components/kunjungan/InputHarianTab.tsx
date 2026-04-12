@@ -1172,9 +1172,17 @@ export default function InputHarianTab() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const [tanggal,    setTanggal]    = useState(todayISO());
-  const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
-  const [mcu,        setMcu]        = useState<McuInputRow[]>([]);
+  // Lazy initializers — read draft from localStorage on mount so auto-save
+  // never overwrites the saved draft with empty defaults during tab switches.
+  const [tanggal,    setTanggal]    = useState(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.tanggal || todayISO(); } catch { return todayISO(); }
+  });
+  const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.kunjungan?.length ? d.kunjungan : defaultRows(); } catch { return defaultRows(); }
+  });
+  const [mcu,        setMcu]        = useState<McuInputRow[]>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.mcu || []; } catch { return []; }
+  });
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -1194,20 +1202,7 @@ export default function InputHarianTab() {
   const isFuture = tanggal > todayISO();
   const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
 
-  // Load draft
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d: InputHarianDraft = JSON.parse(raw);
-        setTanggal(d.tanggal || todayISO());
-        setKunjungan(d.kunjungan?.length ? d.kunjungan : defaultRows());
-        setMcu(d.mcu || []);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  // Auto-save
+  // Auto-save (draft is loaded via lazy useState initializers above)
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
   }, [tanggal, kunjungan, mcu]);
@@ -1406,7 +1401,7 @@ export default function InputHarianTab() {
       if (results.length > 0) toast.success(`Berhasil: ${results.join(', ')}`);
     } else if (results.length > 0) {
       toast.success(`Data berhasil dikirim! ${results.join(', ')}`);
-      localStorage.removeItem(DRAFT_KEY);
+      // Draft TIDAK dihapus setelah submit — tab Laporan membaca dari draft ini
     } else {
       toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
     }
