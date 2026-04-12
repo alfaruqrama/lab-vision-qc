@@ -129,63 +129,115 @@ function handleInputLaporan(body) {
   var ketCell = sheet.getRange(dataStartRow - 2, 1).getDisplayValue();
   var firstDataB = sheet.getRange(dataStartRow, 2).getDisplayValue();
 
+  // ── Cari baris awal MCU (kolom Q) ──
+  // MCU data dimulai di baris yang sama dengan header "KET,JAMINAN" (kolom Q sudah berisi nomor 1)
+  // Scan kolom Q dari dateRow ke bawah untuk cari baris pertama yang berisi angka 1
+  var mcuStartRow = findMcuStartRow(sheet, dateRow);
+
   // ── Tulis Tabel Kiri: Laporan Harian per penjamin ──
-  writeLaporanData(sheet, dataStartRow, kunjungan);
+  var laporanResult = writeLaporanData(sheet, dataStartRow, kunjungan);
 
   // ── Tulis Tabel Kanan: Rincian MCU ──
-  writeMcuData(sheet, dataStartRow, mcu);
+  var mcuResult = writeMcuData(sheet, mcuStartRow, mcu);
 
   return jsonResponse({
     status: 'ok',
     message: 'Data ' + tanggal + ' berhasil ditulis ke Laporan Harian',
     bulan: BULAN_NAMES[parsed.monthIdx],
     hari: parsed.dayNum,
-    totalPenjamin: kunjungan.length,
-    totalMcu: mcu.length,
-    debug: { dateRow: dateRow, dateCell: dateCell, dataStartRow: dataStartRow, ketCell: ketCell, firstDataB: firstDataB }
+    totalPenjamin: laporanResult.written,
+    totalMcu: mcuResult.written,
+    debug: { dateRow: dateRow, dateCell: dateCell, dataStartRow: dataStartRow, mcuStartRow: mcuStartRow, ketCell: ketCell, firstDataB: firstDataB }
   });
 }
 
 // ─── Tulis data kunjungan per penjamin ke tabel kiri ──
 
 function writeLaporanData(sheet, dataStartRow, kunjungan) {
-  // Baca nama penjamin yang sudah ada di kolom B (template)
-  // Scan dari dataStartRow sampai ketemu baris TOTAL
+  // Baca kolom A+B dari dataStartRow sampai ketemu baris TOTAL di kolom B
   var maxRows = 50;
-  var colB = sheet.getRange(dataStartRow, 2, maxRows, 1).getValues();
-  
-  var templateRows = {}; // nama -> row number
-  var lastDataRow = dataStartRow;
-  for (var i = 0; i < colB.length; i++) {
-    var val = String(colB[i][0]).trim();
-    if (val.toUpperCase() === 'TOTAL') break;
-    if (val) {
-      templateRows[val.toUpperCase()] = dataStartRow + i;
-      lastDataRow = dataStartRow + i;
+  var colAB = sheet.getRange(dataStartRow, 1, maxRows, 2).getValues();
+
+  // 12 nama penjamin default (template) — selalu ada di sheet
+  var DEFAULT_NAMES = [
+    'KARYAWAN PG', 'KELUARGA PG', 'KARYAWAN PG BRI LIFE', 'KELUARGA PG BRI LIFE',
+    'PROKESPEN MURNI', 'PROKESPEN BPJS COB',
+    'BPJS KESEHATAN', 'BPJS NAIK KELAS', 'BPJS NAIK KELAS.',
+    'PASIEN UMUM', 'BPJS KETENAGAKERJAAN (JKK)'
+  ];
+  var defaultSet = {};
+  for (var d = 0; d < DEFAULT_NAMES.length; d++) defaultSet[DEFAULT_NAMES[d].toUpperCase()] = true;
+
+  // Scan template: cari baris TOTAL dan identifikasi baris template vs non-template
+  var templateRows = {}; // NAMA_UPPER -> row number
+  var totalRow = -1;
+  for (var i = 0; i < colAB.length; i++) {
+    var valB = String(colAB[i][1]).trim();
+    if (valB.toUpperCase() === 'TOTAL') { totalRow = dataStartRow + i; break; }
+    if (valB) {
+      templateRows[valB.toUpperCase()] = dataStartRow + i;
+    }
+  }
+  if (totalRow < 0) return { written: 0 }; // safety
+
+  // Clear non-default rows: hapus nama + data di baris yang bukan default template
+  // Ini penting untuk overwrite — bersihkan data lama sebelum tulis baru
+  for (var i = 0; i < colAB.length; i++) {
+    var row = dataStartRow + i;
+    if (row >= totalRow) break;
+    var valB = String(colAB[i][1]).trim();
+    var valA = String(colAB[i][0]).trim();
+    if (!valB) continue; // sudah kosong
+    if (defaultSet[valB.toUpperCase()]) {
+      // Default row — clear data (kolom C-N) tapi jangan hapus nama
+      sheet.getRange(row, 3, 1, 12).setValues([[0,0,0,0,0,0,0,0,0,0,0,0]]);
+    } else {
+      // Non-default row — clear nama (kolom B) + data (kolom C-N) + KET (kolom A jika bukan badge)
+      sheet.getRange(row, 1, 1, 14).setValues([['','',0,0,0,0,0,0,0,0,0,0,0,0]]);
     }
   }
 
-  // Untuk setiap penjamin di kunjungan, cari baris yang cocok atau tulis di baris kosong
+  // Rebuild templateRows setelah clear (hanya default names yang tersisa)
+  templateRows = {};
+  var colBAfter = sheet.getRange(dataStartRow, 2, totalRow - dataStartRow, 1).getValues();
+  var lastFilledRow = dataStartRow;
+  for (var i = 0; i < colBAfter.length; i++) {
+    var valB = String(colBAfter[i][0]).trim();
+    if (valB) {
+      templateRows[valB.toUpperCase()] = dataStartRow + i;
+      lastFilledRow = dataStartRow + i;
+    }
+  }
+
+  // Filter: hanya kirim penjamin yang punya data (total > 0) atau nama tidak kosong
+  var written = 0;
   for (var k = 0; k < kunjungan.length; k++) {
     var r = kunjungan[k];
     if (!r.namaPenjamin || !r.namaPenjamin.trim()) continue;
-    
+
     var nama = r.namaPenjamin.trim();
+    var hasAnyData = (r.rjYani||0)+(r.riYani||0)+(r.igd||0)+(r.mcuAuto||0)+
+                     (r.promo||0)+(r.dokter||0)+(r.exc||0)+(r.prior||0)+
+                     (r.grhuRj||0)+(r.grhuRi||0)+(r.sat||0)+(r.ppk1||0);
+
+    // Default penjamin: selalu tulis (bahkan jika 0), karena template sudah ada
+    var isDefault = defaultSet[nama.toUpperCase()];
+    if (!isDefault && hasAnyData === 0) continue; // skip non-default tanpa data
+
     var targetRow = templateRows[nama.toUpperCase()];
-    
+
     if (!targetRow) {
-      // Penjamin belum ada di template — cari baris kosong setelah data terakhir
-      // Scan dari lastDataRow+1 untuk cari baris kosong (kolom B kosong, sebelum TOTAL)
+      // Cari baris kosong setelah lastFilledRow, sebelum totalRow
       var found = false;
-      for (var scan = lastDataRow + 1; scan < dataStartRow + maxRows; scan++) {
+      for (var scan = lastFilledRow + 1; scan < totalRow; scan++) {
         var scanB = String(sheet.getRange(scan, 2).getValue()).trim();
-        if (scanB.toUpperCase() === 'TOTAL') break;
         if (!scanB) {
           targetRow = scan;
           // Tulis nama penjamin di kolom B
           sheet.getRange(scan, 2).setValue(nama);
+          // Tulis badge di kolom A jika ini baris pertama NPG setelah JKK
           templateRows[nama.toUpperCase()] = scan;
-          lastDataRow = Math.max(lastDataRow, scan);
+          lastFilledRow = Math.max(lastFilledRow, scan);
           found = true;
           break;
         }
@@ -194,37 +246,46 @@ function writeLaporanData(sheet, dataStartRow, kunjungan) {
     }
 
     // Tulis data di kolom C-N (12 kolom), SKIP kolom O (TOTAL = formula)
-    // C=rjYani, D=riYani, E=igd, F=mcuAuto, G=promo, H=dokter, I=exc, J=prior, K=grhuRj, L=grhuRi, M=sat, N=ppk1
     var rowData = [
-      r.rjYani || 0,
-      r.riYani || 0,
-      r.igd || 0,
-      r.mcuAuto || 0,
-      r.promo || 0,
-      r.dokter || 0,
-      r.exc || 0,
-      r.prior || 0,
-      r.grhuRj || 0,
-      r.grhuRi || 0,
-      r.sat || 0,
-      r.ppk1 || 0
+      r.rjYani || 0, r.riYani || 0, r.igd || 0, r.mcuAuto || 0,
+      r.promo || 0, r.dokter || 0, r.exc || 0, r.prior || 0,
+      r.grhuRj || 0, r.grhuRi || 0, r.sat || 0, r.ppk1 || 0
     ];
     sheet.getRange(targetRow, 3, 1, 12).setValues([rowData]);
+    written++;
   }
+  return { written: written };
 }
 
 // ─── Tulis data MCU ke tabel kanan (kolom Q-V) ──
 
-function writeMcuData(sheet, dataStartRow, mcu) {
+function writeMcuData(sheet, mcuStartRow, mcu) {
+  if (mcuStartRow < 0) return { written: 0 };
+
   // Format Rp
   function fmtRpSatuan(v) {
     if (!v) return 'Rp0';
     return 'Rp' + Number(v).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // Clear old MCU data: scan dari mcuStartRow sampai ketemu baris summary (kolom Q kosong + kolom S punya angka = total row)
+  // Atau sampai 30 baris max
+  var maxMcuRows = 30;
+  for (var i = 0; i < maxMcuRows; i++) {
+    var row = mcuStartRow + i;
+    var valQ = sheet.getRange(row, 17).getValue();
+    // Stop jika kolom Q kosong DAN kolom R kosong (sudah melewati area MCU)
+    // Tapi jangan stop di baris yang masih punya nomor urut
+    if (i > 0 && !valQ && !String(sheet.getRange(row, 18).getValue()).trim()) break;
+    // Clear kolom Q-T (4 kolom) dan V (1 kolom), skip U (formula)
+    sheet.getRange(row, 17, 1, 4).setValues([['', '', '', '']]);
+    sheet.getRange(row, 22).setValue('');
+  }
+
+  // Tulis data MCU baru
   for (var i = 0; i < mcu.length; i++) {
     var r = mcu[i];
-    var row = dataStartRow + i;
+    var row = mcuStartRow + i;
     // Kolom Q=17(NO), R=18(PERUSAHAAN), S=19(PESERTA), T=20(NOMINAL SATUAN)
     // SKIP kolom U=21(TOTAL) — biarkan formula di spreadsheet
     // Kolom V=22(KET. PAKET)
@@ -237,6 +298,32 @@ function writeMcuData(sheet, dataStartRow, mcu) {
     // Tulis KET. PAKET di kolom V (skip kolom U)
     sheet.getRange(row, 22).setValue(r.paket || '');
   }
+  return { written: mcu.length };
+}
+
+// ─── Helper: Cari baris awal MCU (kolom Q) ──
+// Scan dari dateRow ke bawah, cari baris pertama di kolom Q yang berisi angka 1
+// atau yang sudah berisi nomor urut MCU
+
+function findMcuStartRow(sheet, dateRow) {
+  // Scan kolom Q (17) dan R (18) dari dateRow sampai dateRow+10
+  for (var i = 0; i < 10; i++) {
+    var row = dateRow + i;
+    var valQ = sheet.getRange(row, 17).getValue();
+    var valR = String(sheet.getRange(row, 18).getValue()).trim().toUpperCase();
+    // Cari header "NO" + "PERUSAHAAN" → data mulai 1 baris di bawahnya
+    if ((String(valQ).trim().toUpperCase() === 'NO') && valR === 'PERUSAHAAN') {
+      return row + 1;
+    }
+  }
+  // Fallback: cari baris dengan angka 1 di kolom Q
+  for (var i = 0; i < 10; i++) {
+    var row = dateRow + i;
+    var valQ = sheet.getRange(row, 17).getValue();
+    if (typeof valQ === 'number' && valQ === 1) return row;
+    if (String(valQ).trim() === '1') return row;
+  }
+  return -1; // tidak ditemukan
 }
 
 // ─── Helper: Cari sheet bulan ───
@@ -342,10 +429,13 @@ https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_INI/edit
 1. Frontend kirim `POST { action: 'inputLaporan', tanggal, kunjungan, mcu }`
 2. GAS parse tanggal → cari sheet bulan (contoh: "APRIL 2026")
 3. Cari baris tanggal (contoh: "08/April/2026") di kolom A
-4. Cari header `KET, JAMINAN` → data mulai 2 baris di bawahnya
-5. **Tabel Kiri**: untuk setiap penjamin:
-   - Jika nama sudah ada di template → isi angka di baris tersebut
-   - Jika nama belum ada → tulis di baris kosong berikutnya
+4. Cari header `KET, JAMINAN` → data mulai 2 baris di bawahnya (`dataStartRow`)
+5. Cari header MCU `NO, PERUSAHAAN` di kolom Q-R → data MCU mulai 1 baris di bawahnya (`mcuStartRow`)
+6. **Tabel Kiri**: 
+   - Clear semua data lama (non-default rows dihapus nama+data, default rows hanya clear data)
+   - Untuk setiap penjamin yang punya data:
+     - Jika nama default → isi angka di baris template
+     - Jika nama non-default → tulis di baris kosong berikutnya (sebelum TOTAL)
    - Tulis kolom C-N (12 kolom data), **skip kolom O** (TOTAL = formula)
-6. **Tabel Kanan**: tulis MCU detail di kolom Q-V
-7. **Tidak menulis**: baris TOTAL, rekap per badge, kolom TOTAL — semua formula gsheet
+7. **Tabel Kanan**: clear data MCU lama, lalu tulis MCU detail di kolom Q-V mulai dari `mcuStartRow`
+8. **Tidak menulis**: baris TOTAL, rekap per badge, kolom TOTAL (O dan U) — semua formula gsheet
