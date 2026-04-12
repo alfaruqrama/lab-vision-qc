@@ -137,11 +137,12 @@ function NumInput({ value, onChange, label, auto, gsAutoFill }: {
   );
 }
 
-function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; gsAutoFill?: boolean }) {
+function RpInput({ value, onChange, label, auto, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; auto?: boolean; gsAutoFill?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-muted-foreground flex-1 min-w-0">
         {label}
+        {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
         {gsAutoFill && <span className="text-[9px] ml-1 text-accent font-medium">(dari Sheets)</span>}
       </label>
       <div className="relative">
@@ -150,7 +151,9 @@ function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChan
           type="text" inputMode="numeric"
           value={value ? fmtRpWA(value) : ''}
           onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
-          className={cn("w-40 h-8 text-right text-[10px] font-mono pl-7", gsAutoFill && "bg-accent/5 border-accent/30")}
+          className={cn("w-40 h-8 text-right text-[10px] font-mono pl-7",
+            auto && "border-green-400/50 bg-green-50/30",
+            gsAutoFill && "bg-accent/5 border-accent/30")}
           placeholder="0"
         />
       </div>
@@ -458,8 +461,8 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">F — Capaian Harian</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={!!kumulatif} />
-              <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={!!kumulatif} />
+              <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={isAuto('targetKunjungan')} />
+              <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={isAuto('targetOmzet')} />
               <RpInput  label="Total Omzet Harian"       value={form.totalOmzet}       onChange={v => set('totalOmzet', v)} />
               <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} auto={isAuto('pendapatanMCU')} />
               <div className="flex items-center gap-2">
@@ -496,8 +499,8 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
               </div>
               <RpInput  label="Total Pendapatan s/d tgl"  value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={!!kumulatif} />
               <NumInput label="Total Kunjungan s/d tgl"   value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={!!kumulatif} />
-              <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={!!kumulatif} />
-              <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={!!kumulatif} />
+              <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={isAuto('targetOmzetBulan')} />
+              <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={isAuto('targetKunjBulan')} />
               <div className="pt-2 border-t border-border space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Capaian Omzet</span>
