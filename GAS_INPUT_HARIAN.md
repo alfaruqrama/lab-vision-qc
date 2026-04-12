@@ -243,6 +243,27 @@ function handleGetTarget(params) {
     }
   }
 
+  // ── Hitung kumulatif: sum omzet (kolom D) & kunjungan (kolom F) dari hari 1 s/d tanggal terpilih ──
+  var kumOmzet = 0;
+  var kumKunj = 0;
+  if (dayRow > 0) {
+    // Baca dari dataStartRow sampai dayRow (inclusive)
+    var numRows = dayRow - dataStartRow + 1;
+    if (numRows > 0) {
+      // Kolom D (col 4) = omzet aktual, Kolom F (col 6) = kunjungan aktual
+      var rangeDF = sheet.getRange(dataStartRow, 4, numRows, 3); // kolom D,E,F
+      var vals = rangeDF.getValues();
+      for (var r = 0; r < vals.length; r++) {
+        var omzVal = vals[r][0]; // kolom D (index 0 dari range)
+        var knjVal = vals[r][2]; // kolom F (index 2 dari range)
+        if (typeof omzVal === 'number') kumOmzet += omzVal;
+        else { var p = parseFloat(String(omzVal).replace(/[^\d.-]/g, '')); if (!isNaN(p)) kumOmzet += p; }
+        if (typeof knjVal === 'number') kumKunj += knjVal;
+        else { var q = parseInt(String(knjVal).replace(/[^\d]/g, ''), 10); if (!isNaN(q)) kumKunj += q; }
+      }
+    }
+  }
+
   return jsonResponse({
     status: 'ok',
     tanggal: tanggal,
@@ -252,6 +273,8 @@ function handleGetTarget(params) {
     targetKunjHarian: targetKunjHarian,
     targetOmzetBulan: targetOmzetBulan,
     targetKunjBulan: targetKunjBulan,
+    kumOmzet: kumOmzet,
+    kumKunj: kumKunj,
     debug: { monthHeaderRow: monthHeaderRow, dayRow: dayRow }
   });
 }

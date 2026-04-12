@@ -5,7 +5,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { KumulatifData } from '@/hooks/use-kunjungan-data';
+
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -161,7 +161,7 @@ function RpInput({ value, onChange, label, auto, gsAutoFill }: { value: number; 
   );
 }
 
-export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | null }) {
+export default function LaporanTab() {
   const [form, setForm] = useState<FormData>(() => {
     try {
       const saved = localStorage.getItem(LS_KEY);
@@ -199,19 +199,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal]);
 
-  // Auto-fill kumulatif dari GAS lama (kumOmzet, kumKunj, tglAkhir)
-  useEffect(() => {
-    if (!kumulatif) return;
-    setForm(prev => ({
-      ...prev,
-      kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
-      kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
-      tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
-    }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kumulatif]);
-
-  // Auto-fill targets dari GAS getTarget (sheet OMSET HARIAN 2026)
+  // Auto-fill targets + kumulatif dari GAS getTarget (sheet OMSET HARIAN 2026)
   useEffect(() => {
     let cancelled = false;
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
@@ -229,6 +217,8 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           targetOmzet: d.targetOmzetHarian || prev.targetOmzet,
           targetOmzetBulan: d.targetOmzetBulan || prev.targetOmzetBulan,
           targetKunjBulan: d.targetKunjBulan || prev.targetKunjBulan,
+          kumOmzet: d.kumOmzet != null ? d.kumOmzet : prev.kumOmzet,
+          kumKunj: d.kumKunj != null ? d.kumKunj : prev.kumKunj,
         }));
         setAutoFields(prev => {
           const s = new Set(prev);
@@ -236,6 +226,8 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           if (d.targetOmzetHarian) s.add('targetOmzet');
           if (d.targetOmzetBulan) s.add('targetOmzetBulan');
           if (d.targetKunjBulan) s.add('targetKunjBulan');
+          if (d.kumOmzet != null) s.add('kumOmzet');
+          if (d.kumKunj != null) s.add('kumKunj');
           return s;
         });
       })
@@ -490,15 +482,15 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <AccordionItem value="g" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
               G — Kumulatif Bulan
-              {kumulatif && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
+              {(isAuto('kumOmzet') || isAuto('kumKunj')) && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-muted-foreground flex-1">Tanggal Akhir Data <span className="text-[9px] text-blue-500 font-medium">(dari date picker)</span></label>
                 <span className="w-24 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 font-semibold">{tglAkhir}</span>
               </div>
-              <RpInput  label="Total Pendapatan s/d tgl"  value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={!!kumulatif} />
-              <NumInput label="Total Kunjungan s/d tgl"   value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={!!kumulatif} />
+              <RpInput  label="Total Pendapatan s/d tgl"  value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={isAuto('kumOmzet')} />
+              <NumInput label="Total Kunjungan s/d tgl"   value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={isAuto('kumKunj')} />
               <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={isAuto('targetOmzetBulan')} />
               <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={isAuto('targetKunjBulan')} />
               <div className="pt-2 border-t border-border space-y-1 text-xs">

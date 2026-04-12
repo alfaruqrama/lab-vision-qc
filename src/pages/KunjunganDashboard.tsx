@@ -533,7 +533,7 @@ export default function KunjunganDashboard() {
 
       {/* Content */}
       <div className="pt-4">
-        {tab === 'laporan' && <LaporanTab kumulatif={kumulatif} />}
+        {tab === 'laporan' && <LaporanTab />}
         {tab === 'input' && <InputHarianTab />}
         {tab !== 'laporan' && tab !== 'input' && (
           status === 'loading' ? (
