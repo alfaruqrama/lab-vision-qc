@@ -175,6 +175,75 @@
   .summary-label { color: var(--muted); }
   .summary-value { font-weight: 700; }
   .summary-value .pct { color: var(--accent); }
+
+  /* Updates section */
+  .updates-section { padding: 32px; max-width: 900px; margin: 0 auto; scroll-margin-top: 90px; }
+  .updates-header { text-align: center; margin-bottom: 32px; }
+  .updates-header h2 { font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .updates-header p { font-size: 14px; color: var(--muted); }
+  .updates-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .update-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: transform .2s, box-shadow .2s; }
+  .update-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+  .update-icon { font-size: 32px; margin-bottom: 12px; }
+  .update-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #1f2937; }
+  .update-compare { display: flex; gap: 8px; margin: 12px 0; font-size: 11px; }
+  .before { flex: 1; padding: 6px 10px; background: var(--red-light); color: var(--red); border-radius: 6px; text-align: center; font-weight: 600; }
+  .after { flex: 1; padding: 6px 10px; background: var(--green-light); color: var(--green); border-radius: 6px; text-align: center; font-weight: 700; }
+  .update-features { list-style: none; font-size: 12px; color: var(--muted); margin: 0; padding: 0; }
+  .update-features li { margin-bottom: 4px; }
+  .update-features li::before { content: "✓ "; color: var(--green); font-weight: 700; margin-right: 4px; }
+  .updates-cta { text-align: center; margin-top: 32px; }
+
+  /* Collapsible mockup */
+  .mockup-toggle { display: none; width: 100%; padding: 8px; background: var(--accent-light); color: var(--accent); border: none; border-radius: 0; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .mockup-toggle:hover { background: #ddd6fe; }
+  .mockup-body.collapsible { max-height: 200px; overflow: hidden; position: relative; }
+  .mockup-body.collapsible::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1)); pointer-events: none; }
+  .mockup-body.collapsible.expanded { max-height: none; }
+  .mockup-body.collapsible.expanded::after { display: none; }
+
+  /* Floating next button */
+  .floating-next { display: none; position: fixed; bottom: 70px; right: 16px; z-index: 99; background: var(--accent); color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 24px; box-shadow: 0 4px 12px rgba(99,102,241,.4); cursor: pointer; transition: transform .2s, box-shadow .2s; }
+  .floating-next:active { transform: scale(.95); }
+  .floating-next:hover { box-shadow: 0 6px 16px rgba(99,102,241,.5); }
+
+  /* Table scroll shadows */
+  .table-wrapper { position: relative; overflow-x: auto; }
+  .table-wrapper::before, .table-wrapper::after { content: ''; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .3s; }
+  .table-wrapper::before { left: 0; background: linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0)); }
+  .table-wrapper::after { right: 0; background: linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0)); }
+  .table-wrapper.scroll-left::before { opacity: 1; }
+  .table-wrapper.scroll-right::after { opacity: 1; }
+
+  /* Mobile improvements */
+  @media (max-width: 768px) {
+    .updates-section { padding: 16px; }
+    .updates-grid { grid-template-columns: 1fr; }
+    .update-card { padding: 16px; }
+    .updates-header h2 { font-size: 20px; }
+    .mockup-toggle { display: block; }
+    .floating-next { display: flex; align-items: center; justify-content: center; }
+    .sidebar a, .mobile-nav a, .mock-btn { min-height: 44px; }
+    .step-nav { gap: 12px; }
+  }
+
+  @media (max-width: 480px) {
+    .header { padding: 16px; }
+    .header h1 { font-size: 14px; }
+    .header p { font-size: 11px; }
+    .updates-section { padding: 12px; }
+    .updates-header h2 { font-size: 18px; }
+    .update-card { padding: 12px; }
+    .update-icon { font-size: 24px; }
+    .step-header .num { width: 28px; height: 28px; font-size: 14px; }
+    .step-header h2 { font-size: 16px; }
+    .step-desc { font-size: 13px; }
+    .mock-btn { font-size: 11px; padding: 6px 12px; }
+    .mock-table { font-size: 9px; }
+    .mock-table th, .mock-table td { padding: 3px 4px; }
+    .tip { font-size: 11px; padding: 10px; }
+    .floating-next { width: 48px; height: 48px; font-size: 20px; bottom: 60px; }
+  }
 </style>
 </head>
 <body>
@@ -187,7 +256,9 @@
 <div class="layout">
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebar">
-    <div class="sidebar-title">Langkah-langkah</div>
+    <div class="sidebar-title">Pengenalan</div>
+    <a href="#updates" data-step="0"><span class="step-num">✨</span> Apa yang Baru?</a>
+    <div class="sidebar-title" style="margin-top:16px">Langkah-langkah</div>
     <a href="#step1" class="active" data-step="1"><span class="step-num">1</span> Buka Tab Input Harian</a>
     <a href="#step2" data-step="2"><span class="step-num">2</span> Pilih Tanggal</a>
     <a href="#step3" data-step="3"><span class="step-num">3</span> Isi Tabel Kunjungan</a>
@@ -202,6 +273,170 @@
 
   <!-- Main content -->
   <main class="main">
+
+    <!-- ==================== UPDATES SECTION ==================== -->
+    <section class="updates-section" id="updates">
+      <div class="updates-header">
+        <h2>✨ Apa yang Baru?</h2>
+        <p>Portal ini sudah diupdate dengan 10 fitur baru yang membuat pekerjaan Anda lebih cepat dan mudah</p>
+      </div>
+
+      <div class="updates-grid">
+        <!-- Card 1: Input Lebih Cepat -->
+        <div class="update-card">
+          <div class="update-icon">⚡</div>
+          <h3>Input Data Lebih Cepat</h3>
+          <div class="update-compare">
+            <div class="before">30-45 menit</div>
+            <div class="after">10-15 menit</div>
+          </div>
+          <ul class="update-features">
+            <li>Draft auto-save</li>
+            <li>Kolom MCU AUTO & TOTAL otomatis</li>
+            <li>Tambah penjamin dari form</li>
+          </ul>
+        </div>
+
+        <!-- Card 2: Submit 2 Sheets -->
+        <div class="update-card">
+          <div class="update-icon">🚀</div>
+          <h3>Submit 2 Spreadsheet Sekaligus</h3>
+          <div class="update-compare">
+            <div class="before">2× manual</div>
+            <div class="after">1 klik</div>
+          </div>
+          <ul class="update-features">
+            <li>KUNJUNGAN 2026 + LAPORAN HARIAN</li>
+            <li>Preview modal sebelum kirim</li>
+            <li>Warning overwrite otomatis</li>
+          </ul>
+        </div>
+
+        <!-- Card 3: Laporan WA Otomatis -->
+        <div class="update-card">
+          <div class="update-icon">💬</div>
+          <h3>Laporan WhatsApp Otomatis</h3>
+          <div class="update-compare">
+            <div class="before">Ketik manual</div>
+            <div class="after">80% otomatis</div>
+          </div>
+          <ul class="update-features">
+            <li>Auto-fill dari Input Harian</li>
+            <li>Preview real-time</li>
+            <li>1 klik kirim via WhatsApp</li>
+          </ul>
+        </div>
+
+        <!-- Card 4: Target Otomatis -->
+        <div class="update-card">
+          <div class="update-icon">🎯</div>
+          <h3>Target & Capaian Otomatis</h3>
+          <div class="update-compare">
+            <div class="before">Hitung manual</div>
+            <div class="after">Dari Sheets</div>
+          </div>
+          <ul class="update-features">
+            <li>Target harian & bulanan otomatis</li>
+            <li>Kumulatif s/d kemarin otomatis</li>
+            <li>Capaian % otomatis dihitung</li>
+          </ul>
+        </div>
+
+        <!-- Card 5: Data Tidak Hilang -->
+        <div class="update-card">
+          <div class="update-icon">💾</div>
+          <h3>Data Tidak Hilang</h3>
+          <div class="update-compare">
+            <div class="before">Sering hilang</div>
+            <div class="after">Selalu aman</div>
+          </div>
+          <ul class="update-features">
+            <li>Draft tersimpan otomatis</li>
+            <li>Persist setelah submit</li>
+            <li>Persist saat pindah tab</li>
+          </ul>
+        </div>
+
+        <!-- Card 6: Export Excel -->
+        <div class="update-card">
+          <div class="update-icon">📊</div>
+          <h3>Export Excel Lengkap</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">1 klik</div>
+          </div>
+          <ul class="update-features">
+            <li>4 sheet dalam 1 file</li>
+            <li>Backup lokal</li>
+            <li>Bisa dikirim via email</li>
+          </ul>
+        </div>
+
+        <!-- Card 7: Validasi -->
+        <div class="update-card">
+          <div class="update-icon">🛡️</div>
+          <h3>Validasi & Safety Layer</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">Lengkap</div>
+          </div>
+          <ul class="update-features">
+            <li>Warning tanggal bukan hari ini</li>
+            <li>Check overwrite sebelum kirim</li>
+            <li>Sinkronisasi tanggal web vs sheet</li>
+          </ul>
+        </div>
+
+        <!-- Card 8: Manajemen Penjamin -->
+        <div class="update-card">
+          <div class="update-icon">⚙️</div>
+          <h3>Manajemen Penjamin Fleksibel</h3>
+          <div class="update-compare">
+            <div class="before">Fixed</div>
+            <div class="after">Fleksibel</div>
+          </div>
+          <ul class="update-features">
+            <li>Tambah penjamin baru</li>
+            <li>Edit/hapus nama penjamin</li>
+            <li>Settings modal (admin only)</li>
+          </ul>
+        </div>
+
+        <!-- Card 9: Panduan -->
+        <div class="update-card">
+          <div class="update-icon">📖</div>
+          <h3>Panduan Interaktif</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">File ini!</div>
+          </div>
+          <ul class="update-features">
+            <li>10 langkah step-by-step</li>
+            <li>Mockup visual tiap langkah</li>
+            <li>Bisa dibuka di HP</li>
+          </ul>
+        </div>
+
+        <!-- Card 10: Indikator Visual -->
+        <div class="update-card">
+          <div class="update-icon">🎨</div>
+          <h3>Indikator Visual Jelas</h3>
+          <div class="update-compare">
+            <div class="before">Bingung</div>
+            <div class="after">Jelas</div>
+          </div>
+          <ul class="update-features">
+            <li>Badge hijau "(auto)"</li>
+            <li>Badge biru "(dari Sheets)"</li>
+            <li>Border warna per status</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="updates-cta">
+        <a href="#step1" class="mock-btn primary" style="font-size:14px;padding:12px 24px" onclick="goStep(1)">Mulai Panduan →</a>
+      </div>
+    </section>
 
     <!-- ==================== STEP 1 ==================== -->
     <section class="step" id="step1">
@@ -973,6 +1208,7 @@ Target April 2026
 <!-- Mobile bottom nav -->
 <div class="mobile-nav">
   <div class="mobile-nav-inner" id="mobileNav">
+    <a href="#updates" data-step="0">✨</a>
     <a href="#step1" class="active" data-step="1">1</a>
     <a href="#step2" data-step="2">2</a>
     <a href="#step3" data-step="3">3</a>
@@ -985,6 +1221,9 @@ Target April 2026
     <a href="#step10" data-step="10">10</a>
   </div>
 </div>
+
+<!-- Floating next button -->
+<button class="floating-next" id="floatingNext" onclick="nextStep()">→</button>
 
 <script>
   // Active step tracking
@@ -1000,8 +1239,17 @@ Target April 2026
     if (mobileLink) mobileLink.classList.add('active');
 
     // Scroll to step
-    const el = document.getElementById('step' + n);
+    const targetId = n === 0 ? 'updates' : 'step' + n;
+    const el = document.getElementById(targetId);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Next step function for floating button
+  function nextStep() {
+    const currentStep = parseInt(document.querySelector('.sidebar a.active')?.dataset.step || '0');
+    if (currentStep < 10) {
+      goStep(currentStep + 1);
+    }
   }
 
   // Intersection observer for auto-highlighting sidebar
@@ -1009,7 +1257,12 @@ Target April 2026
     entries.forEach(entry => {
       if (entry.isIntersecting) {
         const id = entry.target.id;
-        const n = id.replace('step', '');
+        let n = '0';
+        if (id === 'updates') {
+          n = '0';
+        } else {
+          n = id.replace('step', '');
+        }
 
         document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
         const sidebarLink = document.querySelector(`.sidebar a[data-step="${n}"]`);
@@ -1018,11 +1271,23 @@ Target April 2026
         document.querySelectorAll('.mobile-nav a').forEach(a => a.classList.remove('active'));
         const mobileLink = document.querySelector(`.mobile-nav a[data-step="${n}"]`);
         if (mobileLink) mobileLink.classList.add('active');
+
+        // Update floating button
+        const floatingBtn = document.getElementById('floatingNext');
+        if (floatingBtn) {
+          if (n === '10') {
+            floatingBtn.style.display = 'none';
+          } else {
+            floatingBtn.style.display = 'flex';
+          }
+        }
       }
     });
   }, { rootMargin: '-20% 0px -70% 0px' });
 
   document.querySelectorAll('.step').forEach(step => observer.observe(step));
+  const updatesSection = document.getElementById('updates');
+  if (updatesSection) observer.observe(updatesSection);
 
   // Sidebar click
   document.querySelectorAll('.sidebar a').forEach(a => {
@@ -1040,6 +1305,76 @@ Target April 2026
       const n = a.dataset.step;
       goStep(parseInt(n));
     });
+  });
+
+  // Collapsible mockups for mobile
+  function initCollapsibleMockups() {
+    if (window.innerWidth <= 768) {
+      document.querySelectorAll('.mockup').forEach(mockup => {
+        const body = mockup.querySelector('.mockup-body');
+        if (body && body.scrollHeight > 400) {
+          // Check if toggle already exists
+          if (mockup.querySelector('.mockup-toggle')) return;
+
+          const toggle = document.createElement('button');
+          toggle.className = 'mockup-toggle';
+          toggle.textContent = 'Lihat Mockup';
+          toggle.onclick = () => {
+            body.classList.toggle('expanded');
+            toggle.textContent = body.classList.contains('expanded') ? 'Sembunyikan' : 'Lihat Mockup';
+          };
+          mockup.insertBefore(toggle, body);
+          body.classList.add('collapsible');
+        }
+      });
+    }
+  }
+
+  // Table scroll shadows
+  function initTableScrollShadows() {
+    document.querySelectorAll('.mockup-body').forEach(body => {
+      const table = body.querySelector('.mock-table');
+      if (table && body.scrollWidth > body.clientWidth) {
+        body.classList.add('table-wrapper');
+        
+        const updateShadows = () => {
+          const scrollLeft = body.scrollLeft;
+          const scrollWidth = body.scrollWidth;
+          const clientWidth = body.clientWidth;
+          
+          if (scrollLeft > 10) {
+            body.classList.add('scroll-left');
+          } else {
+            body.classList.remove('scroll-left');
+          }
+          
+          if (scrollLeft < scrollWidth - clientWidth - 10) {
+            body.classList.add('scroll-right');
+          } else {
+            body.classList.remove('scroll-right');
+          }
+        };
+        
+        body.addEventListener('scroll', updateShadows);
+        updateShadows();
+      }
+    });
+  }
+
+  // Init on load
+  window.addEventListener('load', () => {
+    initCollapsibleMockups();
+    initTableScrollShadows();
+  });
+
+  // Re-init on resize
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      initCollapsibleMockups();
+      initTableScrollShadows();
+    }, 250);
   });
 </script>
 
