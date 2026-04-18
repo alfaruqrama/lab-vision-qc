@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/hooks/use-auth';
 import * as XLSX from 'xlsx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,8 +36,10 @@ export interface InputHarianDraft {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DRAFT_KEY    = 'input-harian-draft';
-const PENJAMIN_KEY = 'penjamin-list-custom';
+const DRAFT_KEY         = 'input-harian-draft';
+const PENJAMIN_KEY      = 'penjamin-list-custom';
+const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
+const NAME_OVERRIDE_KEY  = 'penjamin-name-overrides';
 
 export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
@@ -78,7 +82,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'KELUARGA PG INHEALTH', badge: 'PG' },
   { nama: 'BPJS KESEHATAN', badge: 'BPJS' },
   { nama: 'BPJS KESEHATAN - KAPITASI', badge: 'NPG' },
-  { nama: 'BPJS NAIK KELAS.', badge: 'BPJS' },
+  { nama: 'BPJS NAIK KELAS', badge: 'BPJS' },
   { nama: 'KARYAWAN PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'KELUARGA PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'PROKESPEN MURNI', badge: 'PROKESPEN' },
@@ -206,7 +210,7 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'GLOBAL ASST. & HEALTHCARE, PT',                     badge: 'AS' },
   { nama: 'GREAT EASTERN (ADMEDIKA)',                          badge: 'AS' },
   { nama: 'HANWHA LIFE (ADMEDIKA)',                            badge: 'AS' },
-  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'AS' },
+  { nama: 'INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)',    badge: 'NPG' },
   { nama: 'INTERNATIONAL PACIFIC CROSS (ADMEDIKA)',            badge: 'AS' },
   { nama: 'MAGNA SEHAT ADMEDIKA',                              badge: 'AS' },
   { nama: 'PERTAMINA (ADMEDIKA)',                              badge: 'AS' },
@@ -471,12 +475,12 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
 const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
   { namaPenjamin: 'KARYAWAN PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'BPJS NAIK KELAS.',          badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KARYAWAN PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'BPJS NAIK KELAS',           badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PASIEN UMUM',               badge: 'UMUM',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KETENAGAKERJAAN (JKK)',badge: 'JKK',            rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
 ];
@@ -509,10 +513,18 @@ function usePenjaminList() {
   const [custom, setCustom] = useState<PenjaminEntry[]>(() => {
     try { return JSON.parse(localStorage.getItem(PENJAMIN_KEY) || '[]'); } catch { return []; }
   });
+  const [badgeOverrides, setBadgeOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(BADGE_OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem(NAME_OVERRIDE_KEY) || '{}'); } catch { return {}; }
+  });
 
   const allList: PenjaminEntry[] = [
-    ...BUILTIN_PENJAMIN,
-    ...custom.filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama)),
+    ...BUILTIN_PENJAMIN.map(p => ({ nama: nameOverrides[p.nama] ?? p.nama, badge: badgeOverrides[p.nama] ?? p.badge })),
+    ...custom
+      .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
+      .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
   ];
 
   const addPenjamin = (entry: PenjaminEntry) => {
@@ -529,9 +541,50 @@ function usePenjaminList() {
     localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
   };
 
-  const isBuiltin = (nama: string) => BUILTIN_PENJAMIN.some(p => p.nama === nama);
+  const editBadge = (nama: string, badge: string) => {
+    // Untuk builtin, gunakan original key (bukan overridden name)
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
+    const nextOv = { ...badgeOverrides, [origKey]: badge };
+    setBadgeOverrides(nextOv);
+    localStorage.setItem(BADGE_OVERRIDE_KEY, JSON.stringify(nextOv));
+    if (custom.some(c => c.nama === nama)) {
+      const nextC = custom.map(c => c.nama === nama ? { ...c, badge } : c);
+      setCustom(nextC);
+      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    }
+  };
 
-  return { allList, custom, addPenjamin, removePenjamin, isBuiltin };
+  const editNama = (oldNama: string, newNama: string) => {
+    const trimmed = newNama.trim().toUpperCase();
+    if (!trimmed || trimmed === oldNama) return false;
+    if (allList.some(p => p.nama.toUpperCase() === trimmed && p.nama !== oldNama)) return false;
+
+    // Cek apakah ini builtin (cari original key)
+    const builtinEntry = BUILTIN_PENJAMIN.find(p => p.nama === oldNama);
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === oldNama)?.[0];
+
+    if (builtinEntry || origKey) {
+      // Builtin: simpan sebagai name override
+      const key = origKey || oldNama;
+      const nextOv = { ...nameOverrides, [key]: trimmed };
+      setNameOverrides(nextOv);
+      localStorage.setItem(NAME_OVERRIDE_KEY, JSON.stringify(nextOv));
+    } else {
+      // Custom: edit langsung di custom list
+      const nextC = custom.map(c => c.nama === oldNama ? { ...c, nama: trimmed } : c);
+      setCustom(nextC);
+      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    }
+    return true;
+  };
+
+  const isBuiltin = (nama: string) => {
+    if (BUILTIN_PENJAMIN.some(p => p.nama === nama)) return true;
+    // Juga cek jika nama adalah override dari builtin
+    return Object.values(nameOverrides).includes(nama);
+  };
+
+  return { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin };
 }
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
@@ -558,44 +611,30 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   const DEFAULT_NAMES_ORDER = DEFAULT_ROWS.map(r => r.namaPenjamin);
   const groups: Record<string, KunjunganInputRow[]> = {};
   for (const r of kunjungan) { if (!groups[r.badge]) groups[r.badge]=[]; groups[r.badge].push(r); }
-  // Sort within each badge by DEFAULT_ROWS order, then extras alphabetically
-  for (const badge of Object.keys(groups)) {
-    groups[badge].sort((a, b) => {
-      const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
-      const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
-      return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
-    });
+
+  // Urutkan semua baris: DEFAULT_ROWS order dulu, lalu extras alfabetis
+  const sortedRows = [...kunjungan].sort((a, b) => {
+    const ai = DEFAULT_NAMES_ORDER.indexOf(a.namaPenjamin);
+    const bi = DEFAULT_NAMES_ORDER.indexOf(b.namaPenjamin);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return a.namaPenjamin.localeCompare(b.namaPenjamin);
+  });
+
+  // Track KET label: tampilkan hanya sekali per badge group
+  let lastBadge = '';
+  for (const r of sortedRows) {
+    const ket = r.badge !== lastBadge ? (REKAP_LABEL_MAP[r.badge] || r.badge) : null;
+    lastBadge = r.badge;
+    aoa.push([ket, r.namaPenjamin, r.rjYani, r.riYani, r.igd, r.mcuAuto, r.promo, r.dokter, r.exc, r.prior, r.grhuRj, r.grhuRi, r.sat, r.ppk1, r.total]);
   }
-  // Output in REKAP_LABEL_ORDER, then any remaining badges
-  const badgeOrder = [...REKAP_LABEL_ORDER, ...Object.keys(groups).filter(b => !REKAP_LABEL_ORDER.includes(b))];
-  for (const badge of badgeOrder) {
-    const rows = groups[badge];
-    if (!rows || rows.length === 0) continue;
-    rows.forEach((r,i) => aoa.push([
-      i===0?(REKAP_LABEL_MAP[badge]||badge):null, r.namaPenjamin,
-      r.rjYani,r.riYani,r.igd,r.mcuAuto,r.promo,r.dokter,r.exc,r.prior,r.grhuRj,r.grhuRi,r.sat,r.ppk1,r.total,
-    ]));
-  }
-  const tot: any[] = ['TOTAL',null];
+
+  const tot: any[] = ['TOTAL', null];
   KUNJUNGAN_COLS.forEach(c => tot.push(kunjungan.reduce((s,r)=>s+(r as any)[c.k],0)));
   tot.push(kunjungan.reduce((s,r)=>s+r.total,0));
+  aoa.push(tot);
 
-  // Rekap per label (ordered, with proper names)
-  aoa.push(tot, [], ['REKAP PER LABEL'],
-    ['LABEL','RJ A.Yani','RI A.Yani','IGD','MCU','Promo','Dokter Luar','Poli Exc','Poli Prior','Grahu RJ','Grahu RI','Satelit','PPK1','TOTAL']);
-  for (const badge of REKAP_LABEL_ORDER) {
-    const rows = groups[badge] || [];
-    if (rows.length === 0) continue;
-    aoa.push([REKAP_LABEL_MAP[badge]||badge,
-      rows.reduce((s,r)=>s+r.rjYani,0), rows.reduce((s,r)=>s+r.riYani,0),
-      rows.reduce((s,r)=>s+r.igd,0),    rows.reduce((s,r)=>s+r.mcuAuto,0),
-      rows.reduce((s,r)=>s+r.promo,0),  rows.reduce((s,r)=>s+r.dokter,0),
-      rows.reduce((s,r)=>s+r.exc,0),    rows.reduce((s,r)=>s+r.prior,0),
-      rows.reduce((s,r)=>s+r.grhuRj,0), rows.reduce((s,r)=>s+r.grhuRi,0),
-      rows.reduce((s,r)=>s+r.sat,0),    rows.reduce((s,r)=>s+r.ppk1,0),
-      rows.reduce((s,r)=>s+r.total,0),
-    ]);
-  }
   const ws1 = XLSX.utils.aoa_to_sheet(aoa);
   ws1['!cols'] = [{ wch:20 },{ wch:36 },...Array(13).fill({ wch:10 })];
   XLSX.utils.book_append_sheet(wb, ws1, 'Laporan Harian');
@@ -608,11 +647,16 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     [`REKAP KUNJUNGAN - ${tanggal}`],
     ['KUNJUNGAN', ...activeCols, 'TOTAL KUNJUNGAN'],
   ];
-  // RAWAT JALAN = semua kolom kecuali IGD dan MCU
+  // RAWAT JALAN = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
   const rjVals = activeLabels.map(badge =>
-    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.riYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0)
+    (groups[badge]||[]).reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.sat+r.ppk1,0)
   );
   rekapAoa.push(['RAWAT JALAN', ...rjVals, rjVals.reduce((a,b)=>a+b,0)]);
+  // RAWAT INAP = riYani + grhuRi
+  const riVals = activeLabels.map(badge =>
+    (groups[badge]||[]).reduce((s,r)=>s+r.riYani+r.grhuRi,0)
+  );
+  rekapAoa.push(['RAWAT INAP', ...riVals, riVals.reduce((a,b)=>a+b,0)]);
   const igdVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.igd,0));
   rekapAoa.push(['IGD', ...igdVals, igdVals.reduce((a,b)=>a+b,0)]);
   const mcuVals = activeLabels.map(badge => (groups[badge]||[]).reduce((s,r)=>s+r.mcuAuto,0));
@@ -624,15 +668,162 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   ws3['!cols'] = [{ wch:18 }, ...Array(activeLabels.length+1).fill({ wch:16 })];
   XLSX.utils.book_append_sheet(wb, ws3, 'Rekap Kunjungan');
 
+  // Helper: format angka ke "Rp1.234.567,00"
+  const fmtRpSatuan = (v: number) => v ? `Rp${v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Rp0';
+  // Helper: format angka ke "Rp1.234.567"
+  const fmtRpTotal = (v: number) => v ? `Rp${v.toLocaleString('id-ID')}` : 'Rp0';
+
   const mcuAoa: any[][] = [
-    [`MCU HARIAN - ${tanggal}`],
-    ['No.','Nama Penjamin','Paket','Peserta','Nominal/Orang','Total'],
-    ...mcu.map((r,i) => [i+1,r.namaPenjamin,r.paket,r.peserta,r.nominal,r.total]),
-    ['TOTAL',null,null,mcu.reduce((s,r)=>s+r.peserta,0),null,mcu.reduce((s,r)=>s+r.total,0)],
+    ['RINCIAN MCU HARIAN'],
+    ['NO','PERUSAHAAN','PESERTA','NOMINAL SATUAN','TOTAL','KET. PAKET'],
+    ...mcu.map((r,i) => [
+      i+1,
+      r.namaPenjamin,
+      r.peserta || '',
+      r.nominal ? fmtRpSatuan(r.nominal) : '',
+      fmtRpTotal(r.total),
+      r.paket,
+    ]),
+    ['TOTAL', null, mcu.reduce((s,r)=>s+r.peserta,0), null, fmtRpTotal(mcu.reduce((s,r)=>s+r.total,0)), null],
   ];
   const ws2 = XLSX.utils.aoa_to_sheet(mcuAoa);
-  ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:20 },{ wch:10 },{ wch:14 },{ wch:14 }];
+  ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:10 },{ wch:20 },{ wch:16 },{ wch:14 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'MCU Harian');
+
+  // ── Sheet KUNJUNGAN 2026 ──────────────────────────────────────────────────
+  // Format: 12 blok bulan, tiap blok punya header + 31 baris hari + TOTAL + Sub Total + separator
+  const BULAN_NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+  // 9 payer untuk RJ/RI/IGD
+  const PAYER_9 = ['PT PETROKIMIA','PERUSAHAAN LAIN','BRI (PG)','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
+  // Badge → index di PAYER_9
+  const BADGE_TO_IDX: Record<string, number> = {
+    'PG': 0, 'NPG': 1, 'BRI LIFE PG': 2, 'AS': 3,
+    'PROKESPEN': 4, 'PROKESPEN BPJS': 5, 'BPJS': 6, 'JKK': 7, 'UMUM': 8,
+  };
+  // MCU hanya 4 kolom: PT PETROKIMIA, PERUSAHAAN LAIN, ASURANSI KOMERSIAL, UMUM
+  const MCU_PAYERS = ['PT PETROKIMIA','PERUSAHAAN LAIN','ASURANSI KOMERSIAL','UMUM'];
+  const MCU_BADGE_TO_IDX: Record<string, number> = { 'PG': 0, 'NPG': 1, 'AS': 2, 'UMUM': 3 };
+
+  // Parse tanggal → day & month index
+  // Format dari <input type="date"> selalu YYYY-MM-DD (ISO), contoh: "2026-04-09"
+  // Juga support "9 April 2026" dan "DD-MM-YYYY"
+  const BULAN_MAP_PARSE: Record<string, number> = {
+    'januari':0,'februari':1,'maret':2,'april':3,'mei':4,'juni':5,
+    'juli':6,'agustus':7,'september':8,'oktober':9,'november':10,'desember':11,
+  };
+  let dayNum = 0, monthIdx = -1;
+  const tglParts = tanggal.trim().split(/[\s\-\/]+/);
+  if (tglParts.length >= 3) {
+    const p0 = parseInt(tglParts[0], 10);
+    if (!isNaN(p0) && p0 >= 1000) {
+      // Format YYYY-MM-DD (ISO)
+      const m = parseInt(tglParts[1], 10);
+      const d = parseInt(tglParts[2], 10);
+      if (!isNaN(m) && !isNaN(d)) { dayNum = d; monthIdx = m - 1; }
+    } else if (!isNaN(p0) && BULAN_MAP_PARSE[tglParts[1].toLowerCase()] !== undefined) {
+      // Format "9 April 2026"
+      dayNum = p0; monthIdx = BULAN_MAP_PARSE[tglParts[1].toLowerCase()];
+    } else {
+      // Format DD-MM-YYYY atau DD/MM/YYYY
+      const m = parseInt(tglParts[1], 10);
+      if (!isNaN(p0) && !isNaN(m) && m >= 1 && m <= 12) { dayNum = p0; monthIdx = m - 1; }
+    }
+  }
+
+  // Hitung data per badge untuk hari ini
+  // RJ per badge = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
+  const rjPerBadge: number[] = Array(9).fill(0);
+  const riPerBadge: number[] = Array(9).fill(0);
+  const igdPerBadge: number[] = Array(9).fill(0);
+  const mcuPerBadge: number[] = Array(4).fill(0);
+
+  for (const r of kunjungan) {
+    const idx = BADGE_TO_IDX[r.badge];
+    if (idx === undefined) continue;
+    rjPerBadge[idx] += r.rjYani + r.promo + r.dokter + r.exc + r.prior + r.grhuRj + r.sat + r.ppk1;
+    riPerBadge[idx] += r.riYani + r.grhuRi;
+    igdPerBadge[idx] += r.igd;
+    // MCU per badge (hanya 4 kolom)
+    const mcuIdx = MCU_BADGE_TO_IDX[r.badge];
+    if (mcuIdx !== undefined) mcuPerBadge[mcuIdx] += r.mcuAuto;
+  }
+
+  const ROWS_PER_MONTH = 36; // header1 + header2 + 31 days + TOTAL + Sub Total + 1 separator
+  const kunjAoa: any[][] = [];
+
+  for (let mi = 0; mi < 12; mi++) {
+    const bulan = BULAN_NAMES[mi];
+    // Header row 1: bulan, RAWAT JALAN (9 cols), RAWAT INAP (9 cols), IGD (9 cols), MCU (4 cols), TOTAL, TARGET, CAPAIAN
+    const h1: any[] = [bulan];
+    h1.push('RAWAT JALAN', ...Array(8).fill(null));
+    h1.push('RAWAT INAP', ...Array(8).fill(null));
+    h1.push('IGD', ...Array(8).fill(null));
+    h1.push('MCU', ...Array(3).fill(null));
+    h1.push('TOTAL KUNJUNGN', 'TARGET', 'CAPAIAN (%)');
+    kunjAoa.push(h1);
+
+    // Header row 2: sub-headers (payer names)
+    const h2: any[] = [null];
+    // RJ payers
+    h2.push(...PAYER_9);
+    // RI payers
+    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    // IGD payers
+    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    // MCU payers
+    h2.push(...MCU_PAYERS);
+    h2.push(null, null, null);
+    kunjAoa.push(h2);
+
+    // 31 day rows — hanya kolom data (B-AF = 31 kolom), skip TOTAL KUNJUNGN (formula gsheet)
+    for (let d = 1; d <= 31; d++) {
+      const row: any[] = [d];
+      if (mi === monthIdx && d === dayNum) {
+        row.push(...rjPerBadge);
+        row.push(...riPerBadge);
+        row.push(...igdPerBadge);
+        row.push(...mcuPerBadge);
+        row.push(null, null, null); // TOTAL KUNJUNGN, TARGET, CAPAIAN — skip
+      } else {
+        row.push(...Array(34).fill(null));
+      }
+      kunjAoa.push(row);
+    }
+
+    // TOTAL row — hanya kolom data (B-AF), skip AG
+    const totRow: any[] = ['TOTAL'];
+    if (mi === monthIdx) {
+      totRow.push(...rjPerBadge);
+      totRow.push(...riPerBadge);
+      totRow.push(...igdPerBadge);
+      totRow.push(...mcuPerBadge);
+      totRow.push(null, null, null);
+    } else {
+      totRow.push(...Array(34).fill(0));
+    }
+    kunjAoa.push(totRow);
+
+    // Sub Total row
+    const subRow: any[] = ['Sub Total'];
+    const rjSub = mi === monthIdx ? rjPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const riSub = mi === monthIdx ? riPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const igdSub = mi === monthIdx ? igdPerBadge.reduce((a,b)=>a+b,0) : 0;
+    const mcuSub = mi === monthIdx ? mcuPerBadge.reduce((a,b)=>a+b,0) : 0;
+    subRow.push(`RAWAT JALAN :`, rjSub, ...Array(7).fill(null));
+    subRow.push(`RAWAT INAP :`, riSub, ...Array(7).fill(null));
+    subRow.push(`IGD :`, igdSub, ...Array(7).fill(null));
+    subRow.push(`MCU : `, mcuSub, ...Array(2).fill(null));
+    subRow.push(null, null, null);
+    kunjAoa.push(subRow);
+
+    // Separator row
+    kunjAoa.push(Array(35).fill(null));
+  }
+
+  const ws4 = XLSX.utils.aoa_to_sheet(kunjAoa);
+  ws4['!cols'] = [{ wch:12 }, ...Array(34).fill({ wch:8 })];
+  XLSX.utils.book_append_sheet(wb, ws4, 'KUNJUNGAN 2026');
+
   XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);
 }
 
@@ -649,7 +840,10 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.length >= 1 && !isDefault
     ? list.filter(p => p.nama.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
@@ -658,17 +852,30 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
 
   useEffect(() => { setQuery(value); }, [value]);
   useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const h = (e: MouseEvent) => {
+      if (
+        ref.current && !ref.current.contains(e.target as Node) &&
+        (!dropRef.current || !dropRef.current.contains(e.target as Node))
+      ) setOpen(false);
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  const openDropdown = () => {
+    if (isDefault || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY + 2, left: rect.left + window.scrollX });
+    setOpen(true);
+  };
+
   return (
     <div ref={ref} className="relative flex items-center gap-1">
       <Input
+        ref={inputRef}
         value={query}
-        onChange={e => { if (!isDefault) { setQuery(e.target.value); setOpen(true); } }}
-        onFocus={() => { if (!isDefault) setOpen(true); }}
+        onChange={e => { if (!isDefault) { setQuery(e.target.value); openDropdown(); } }}
+        onFocus={openDropdown}
         disabled={isDefault}
         className={`h-6 text-[10px] w-[155px] px-1.5 ${isDefault ? 'opacity-60 cursor-not-allowed' : ''} ${isInvalid ? 'border-red-500 bg-red-50' : ''}`}
         placeholder="Cari penjamin..."
@@ -679,8 +886,12 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
           {badge}
         </span>
       )}
-      {open && (filtered.length > 0 || noResult) && (
-        <div className="absolute z-50 top-7 left-0 w-72 bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
+      {open && (filtered.length > 0 || noResult) && createPortal(
+        <div
+          ref={dropRef}
+          style={{ position: 'absolute', top: dropPos.top, left: dropPos.left, zIndex: 9999, width: '288px' }}
+          className="bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto"
+        >
           {filtered.map(p => {
             const isUsed = usedNames.includes(p.nama);
             return (
@@ -711,7 +922,8 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -801,17 +1013,21 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
-function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
+function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin }: {
   list: PenjaminEntry[];
   custom: PenjaminEntry[];
   onAdd: (e: PenjaminEntry) => boolean;
   onRemove: (nama: string) => void;
+  onEditBadge: (nama: string, badge: string) => void;
+  onEditNama: (oldNama: string, newNama: string) => boolean;
   onClose: () => void;
   isBuiltin: (nama: string) => boolean;
 }) {
   const [newNama,  setNewNama]  = useState('');
   const [newBadge, setNewBadge] = useState('NPG');
   const [search,   setSearch]   = useState('');
+  const [editingNama, setEditingNama] = useState<string | null>(null);
+  const [editNamaValue, setEditNamaValue] = useState('');
 
   const filtered = list.filter(p =>
     p.nama.toLowerCase().includes(search.toLowerCase()) ||
@@ -876,10 +1092,42 @@ function SettingsModal({ list, custom, onAdd, onRemove, onClose, isBuiltin }: {
           {filtered.map(p => (
             <div key={p.nama}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
-              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>
-                {p.badge}
-              </span>
-              <span className="text-[11px] flex-1 truncate">{p.nama}</span>
+              <select
+                value={p.badge}
+                onChange={e => { onEditBadge(p.nama, e.target.value); toast.success(`Label ${p.nama} diubah ke ${e.target.value}`); }}
+                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${labelClass(p.badge)}`}>
+                {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              {editingNama === p.nama ? (
+                <Input
+                  autoFocus
+                  value={editNamaValue}
+                  onChange={e => setEditNamaValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const ok = onEditNama(p.nama, editNamaValue);
+                      if (ok) { toast.success(`Nama diubah: ${p.nama} → ${editNamaValue.trim().toUpperCase()}`); setEditingNama(null); }
+                      else toast.error('Nama sudah ada atau tidak valid');
+                    }
+                    if (e.key === 'Escape') setEditingNama(null);
+                  }}
+                  onBlur={() => {
+                    const trimmed = editNamaValue.trim().toUpperCase();
+                    if (trimmed && trimmed !== p.nama) {
+                      const ok = onEditNama(p.nama, editNamaValue);
+                      if (ok) toast.success(`Nama diubah: ${p.nama} → ${trimmed}`);
+                    }
+                    setEditingNama(null);
+                  }}
+                  className="h-6 text-[11px] flex-1"
+                />
+              ) : (
+                <span
+                  className="text-[11px] flex-1 truncate cursor-pointer hover:underline hover:text-primary"
+                  onClick={() => { setEditingNama(p.nama); setEditNamaValue(p.nama); }}
+                  title="Klik untuk edit nama"
+                >{p.nama}</span>
+              )}
               {isBuiltin(p.nama)
                 ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
                 : (
@@ -920,30 +1168,40 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const { allList, custom, addPenjamin, removePenjamin, isBuiltin } = usePenjaminList();
+  const { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin } = usePenjaminList();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
-  const [tanggal,    setTanggal]    = useState(todayISO());
-  const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(defaultRows());
-  const [mcu,        setMcu]        = useState<McuInputRow[]>([]);
+  // Lazy initializers — read draft from localStorage on mount so auto-save
+  // never overwrites the saved draft with empty defaults during tab switches.
+  const [tanggal,    setTanggal]    = useState(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.tanggal || todayISO(); } catch { return todayISO(); }
+  });
+  const [kunjungan,  setKunjungan]  = useState<KunjunganInputRow[]>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.kunjungan?.length ? d.kunjungan : defaultRows(); } catch { return defaultRows(); }
+  });
+  const [mcu,        setMcu]        = useState<McuInputRow[]>(() => {
+    try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || ''); return d.mcu || []; } catch { return []; }
+  });
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const openAdminSettings = () => setShowPinModal(true);
+  const [showSubmitPreview, setShowSubmitPreview] = useState(false);
+  const [sheetCheckTanggal, setSheetCheckTanggal] = useState('');
 
-  // Load draft
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const d: InputHarianDraft = JSON.parse(raw);
-        setTanggal(d.tanggal || todayISO());
-        setKunjungan(d.kunjungan?.length ? d.kunjungan : defaultRows());
-        setMcu(d.mcu || []);
-      }
-    } catch { /* ignore */ }
-  }, []);
+  type CheckStatus = 'idle' | 'checking' | 'ok' | 'failed' | 'skipped';
+  type CheckData = { hasData: boolean; bulan: string; dayNum: number; totalKunjungan?: number; debug?: any } | null;
+  const [kunjCheckStatus, setKunjCheckStatus] = useState<CheckStatus>('idle');
+  const [kunjCheckData, setKunjCheckData] = useState<CheckData>(null);
+  const [lapCheckStatus, setLapCheckStatus] = useState<CheckStatus>('idle');
+  const [lapCheckData, setLapCheckData] = useState<CheckData>(null);
+  const openAdminSettings = () => setShowSettings(true);
 
-  // Auto-save
+  // Tanggal validation
+  const isToday = tanggal === todayISO();
+  const isFuture = tanggal > todayISO();
+  const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
+
+  // Auto-save (draft is loaded via lazy useState initializers above)
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
   }, [tanggal, kunjungan, mcu]);
@@ -1053,35 +1311,110 @@ export default function InputHarianTab() {
     toast.success('Form direset');
   };
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Submit (2-step: preview → confirm → kirim) ─────────────────────────────
+  const handleSubmitClick = async () => {
+    // Validasi dasar
     const empty = kunjungan.filter(r => r.total>0 && !r.namaPenjamin.trim());
     if (empty.length) { toast.error(`${empty.length} baris ada angka tapi nama penjamin kosong`); return; }
+    if (!canSubmitDate) { toast.error('Tidak bisa submit untuk tanggal masa depan. Hubungi admin.'); return; }
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
-    if (!GS_URL) { toast.error('VITE_GAS_INPUT_URL belum diset di .env'); return; }
+    const GS_LAPORAN_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
+    if (!GS_URL && !GS_LAPORAN_URL) { toast.error('GAS URL belum diset di .env'); return; }
+
+    // Reset & buka modal
+    setKunjCheckData(null); setKunjCheckStatus(GS_URL ? 'checking' : 'skipped');
+    setLapCheckData(null); setLapCheckStatus(GS_LAPORAN_URL ? 'checking' : 'skipped');
+    setSheetCheckTanggal(tanggal);
+    setShowSubmitPreview(true);
+
+    // Parallel check kedua sheet
+    const tglParam = encodeURIComponent(tanggal);
+    const checks: Promise<void>[] = [];
+
+    if (GS_URL) {
+      checks.push((async () => {
+        try {
+          const res = await fetch(`${GS_URL}?action=checkDay&tanggal=${tglParam}`);
+          if (res.ok) {
+            const d = await res.json();
+            if (d.status === 'ok') { setKunjCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum, totalKunjungan: d.totalKunjungan, debug: d.debug }); setKunjCheckStatus('ok'); }
+            else { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: d.error || d }); setKunjCheckStatus('failed'); }
+          } else { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: `HTTP ${res.status}` }); setKunjCheckStatus('failed'); }
+        } catch (err: any) { setKunjCheckData({ hasData: false, bulan: '', dayNum: 0, debug: err.message }); setKunjCheckStatus('failed'); }
+      })());
+    }
+
+    if (GS_LAPORAN_URL) {
+      checks.push((async () => {
+        try {
+          const res = await fetch(`${GS_LAPORAN_URL}?action=checkDay&tanggal=${tglParam}`);
+          if (res.ok) {
+            const d = await res.json();
+            if (d.status === 'ok') { setLapCheckData({ hasData: d.hasData, bulan: d.bulan, dayNum: d.dayNum }); setLapCheckStatus('ok'); }
+            else { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: d.error || d }); setLapCheckStatus('failed'); }
+          } else { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: `HTTP ${res.status}` }); setLapCheckStatus('failed'); }
+        } catch (err: any) { setLapCheckData({ hasData: false, bulan: '', dayNum: 0, debug: err.message }); setLapCheckStatus('failed'); }
+      })());
+    }
+
+    await Promise.all(checks);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowSubmitPreview(false);
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    const GS_LAPORAN_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
     setSubmitting(true);
-    try {
-      await fetch(GS_URL, {
-        method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
-      });
-      toast.success('Data berhasil dikirim ke Sheets!');
-      localStorage.removeItem(DRAFT_KEY);
-    } catch (err: any) {
-      toast.error(`Gagal kirim: ${err.message}`);
-    } finally { setSubmitting(false); }
+    const payload = JSON.stringify({ tanggal, kunjungan, mcu });
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    // Submit ke KUNJUNGAN 2026
+    if (GS_URL) {
+      try {
+        const res = await fetch(GS_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
+        });
+        const r = await res.json();
+        if (r.error) errors.push(`Kunjungan: ${r.error}`);
+        else results.push(`Kunjungan 2026: OK`);
+      } catch (err: any) { errors.push(`Kunjungan: ${err.message}`); }
+    }
+
+    // Submit ke LAPORAN HARIAN
+    if (GS_LAPORAN_URL) {
+      try {
+        const res = await fetch(GS_LAPORAN_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ action:'inputLaporan', tanggal, kunjungan, mcu }),
+        });
+        const r = await res.json();
+        if (r.error) errors.push(`Laporan: ${r.error}`);
+        else results.push(`Laporan Harian: OK`);
+      } catch (err: any) { errors.push(`Laporan: ${err.message}`); }
+    }
+
+    if (errors.length > 0) {
+      toast.error(`Gagal: ${errors.join('; ')}`);
+      if (results.length > 0) toast.success(`Berhasil: ${results.join(', ')}`);
+    } else if (results.length > 0) {
+      toast.success(`Data berhasil dikirim! ${results.join(', ')}`);
+      // Draft TIDAK dihapus setelah submit — tab Laporan membaca dari draft ini
+    } else {
+      toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
+    }
+    setSubmitting(false);
   };
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
   const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
-    rj:    kunjungan.reduce((s,r)=>s+r.rjYani,0),
-    ri:    kunjungan.reduce((s,r)=>s+r.riYani,0),
-    igd:   kunjungan.reduce((s,r)=>s+r.igd,0),
-    mcu:   kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
-    promo: kunjungan.reduce((s,r)=>s+r.promo,0),
+    rj:  kunjungan.reduce((s,r)=>s+r.rjYani+r.promo+r.dokter+r.exc+r.prior+r.grhuRj+r.grhuRi+r.sat+r.ppk1,0),
+    ri:  kunjungan.reduce((s,r)=>s+r.riYani,0),
+    igd: kunjungan.reduce((s,r)=>s+r.igd,0),
+    mcu: kunjungan.reduce((s,r)=>s+r.mcuAuto,0),
   };
   const labelSummary = ALL_LABELS.map(label => {
     const rows = kunjungan.filter(r=>r.badge===label);
@@ -1091,7 +1424,7 @@ export default function InputHarianTab() {
     const mcu = rows.reduce((s,r)=>s+r.mcuAuto,0);
     const total = rows.reduce((s,r)=>s+r.total,0);
     return { label, rj, ri, igd, mcu, total };
-  }).filter(l=>l.total>0);
+  });
   const mcuTotalPeserta = mcu.reduce((s,r)=>s+r.peserta,0);
   const mcuTotalNominal = mcu.reduce((s,r)=>s+r.total,0);
 
@@ -1112,7 +1445,7 @@ export default function InputHarianTab() {
         <RotateCcw className="w-3 h-3 mr-1" /> Reset
       </Button>
       <Button size="sm" className="h-7 text-xs px-2 bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 text-white"
-        onClick={handleSubmit} disabled={submitting}>
+        onClick={handleSubmitClick} disabled={submitting}>
         <Send className="w-3 h-3 mr-1" />{submitting?'Mengirim...':'Submit ke Sheets'}
       </Button>
     </div>
@@ -1120,18 +1453,234 @@ export default function InputHarianTab() {
 
   return (
     <>
-      {showPinModal && (
-        <PinModal
-          onSuccess={() => { setShowPinModal(false); setShowSettings(true); }}
-          onClose={() => setShowPinModal(false)}
-        />
-      )}
       {showSettings && (
         <SettingsModal
           list={allList} custom={custom}
           onAdd={addPenjamin} onRemove={removePenjamin}
+          onEditBadge={editBadge} onEditNama={editNama}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
         />
+      )}
+
+      {/* Submit Preview Modal */}
+      {showSubmitPreview && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowSubmitPreview(false)}>
+          <div className="bg-background border border-border rounded-lg shadow-xl w-[420px] max-w-[95vw] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-border">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5" /> Konfirmasi Submit ke Sheets
+              </h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* Tanggal */}
+              <div className={`rounded-md p-2.5 text-xs ${isFuture ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : !isToday ? 'bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700' : 'bg-muted border border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Tanggal web:</span>
+                  <span className="font-bold">{tanggal}</span>
+                </div>
+                {sheetCheckTanggal && (kunjCheckStatus === 'ok' || lapCheckStatus === 'ok') && (kunjCheckData || lapCheckData) && (
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-muted-foreground">Tanggal sheet dicek:</span>
+                    <span className="font-bold">{sheetCheckTanggal} <span className="font-normal text-muted-foreground">({(kunjCheckData || lapCheckData)!.bulan} hari {(kunjCheckData || lapCheckData)!.dayNum})</span></span>
+                  </div>
+                )}
+                {!isToday && !isFuture && (
+                  <p className="text-amber-600 dark:text-amber-400 text-[10px] mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Perhatian: bukan tanggal hari ini!
+                  </p>
+                )}
+                {isFuture && (
+                  <p className="text-amber-600 dark:text-amber-400 text-[10px] mt-1 flex items-center gap-1">
+                    <ShieldAlert className="w-3 h-3" /> Tanggal masa depan (admin override)
+                  </p>
+                )}
+              </div>
+
+              {/* Warning: tanggal berubah setelah check */}
+              {sheetCheckTanggal && tanggal !== sheetCheckTanggal && (
+                <div className="rounded-md p-2.5 bg-red-50 border border-red-300 dark:bg-red-950/40 dark:border-red-700">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <ShieldAlert className="w-3.5 h-3.5" /> Tanggal tidak sinkron!
+                  </p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                    Tanggal web (<strong>{tanggal}</strong>) berbeda dengan tanggal yang dicek di sheet (<strong>{sheetCheckTanggal}</strong>).
+                    Tutup dialog ini dan klik Submit ulang.
+                  </p>
+                </div>
+              )}
+
+              {/* Status cek sheet — 2 notifikasi terpisah */}
+              {[
+                { label: 'KUNJUNGAN 2026', status: kunjCheckStatus, data: kunjCheckData },
+                { label: 'LAPORAN HARIAN', status: lapCheckStatus, data: lapCheckData },
+              ].map(({ label, status, data }) => (
+                <div key={label}>
+                  {status === 'checking' && (
+                    <div className="rounded-md p-2 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+                      <p className="text-[10px] text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <strong>{label}</strong> — Mengecek...
+                      </p>
+                    </div>
+                  )}
+                  {status === 'ok' && data && !data.hasData && (
+                    <div className="rounded-md p-2 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800">
+                      <p className="text-[10px] text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                        <span className="text-emerald-500">&#10003;</span> <strong>{label}</strong> — {data.bulan} hari {data.dayNum} masih kosong.
+                      </p>
+                    </div>
+                  )}
+                  {status === 'ok' && data?.hasData && (
+                    <div className="rounded-md p-2 bg-red-50 border border-red-300 dark:bg-red-950/40 dark:border-red-700">
+                      <p className="text-[10px] font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> <strong>{label}</strong> — Data sudah ada!
+                      </p>
+                      <p className="text-[9px] text-red-600 dark:text-red-400 mt-0.5 ml-4">
+                        {data.bulan} hari {data.dayNum} sudah terisi{data.totalKunjungan ? ` (${data.totalKunjungan} kunjungan)` : ''}. Submit akan <strong>menimpa</strong>.
+                      </p>
+                    </div>
+                  )}
+                  {status === 'ok' && data?.debug && (
+                    <p className="text-[8px] text-muted-foreground/50 font-mono">
+                      {label}: {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
+                    </p>
+                  )}
+                  {status === 'failed' && (
+                    <div className="rounded-md p-2 bg-amber-50 border border-amber-300 dark:bg-amber-950/40 dark:border-amber-700">
+                      <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> <strong>{label}</strong> — Gagal cek status
+                      </p>
+                      <p className="text-[9px] text-amber-600 dark:text-amber-400 mt-0.5 ml-4">
+                        Data <strong>mungkin sudah ada</strong> dan akan tertimpa.
+                      </p>
+                      {data?.debug && (
+                        <p className="text-[8px] text-amber-500/70 mt-0.5 ml-4 font-mono">
+                          {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {status === 'skipped' && (
+                    <div className="rounded-md p-2 bg-muted border border-border">
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        — <strong>{label}</strong> — URL belum diset, dilewati.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Ringkasan data */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">RINGKASAN DATA</div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">Rawat Jalan</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-blue-600">{unitSummary.rj}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">Rawat Inap</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-purple-600">{unitSummary.ri}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">IGD</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-red-600">{unitSummary.igd}</td>
+                    </tr>
+                    <tr className="border-t border-border/50">
+                      <td className="px-2.5 py-1 text-muted-foreground">MCU</td>
+                      <td className="px-2.5 py-1 text-right font-bold text-cyan-600">{unitSummary.mcu} <span className="text-[9px] font-normal text-muted-foreground">({mcuTotalPeserta} peserta)</span></td>
+                    </tr>
+                    <tr className="border-t-2 border-border bg-muted/50">
+                      <td className="px-2.5 py-1.5 font-bold">Grand Total</td>
+                      <td className="px-2.5 py-1.5 text-right font-bold text-[#0a9e87] text-sm">{grandTotal}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Detail per badge */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">DETAIL PER PENJAMIN</div>
+                <table className="w-full text-[10px] font-mono-data">
+                  <thead>
+                    <tr className="border-t border-border/50 bg-muted/30">
+                      <th className="px-2 py-1 text-left">Badge</th>
+                      <th className="px-1 py-1 text-center">RJ</th>
+                      <th className="px-1 py-1 text-center">RI</th>
+                      <th className="px-1 py-1 text-center">IGD</th>
+                      <th className="px-1 py-1 text-center">MCU</th>
+                      <th className="px-1 py-1 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {labelSummary.filter(l => l.total > 0).map(l => (
+                      <tr key={l.label} className="border-t border-border/30">
+                        <td className="px-2 py-0.5 font-semibold">{l.label}</td>
+                        <td className="px-1 py-0.5 text-center">{l.rj || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.ri || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.igd || '-'}</td>
+                        <td className="px-1 py-0.5 text-center">{l.mcu || '-'}</td>
+                        <td className="px-1 py-0.5 text-right font-bold">{l.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MCU detail */}
+              {mcu.length > 0 && (
+                <div className="rounded-md border border-border overflow-hidden">
+                  <div className="bg-muted px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground">MCU DETAIL ({mcu.length} baris)</div>
+                  <table className="w-full text-[10px] font-mono-data">
+                    <thead>
+                      <tr className="border-t border-border/50 bg-muted/30">
+                        <th className="px-2 py-1 text-left">Penjamin</th>
+                        <th className="px-1 py-1 text-left">Paket</th>
+                        <th className="px-1 py-1 text-center">Peserta</th>
+                        <th className="px-1 py-1 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mcu.map((r, i) => (
+                        <tr key={r.id} className="border-t border-border/30">
+                          <td className="px-2 py-0.5">{r.namaPenjamin || <span className="text-muted-foreground italic">-</span>}</td>
+                          <td className="px-1 py-0.5">{r.paket || '-'}</td>
+                          <td className="px-1 py-0.5 text-center">{r.peserta}</td>
+                          <td className="px-1 py-0.5 text-right">{r.total.toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 border-t border-border flex justify-end gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowSubmitPreview(false)}>
+                Batal
+              </Button>
+              {(() => {
+                const stillChecking = kunjCheckStatus === 'checking' || lapCheckStatus === 'checking';
+                const tglMismatch = sheetCheckTanggal !== '' && tanggal !== sheetCheckTanggal;
+                const anyHasData = kunjCheckData?.hasData || lapCheckData?.hasData;
+                const anyFailed = kunjCheckStatus === 'failed' || lapCheckStatus === 'failed';
+                const isDanger = anyHasData || anyFailed;
+                return (
+                  <Button size="sm"
+                    disabled={stillChecking || tglMismatch}
+                    className={`h-7 text-xs text-white ${isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1a3a5c] hover:bg-[#1a3a5c]/90'} disabled:opacity-50`}
+                    onClick={handleConfirmSubmit}>
+                    <Send className="w-3 h-3 mr-1" />
+                    {stillChecking ? 'Mengecek...' : tglMismatch ? 'Tanggal tidak sinkron' : anyHasData ? 'Overwrite & Kirim' : anyFailed ? 'Kirim (belum dicek)' : 'Kirim ke Sheets'}
+                  </Button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       <div className="space-y-3 page-transition">
@@ -1140,8 +1689,21 @@ export default function InputHarianTab() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-muted-foreground">Tanggal</label>
-            <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)} className="w-36 text-xs h-7" />
+            <div className="relative">
+              <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
+                className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isAdmin ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
+            </div>
           </div>
+          {!isToday && !isFuture && (
+            <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5 font-semibold">
+              <AlertTriangle className="w-2.5 h-2.5" /> Bukan hari ini
+            </span>
+          )}
+          {isFuture && (
+            <span className={`text-[9px] flex items-center gap-0.5 font-semibold ${isAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+              <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isAdmin ? ' (admin override)' : ' — tidak bisa submit'}
+            </span>
+          )}
           <span className="text-[9px] text-muted-foreground flex items-center gap-1">
             <Save className="w-2.5 h-2.5" /> Draft tersimpan otomatis
           </span>
@@ -1152,15 +1714,14 @@ export default function InputHarianTab() {
         <div className="card-clinical p-3 space-y-2">
           <h3 className="text-xs font-bold">Summary — {tanggal}</h3>
           <div className="flex gap-1.5 flex-wrap">
-            <SummaryCard label="RJ A.Yani"   value={unitSummary.rj}    color="#2563eb" />
-            <SummaryCard label="RI A.Yani"   value={unitSummary.ri}    color="#7c3aed" />
+            <SummaryCard label="Rawat Jalan" value={unitSummary.rj}    color="#2563eb" />
+            <SummaryCard label="Rawat Inap" value={unitSummary.ri}    color="#7c3aed" />
             <SummaryCard label="IGD"         value={unitSummary.igd}   color="#dc2626" />
             <SummaryCard label="MCU"         value={unitSummary.mcu}   color="#0891b2" sub={`${mcuTotalPeserta} peserta`} />
             <SummaryCard label="Grand Total" value={grandTotal}        color="#0a9e87" />
           </div>
-          {labelSummary.length>0 && (
-            <div className="overflow-x-auto">
-              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${labelSummary.length * 70 + 120}px` }}>
+          <div className="overflow-x-auto">
+              <table className="text-[10px] font-mono-data w-full" style={{ minWidth: `${ALL_LABELS.length * 70 + 120}px` }}>
                 <thead>
                   <tr className="border-b border-border">
                     <th className="py-1 text-left text-[9px] text-muted-foreground font-semibold pr-3 whitespace-nowrap">KUNJUNGAN</th>
@@ -1200,7 +1761,6 @@ export default function InputHarianTab() {
                 </tbody>
               </table>
             </div>
-          )}
         </div>
 
         {/* Tabel Kunjungan */}
@@ -1209,9 +1769,9 @@ export default function InputHarianTab() {
             <h3 className="text-xs font-bold">Kunjungan per Penjamin</h3>
             <span className="text-[9px] text-muted-foreground">{kunjungan.length} baris</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[480px]">
             <table className="w-full font-mono-data" style={{ minWidth:'820px', fontSize:'10px' }}>
-              <thead>
+              <thead className="sticky top-0 z-10 bg-muted">
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
@@ -1243,7 +1803,7 @@ export default function InputHarianTab() {
                           onOpenSettings={openAdminSettings}
                         />
                       </td>
-                      {KUNJUNGAN_COLS.map(c=>{
+                      {KUNJUNGAN_COLS.map((c, ci)=>{
                         const isAuto = !!c.readOnly;
                         const val = (row as any)[c.k] as number;
                         return (
@@ -1254,11 +1814,15 @@ export default function InputHarianTab() {
                               </div>
                             ):(
                               <Input type="number" min={0}
+                                id={`kv-${i}-${ci}`}
                                 value={val===0?'':val}
                                 disabled={isEmpty || !isValid}
                                 onChange={e=>updateKunjungan(row.id,c.k,e.target.value)}
-                                onKeyDown={numericKeyDown}
-                                className={`h-6 text-[10px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
+                                onKeyDown={e=>{
+                                  if(e.key==='Enter'){e.preventDefault();document.getElementById(`kv-${i+1}-${ci}`)?.focus();return;}
+                                  numericKeyDown(e);
+                                }}
+                                className={`h-6 text-[9px] text-center w-11 px-0.5 ${isEmpty || !isValid?'opacity-40 cursor-not-allowed':''} ${!isValid && !isEmpty ? 'border-red-500' : ''}`}
                                 placeholder="—" title={isEmpty?'Isi nama penjamin dulu': !isValid ? 'Nama penjamin tidak sesuai dengan list' : ''}
                               />
                             )}
@@ -1314,11 +1878,11 @@ export default function InputHarianTab() {
                 <tr className="bg-muted">
                   <th className="px-1 py-1.5 text-left w-6 text-[9px]">#</th>
                   <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'200px' }}>NAMA PENJAMIN</th>
-                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'120px' }}>PAKET</th>
-                  <th className="px-1 py-1.5 text-center w-16 text-[9px]">PESERTA</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">NOMINAL/ORG</th>
-                  <th className="px-1 py-1.5 text-right w-24 text-[9px]">TOTAL</th>
-                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">LINK</th>
+                  <th className="px-1 py-1.5 text-left text-[9px]" style={{ minWidth:'80px' }}>PAKET</th>
+                  <th className="px-1 py-1.5 text-center w-14 text-[9px]">PESERTA</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">NOMINAL/ORG</th>
+                  <th className="px-1 py-1.5 text-right w-32 text-[9px]">TOTAL</th>
+                  <th className="px-1 py-1.5 text-center w-24 text-[9px] whitespace-nowrap">LINK</th>
                   <th className="w-6"/>
                 </tr>
               </thead>
@@ -1347,15 +1911,24 @@ export default function InputHarianTab() {
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} value={row.peserta||''}
+                          id={`mv-${i}-0`}
                           onChange={e=>updateMcu(row.id,'peserta',e.target.value)}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-center w-full" placeholder="0"/>
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-0`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[8px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
-                        <Input type="number" min={0} value={row.nominal||''}
-                          onChange={e=>updateMcu(row.id,'nominal',e.target.value)}
-                          onKeyDown={numericKeyDown}
-                          className="h-6 text-[10px] text-right w-full" placeholder="0"/>
+                        <Input type="text" inputMode="numeric"
+                          id={`mv-${i}-1`}
+                          value={row.nominal ? row.nominal.toLocaleString('id-ID') : ''}
+                          onChange={e=>updateMcu(row.id,'nominal',e.target.value.replace(/\./g,''))}
+                          onKeyDown={e=>{
+                            if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-1`)?.focus();return;}
+                            numericKeyDown(e);
+                          }}
+                          className="h-6 text-[9px] text-right w-full" placeholder="0"/>
                       </td>
                       <td className="px-1 py-0.5 text-right font-bold text-[#0a9e87] text-[10px]">
                         {row.total>0?row.total.toLocaleString('id-ID'):'—'}
@@ -1363,8 +1936,8 @@ export default function InputHarianTab() {
                       <td className="px-1 py-0.5 text-center">
                         {row.namaPenjamin && (
                           isLinked
-                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded">✓ linked</span>
-                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">not in tabel</span>
+                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded whitespace-nowrap">✓ linked</span>
+                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded whitespace-nowrap">not in tabel</span>
                         )}
                       </td>
                       <td className="px-0.5 py-0.5">

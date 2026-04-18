@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Vite Dev Server",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["/Users/rama/ramscl_workspace/lab-vision-qc/node_modules/.bin/vite"],
+      "port": 8080
+    }
+  ]
+}

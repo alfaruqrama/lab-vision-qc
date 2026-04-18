@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { KumulatifData } from '@/hooks/use-kunjungan-data';
+
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -21,7 +21,7 @@ interface PromoItem { label: string; value: number }
 const DEFAULT_PROMO: PromoItem[] = [
   { label: 'paket Basic pekerja (umum)', value: 0 },
   { label: 'Paket sahabat ginjal (umum)', value: 0 },
-  { label: 'Screaning paket B', value: 0 },
+  { label: 'Screening paket B', value: 0 },
   { label: 'Pre marital silver', value: 0 },
   { label: 'Promo alergi', value: 0 },
   { label: 'Sehat Bugar', value: 0 },
@@ -41,7 +41,7 @@ interface FormData {
   promoItems: PromoItem[];
   morullaTerjadwal: number; morullaHadir: number;
   targetKunjungan: number; targetOmzet: number;
-  pendapatanMCU: number; pendapatanSelainMCU: number;
+  totalOmzet: number; pendapatanMCU: number;
   // Kumulatif manual
   kumOmzet: number; kumKunj: number;
   targetOmzetBulan: number; targetKunjBulan: number;
@@ -58,7 +58,7 @@ function defaultForm(): FormData {
     promoItems: DEFAULT_PROMO.map(p => ({ ...p })),
     morullaTerjadwal: 0, morullaHadir: 0,
     targetKunjungan: 0, targetOmzet: 0,
-    pendapatanMCU: 0, pendapatanSelainMCU: 0,
+    totalOmzet: 0, pendapatanMCU: 0,
     kumOmzet: 0, kumKunj: 0, targetOmzetBulan: 0, targetKunjBulan: 0, tglAkhir: 0,
   };
 }
@@ -68,7 +68,7 @@ function readInputHarianDraft(tanggal: string) {
   try {
     const raw = localStorage.getItem(INPUT_HARIAN_KEY);
     if (!raw) return null;
-    const draft = JSON.parse(raw) as { tanggal: string; kunjungan: any[] };
+    const draft = JSON.parse(raw) as { tanggal: string; kunjungan: any[]; mcu?: any[] };
     if (draft.tanggal !== tanggal) return null;
     const rows: any[] = draft.kunjungan || [];
     const sum = (key: string) => rows.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
@@ -77,17 +77,38 @@ function readInputHarianDraft(tanggal: string) {
     const rj  = sum('rjYani');
     const ri  = sum('riYani');
     const igd = sum('igd');
+    const mcuRows: any[] = draft.mcu || [];
+    const pendapatanMCU = mcuRows.reduce((s: number, r: any) => s + (Number(r.total) || 0), 0);
+    const grandTotal = rows.reduce((s: number, r: any) =>
+      s + ['rjYani','riYani','igd','mcuAuto','promo','dokter','exc','prior','grhuRj','grhuRi','sat','ppk1']
+        .reduce((rs, k) => rs + (Number(r[k])||0), 0), 0);
+    // Pasien PG: baris 1-4 (KARYAWAN PG, KELUARGA PG, KARYAWAN PG BRI LIFE, KELUARGA PG BRI LIFE)
+    const pgNames = ['KARYAWAN PG', 'KARYAWAN PG BRI LIFE'];
+    const pgKelNames = ['KELUARGA PG', 'KELUARGA PG BRI LIFE'];
+    const pgKryRows = rows.filter((r: any) => pgNames.includes(r.namaPenjamin));
+    const pgKelRows = rows.filter((r: any) => pgKelNames.includes(r.namaPenjamin));
+    const sumRows = (arr: any[], key: string) => arr.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
+
     return {
       rj,  nonBpjsRJ:  rj  - sumBpjs('rjYani'),
       ri,  nonBpjsRI:  ri  - sumBpjs('riYani'),
       igd, nonBpjsIGD: igd - sumBpjs('igd'),
       mcu: sum('mcuAuto'),
-      rujukanGrahu:     sum('grhuRj') + sum('grhuRi'),
-      rujukanPPK1:      sum('ppk1'),
-      rujukanSatkal:    sum('sat'),
-      rujukanDokterLuar:sum('dokter'),
-      poliExclusive:    sum('exc'),
-      poliPrioritas:    sum('prior'),
+      rujukanGrahu:      sum('grhuRj') + sum('grhuRi'),
+      rujukanPPK1:       sum('ppk1'),
+      rujukanSatkal:     sum('sat'),
+      rujukanDokterLuar: sum('dokter'),
+      poliExclusive:     sum('exc'),
+      poliPrioritas:     sum('prior'),
+      pendapatanMCU,
+      grandTotal,
+      // Pasien PG (auto dari baris 1-4)
+      briIgdKry:    sumRows(pgKryRows, 'igd'),
+      briIgdKel:    sumRows(pgKelRows, 'igd'),
+      briRajalKry:  sumRows(pgKryRows, 'rjYani'),
+      briRajalKel:  sumRows(pgKelRows, 'rjYani'),
+      briRawinKry:  sumRows(pgKryRows, 'riYani'),
+      briRawinKel:  sumRows(pgKelRows, 'riYani'),
     };
   } catch { return null; }
 }
@@ -116,11 +137,12 @@ function NumInput({ value, onChange, label, auto, gsAutoFill }: {
   );
 }
 
-function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; gsAutoFill?: boolean }) {
+function RpInput({ value, onChange, label, auto, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; auto?: boolean; gsAutoFill?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-muted-foreground flex-1 min-w-0">
         {label}
+        {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
         {gsAutoFill && <span className="text-[9px] ml-1 text-accent font-medium">(dari Sheets)</span>}
       </label>
       <div className="relative">
@@ -129,7 +151,9 @@ function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChan
           type="text" inputMode="numeric"
           value={value ? fmtRpWA(value) : ''}
           onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
-          className={cn("w-32 h-8 text-right text-xs font-mono pl-7", gsAutoFill && "bg-accent/5 border-accent/30")}
+          className={cn("w-40 h-8 text-right text-[10px] font-mono pl-7",
+            auto && "border-green-400/50 bg-green-50/30",
+            gsAutoFill && "bg-accent/5 border-accent/30")}
           placeholder="0"
         />
       </div>
@@ -137,7 +161,7 @@ function RpInput({ value, onChange, label, gsAutoFill }: { value: number; onChan
   );
 }
 
-export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | null }) {
+export default function LaporanTab() {
   const [form, setForm] = useState<FormData>(() => {
     try {
       const saved = localStorage.getItem(LS_KEY);
@@ -153,6 +177,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     return null;
   });
   const [autoFields, setAutoFields] = useState<Set<string>>(new Set());
+  const [inputHarianGrandTotal, setInputHarianGrandTotal] = useState<number | null>(null);
 
   // Auto-fill Section B from InputHarian draft when tanggal matches
   const syncFromInputHarian = useCallback((silent = false) => {
@@ -161,8 +186,10 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
       if (!silent) toast.error('Data Input Harian untuk tanggal ini tidak ditemukan');
       return;
     }
-    setForm(prev => ({ ...prev, ...data }));
-    setAutoFields(new Set(Object.keys(data)));
+    setInputHarianGrandTotal(data.grandTotal ?? null);
+    const { grandTotal: _, ...formData } = data;
+    setForm(prev => ({ ...prev, ...formData }));
+    setAutoFields(new Set(Object.keys(formData)));
     if (!silent) toast.success('Data kunjungan disinkronkan dari Input Harian');
   }, [form.tanggal]);
 
@@ -172,26 +199,71 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal]);
 
-  // Auto-fill targets from kumulatif when date changes
+  // Auto-fill targets dari GAS getTarget (sheet OMSET HARIAN 2026)
   useEffect(() => {
-    if (!kumulatif) return;
-    const d = new Date(form.tanggal + 'T00:00:00');
-    const day = d.getDay();
-    const key = day === 0 ? 'minggu' : day === 6 ? 'sabtu' : 'hariKerja';
-    const tgtK = kumulatif.targetKunjHarian?.[key];
-    const tgtO = kumulatif.targetOmzetHarian?.[key];
-    setForm(prev => ({
-      ...prev,
-      targetKunjungan: tgtK ?? prev.targetKunjungan,
-      targetOmzet: tgtO ?? prev.targetOmzet,
-      kumOmzet: kumulatif.kumOmzet ?? prev.kumOmzet,
-      kumKunj: kumulatif.kumKunj ?? prev.kumKunj,
-      targetOmzetBulan: kumulatif.targetOmzetBulan ?? prev.targetOmzetBulan,
-      targetKunjBulan: kumulatif.targetKunjBulan ?? prev.targetKunjBulan,
-      tglAkhir: kumulatif.tglAkhir ?? prev.tglAkhir,
-    }));
+    let cancelled = false;
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    if (!GS_URL || !form.tanggal) return;
+
+    fetch(`${GS_URL}?action=getTarget&tanggal=${encodeURIComponent(form.tanggal)}`)
+      .then(res => res.ok ? res.json() : Promise.reject('HTTP ' + res.status))
+      .then(d => {
+        if (cancelled) return;
+        if (d.error) { console.warn('getTarget error:', d.error); return; }
+        console.log('getTarget response:', d);
+        setForm(prev => ({
+          ...prev,
+          targetKunjungan: d.targetKunjHarian || prev.targetKunjungan,
+          targetOmzet: d.targetOmzetHarian || prev.targetOmzet,
+          targetOmzetBulan: d.targetOmzetBulan || prev.targetOmzetBulan,
+          targetKunjBulan: d.targetKunjBulan || prev.targetKunjBulan,
+        }));
+        setAutoFields(prev => {
+          const s = new Set(prev);
+          if (d.targetKunjHarian) s.add('targetKunjungan');
+          if (d.targetOmzetHarian) s.add('targetOmzet');
+          if (d.targetOmzetBulan) s.add('targetOmzetBulan');
+          if (d.targetKunjBulan) s.add('targetKunjBulan');
+          return s;
+        });
+      })
+      .catch(err => console.warn('getTarget fetch failed:', err));
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.tanggal, kumulatif]);
+  }, [form.tanggal]);
+
+  // Auto-fill kumulatif dari GAS getKumulatif (sheet OMSET HARIAN 2026)
+  // Sum kolom D (omzet) & F (kunjungan) dari tgl 1 s/d (tanggal - 1)
+  useEffect(() => {
+    let cancelled = false;
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    if (!GS_URL || !form.tanggal) return;
+
+    fetch(`${GS_URL}?action=getKumulatif&tanggal=${encodeURIComponent(form.tanggal)}`)
+      .then(res => res.ok ? res.json() : Promise.reject('HTTP ' + res.status))
+      .then(d => {
+        if (cancelled) return;
+        if (d.error) { console.warn('getKumulatif error:', d.error); return; }
+        console.log('getKumulatif response:', d);
+        setForm(prev => ({
+          ...prev,
+          kumOmzet: d.kumOmzet ?? prev.kumOmzet,
+          kumKunj: d.kumKunj ?? prev.kumKunj,
+          tglAkhir: d.tglAkhir ?? prev.tglAkhir,
+        }));
+        setAutoFields(prev => {
+          const s = new Set(prev);
+          if (d.kumOmzet !== undefined) s.add('kumOmzet');
+          if (d.kumKunj !== undefined) s.add('kumKunj');
+          return s;
+        });
+      })
+      .catch(err => console.warn('getKumulatif fetch failed:', err));
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.tanggal]);
 
   // Auto-save
   useEffect(() => {
@@ -219,13 +291,20 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   }, []);
 
   // Calculations
-  const totalKunjungan = form.rj + form.ri + form.igd + form.mcu;
+  const totalPromoLab = form.promoItems.reduce((s, p) => s + p.value, 0);
+  const totalKunjungan = form.rj + form.ri + form.igd + form.mcu
+    + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar
+    + form.poliExclusive + form.poliPrioritas + totalPromoLab;
   const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
-  const totalPendapatan = form.pendapatanMCU + form.pendapatanSelainMCU;
+  const pendapatanSelainMCU = Math.max(0, form.totalOmzet - form.pendapatanMCU);
+  const totalPendapatan = form.totalOmzet;
   const pctPendapatan  = form.targetOmzet > 0 ? Math.round((totalPendapatan / form.targetOmzet) * 100) : 0;
   const rerataPerPasien = totalKunjungan > 0 ? Math.round(totalPendapatan / totalKunjungan) : 0;
-  const pctKumOmzet = form.targetOmzetBulan > 0 ? Math.round((form.kumOmzet / form.targetOmzetBulan) * 100) : 0;
-  const pctKumKunj  = form.targetKunjBulan  > 0 ? Math.round((form.kumKunj  / form.targetKunjBulan)  * 100) : 0;
+  // Kumulatif total = data s/d kemarin (dari Sheets) + data hari ini (dari baris F)
+  const kumOmzetTotal = form.kumOmzet + totalPendapatan;
+  const kumKunjTotal  = form.kumKunj  + totalKunjungan;
+  const pctKumOmzet = form.targetOmzetBulan > 0 ? Math.round((kumOmzetTotal / form.targetOmzetBulan) * 100) : 0;
+  const pctKumKunj  = form.targetKunjBulan  > 0 ? Math.round((kumKunjTotal  / form.targetKunjBulan)  * 100) : 0;
 
   const tgl = useMemo(() => {
     const [y, m, d] = form.tanggal.split('-').map(Number);
@@ -234,6 +313,7 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
   const namaHari  = HARI_ID[tgl.getDay()];
   const namaBulan = BULAN_ID[tgl.getMonth()];
   const tahun     = tgl.getFullYear();
+  const tglAkhir  = tgl.getDate();
 
   const isAuto = (k: string) => autoFields.has(k);
 
@@ -254,13 +334,13 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`* Rujukan dokter Luar : ${form.rujukanDokterLuar}`);
     lines.push(`* Poli Exclusive : ${form.poliExclusive}`);
     lines.push(`* Poli Prioritas : ${form.poliPrioritas}`);
-    lines.push(`* Pasien BRI LIFE PG:`);
-    lines.push(`1. Igd BRI Life Kry PG : ${form.briIgdKry}`);
-    lines.push(`2. Igd BRI Life Kel PG : ${form.briIgdKel}`);
-    lines.push(`3. Rajal BRI Life Kry PG : ${form.briRajalKry}`);
-    lines.push(`4. Rajal BRI Life Kel  PG : ${form.briRajalKel}`);
-    lines.push(`5. Rawin BRI Life Kry PG : ${form.briRawinKry}`);
-    lines.push(`6. Rawin BRI Life Kel PG : ${form.briRawinKel}`);
+    lines.push(`* Pasien PG:`);
+    lines.push(`1. Igd Kry PG : ${form.briIgdKry}`);
+    lines.push(`2. Igd Kel PG : ${form.briIgdKel}`);
+    lines.push(`3. Rajal Kry PG : ${form.briRajalKry}`);
+    lines.push(`4. Rajal Kel  PG : ${form.briRajalKel}`);
+    lines.push(`5. Rawin Kry PG : ${form.briRawinKry}`);
+    lines.push(`6. Rawin Kel PG : ${form.briRawinKel}`);
     lines.push(`* Promo Lab : `);
     form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${p.value}`); });
     lines.push(`* Pasien AS Morulla `);
@@ -270,16 +350,16 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`Capaian Harian `);
     lines.push(`* Total Kunj Harian : ${totalKunjungan} (${pctKunjungan}%)`);
     lines.push(`* Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
-    lines.push(`* Pendapatan selain MCU: Rp ${fmtRpWA(form.pendapatanSelainMCU)}`);
+    lines.push(`* Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
     lines.push(`* Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
     lines.push(`----------------`);
     lines.push(`Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(`---------------`);
     lines.push(`================`);
-    lines.push(`CAPAIAN 01- ${form.tglAkhir} ${namaBulan} ${tahun}`);
-    lines.push(`* Total pendapatan : Rp ${fmtRpWA(form.kumOmzet)} (${pctKumOmzet}%)`);
-    lines.push(`* Total kunjungan  :   ${form.kumKunj} (${pctKumKunj}%)`);
+    lines.push(`CAPAIAN 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzetTotal)} (${pctKumOmzet}%)`);
+    lines.push(`* Total kunjungan  :   ${kumKunjTotal} (${pctKumKunj}%)`);
     lines.push(`----------------------------------`);
     lines.push(`Data`);
     lines.push(`Target ${namaBulan} ${tahun}`);
@@ -287,7 +367,8 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
     lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
     return lines.join('\n');
   }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
-      namaHari, namaBulan, tahun, tgl, pctKumOmzet, pctKumKunj]);
+      namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanSelainMCU, pctKumOmzet, pctKumKunj,
+      kumOmzetTotal, kumKunjTotal]);
 
   const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
@@ -356,14 +437,14 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
 
           {/* C: BRI Life */}
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien BRI Life PG</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="IGD BRI Life Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
-              <NumInput label="IGD BRI Life Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
-              <NumInput label="Rajal BRI Life Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
-              <NumInput label="Rajal BRI Life Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
-              <NumInput label="Rawin BRI Life Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
-              <NumInput label="Rawin BRI Life Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
+              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
+              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
+              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
+              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
+              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
+              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
             </AccordionContent>
           </AccordionItem>
 
@@ -404,10 +485,14 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">F — Capaian Harian</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={!!kumulatif} />
-              <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={!!kumulatif} />
-              <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} />
-              <RpInput  label="Pendapatan Selain MCU"   value={form.pendapatanSelainMCU} onChange={v => set('pendapatanSelainMCU', v)} />
+              <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={isAuto('targetKunjungan')} />
+              <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={isAuto('targetOmzet')} />
+              <RpInput  label="Total Omzet Harian"       value={form.totalOmzet}       onChange={v => set('totalOmzet', v)} />
+              <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} auto={isAuto('pendapatanMCU')} />
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground flex-1">Pendapatan Selain MCU <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 text-muted-foreground">Rp {fmtRpWA(pendapatanSelainMCU)}</span>
+              </div>
               <div className="pt-2 border-t border-border space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Total Kunjungan</span>
@@ -429,14 +514,27 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
           <AccordionItem value="g" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
               G — Kumulatif Bulan
-              {kumulatif && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
+              {(isAuto('kumOmzet') || isAuto('kumKunj')) && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Tanggal Akhir Data (tgl)"  value={form.tglAkhir}        onChange={v => set('tglAkhir', v)}        gsAutoFill={!!kumulatif} />
-              <RpInput  label="Total Pendapatan s/d tgl"  value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={!!kumulatif} />
-              <NumInput label="Total Kunjungan s/d tgl"   value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={!!kumulatif} />
-              <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={!!kumulatif} />
-              <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={!!kumulatif} />
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground flex-1">Tanggal Akhir Data <span className="text-[9px] text-blue-500 font-medium">(dari date picker)</span></label>
+                <span className="w-24 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 font-semibold">{tglAkhir}</span>
+              </div>
+              <RpInput  label="Pendapatan s/d kemarin"     value={form.kumOmzet}         onChange={v => set('kumOmzet', v)}        gsAutoFill={isAuto('kumOmzet')} />
+              <NumInput label="Kunjungan s/d kemarin"     value={form.kumKunj}          onChange={v => set('kumKunj', v)}         gsAutoFill={isAuto('kumKunj')} />
+              <div className="pt-1.5 border-t border-dashed border-border/50 space-y-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground flex-1">Total Pendapatan s/d tgl <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                  <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 font-semibold">Rp {fmtRpWA(kumOmzetTotal)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground flex-1">Total Kunjungan s/d tgl <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                  <span className="w-24 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 font-semibold">{kumKunjTotal}</span>
+                </div>
+              </div>
+              <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={isAuto('targetOmzetBulan')} />
+              <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={isAuto('targetKunjBulan')} />
               <div className="pt-2 border-t border-border space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Capaian Omzet</span>
@@ -456,6 +554,14 @@ export default function LaporanTab({ kumulatif }: { kumulatif: KumulatifData | n
       {/* RIGHT: Preview */}
       <div className="space-y-3">
         <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+        {inputHarianGrandTotal !== null && totalKunjungan !== inputHarianGrandTotal && (
+          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+            <span>
+              Total kunjungan laporan <strong>{totalKunjungan}</strong>, tidak sama dengan total di Tab Input Harian <strong>{inputHarianGrandTotal}</strong>. Cek kembali yaa.
+            </span>
+          </div>
+        )}
         <div className="rounded-lg bg-[#0b141a] text-[#e9edef] p-4 overflow-auto max-h-[70vh] lg:max-h-[80vh]">
           <pre className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono">{outputTeks}</pre>
         </div>
