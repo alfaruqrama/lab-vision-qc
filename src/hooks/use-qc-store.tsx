@@ -31,7 +31,8 @@ export function QCProvider({ children }: { children: React.ReactNode }) {
         setConfig({
           CA660: cfg.CA660 || DEFAULT_LOT_CONFIG.CA660,
           EASYLITE: cfg.EASYLITE || DEFAULT_LOT_CONFIG.EASYLITE,
-          ONCALL: cfg.ONCALL || DEFAULT_LOT_CONFIG.ONCALL,
+          ONCALL1: cfg.ONCALL1 || DEFAULT_LOT_CONFIG.ONCALL1,
+          ONCALL2: cfg.ONCALL2 || DEFAULT_LOT_CONFIG.ONCALL2,
         });
       } else {
         const storedConfig = localStorage.getItem('labqc_config');

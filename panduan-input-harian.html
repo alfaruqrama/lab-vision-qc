@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panduan Input Laporan Harian — Lab RS Petrokimia Gresik</title>
+<style>
+  :root {
+    --accent: #6366f1;
+    --accent-light: #eef2ff;
+    --green: #22c55e;
+    --green-light: #f0fdf4;
+    --green-border: #86efac;
+    --amber: #f59e0b;
+    --amber-light: #fffbeb;
+    --red: #ef4444;
+    --red-light: #fef2f2;
+    --blue: #3b82f6;
+    --blue-light: #eff6ff;
+    --dark: #0b141a;
+    --wa-green: #25d366;
+    --border: #e5e7eb;
+    --muted: #6b7280;
+    --bg: #f9fafb;
+    --card: #ffffff;
+    --sidebar-w: 280px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #1f2937; line-height: 1.6; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, var(--accent), #4f46e5); color: white; padding: 20px 24px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header p { font-size: 12px; opacity: .85; margin-top: 2px; }
+
+  /* Layout */
+  .layout { display: flex; min-height: calc(100vh - 70px); }
+
+  /* Sidebar */
+  .sidebar { width: var(--sidebar-w); background: var(--card); border-right: 1px solid var(--border); padding: 16px 0; position: sticky; top: 70px; height: calc(100vh - 70px); overflow-y: auto; flex-shrink: 0; }
+  .sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); padding: 0 16px; margin-bottom: 8px; }
+  .sidebar a { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; color: #374151; text-decoration: none; border-left: 3px solid transparent; transition: all .15s; }
+  .sidebar a:hover { background: var(--bg); }
+  .sidebar a.active { background: var(--accent-light); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+  .sidebar .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sidebar a.active .step-num { background: var(--accent); color: white; }
+  .sidebar a.done .step-num { background: var(--green); color: white; }
+
+  /* Main */
+  .main { flex: 1; padding: 32px; max-width: 900px; }
+
+  /* Step card */
+  .step { margin-bottom: 48px; scroll-margin-top: 90px; }
+  .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .step-header .num { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-header h2 { font-size: 18px; font-weight: 700; }
+  .step-desc { font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+
+  /* Mockup container */
+  .mockup { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+  .mockup-bar { background: #f3f4f6; padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+  .mockup-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .mockup-dot.r { background: #ef4444; }
+  .mockup-dot.y { background: #f59e0b; }
+  .mockup-dot.g { background: #22c55e; }
+  .mockup-body { padding: 16px; }
+
+  /* Tab mockup */
+  .mock-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 12px; }
+  .mock-tab { padding: 8px 16px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: default; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .mock-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Input mockup */
+  .mock-input { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; background: white; color: #374151; display: inline-block; }
+  .mock-input.date { width: 140px; }
+  .mock-input.number { width: 60px; text-align: right; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .mock-input.rp { width: 130px; text-align: right; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .mock-input.green { border-color: var(--green-border); background: var(--green-light); }
+  .mock-input.accent { border-color: #a5b4fc; background: var(--accent-light); }
+  .mock-input.highlight { border-color: var(--amber); background: var(--amber-light); animation: pulse-border 2s infinite; }
+  @keyframes pulse-border { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.3); } 50% { box-shadow: 0 0 0 4px rgba(245,158,11,.15); } }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+  .badge-auto { background: var(--green-light); color: #16a34a; border: 1px solid var(--green-border); }
+  .badge-sheets { background: var(--accent-light); color: var(--accent); border: 1px solid #a5b4fc; }
+  .badge-manual { background: var(--amber-light); color: #d97706; border: 1px solid #fcd34d; }
+  .badge-pg { background: #dbeafe; color: #2563eb; }
+  .badge-bpjs { background: #fef3c7; color: #92400e; }
+
+  /* Table mockup */
+  .mock-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .mock-table th { background: #f9fafb; padding: 6px 8px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--border); white-space: nowrap; }
+  .mock-table td { padding: 6px 8px; border-bottom: 1px solid #f3f4f6; }
+  .mock-table .num-cell { text-align: right; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .mock-table tr.total-row { background: #f0fdf4; font-weight: 700; }
+  .mock-table tr.total-row td { border-top: 2px solid var(--green-border); }
+  .mock-table .locked { color: var(--muted); font-style: italic; }
+
+  /* Button mockup */
+  .mock-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: default; }
+  .mock-btn.primary { background: #1e3a5f; color: white; }
+  .mock-btn.green { background: var(--wa-green); color: white; }
+  .mock-btn.outline { background: white; color: #374151; border: 1px solid var(--border); }
+  .mock-btn.red { background: var(--red); color: white; }
+  .mock-btn.sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+  .mock-btn.green-outline { background: white; color: #16a34a; border: 1px solid var(--green-border); }
+
+  /* Warning box */
+  .mock-warning { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin: 8px 0; }
+  .mock-warning.amber { background: var(--amber-light); border: 1px solid #fcd34d; color: #92400e; }
+  .mock-warning.green { background: var(--green-light); border: 1px solid var(--green-border); color: #166534; }
+  .mock-warning.red { background: var(--red-light); border: 1px solid #fca5a5; color: #991b1b; }
+  .mock-warning.blue { background: var(--blue-light); border: 1px solid #93c5fd; color: #1e40af; }
+
+  /* Status check */
+  .status-check { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px; margin: 6px 0; }
+  .status-check.ok { background: var(--green-light); border: 1px solid var(--green-border); color: #166534; }
+  .status-check.warn { background: var(--red-light); border: 1px solid #fca5a5; color: #991b1b; }
+
+  /* WA preview */
+  .wa-preview { background: var(--dark); color: #e9edef; padding: 16px; border-radius: 8px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+
+  /* Accordion mockup */
+  .mock-accordion { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+  .mock-acc-header { padding: 8px 12px; font-size: 12px; font-weight: 600; background: #fafafa; display: flex; align-items: center; justify-content: space-between; cursor: default; }
+  .mock-acc-body { padding: 12px; border-top: 1px solid var(--border); }
+
+  /* Field row */
+  .field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .field-label { font-size: 11px; color: var(--muted); flex: 1; min-width: 0; }
+  .field-computed { font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace; font-weight: 600; text-align: right; width: 130px; }
+
+  /* Tip box */
+  .tip { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: 8px; background: var(--blue-light); border: 1px solid #93c5fd; font-size: 12px; color: #1e40af; margin: 12px 0; }
+  .tip-icon { font-size: 16px; flex-shrink: 0; }
+
+  /* Arrow indicator */
+  .arrow-down { text-align: center; font-size: 24px; color: var(--accent); margin: 8px 0; }
+
+  /* Nav buttons */
+  .step-nav { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { padding: 16px; }
+    .header h1 { font-size: 15px; }
+    .mock-table { font-size: 10px; }
+    .mock-table th, .mock-table td { padding: 4px 5px; }
+    .field-row { flex-wrap: wrap; }
+  }
+
+  /* Mobile nav */
+  .mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--border); padding: 8px; z-index: 100; }
+  .mobile-nav-inner { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+  .mobile-nav a { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  .mobile-nav a.active { background: var(--accent); color: white; }
+  @media (max-width: 768px) { .mobile-nav { display: block; } .main { padding-bottom: 60px; } }
+
+  /* Scroll indicator */
+  .scroll-hint { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+  /* Highlight annotation */
+  .annotate { position: relative; }
+  .annotate::after { content: attr(data-note); position: absolute; top: -8px; right: -4px; background: var(--red); color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+
+  /* Summary card */
+  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-label { color: var(--muted); }
+  .summary-value { font-weight: 700; }
+  .summary-value .pct { color: var(--accent); }
+
+  /* Updates section */
+  .updates-section { padding: 32px; max-width: 900px; margin: 0 auto; scroll-margin-top: 90px; }
+  .updates-header { text-align: center; margin-bottom: 32px; }
+  .updates-header h2 { font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .updates-header p { font-size: 14px; color: var(--muted); }
+  .updates-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .update-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: transform .2s, box-shadow .2s; }
+  .update-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+  .update-icon { font-size: 32px; margin-bottom: 12px; }
+  .update-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #1f2937; }
+  .update-compare { display: flex; gap: 8px; margin: 12px 0; font-size: 11px; }
+  .before { flex: 1; padding: 6px 10px; background: var(--red-light); color: var(--red); border-radius: 6px; text-align: center; font-weight: 600; }
+  .after { flex: 1; padding: 6px 10px; background: var(--green-light); color: var(--green); border-radius: 6px; text-align: center; font-weight: 700; }
+  .update-features { list-style: none; font-size: 12px; color: var(--muted); margin: 0; padding: 0; }
+  .update-features li { margin-bottom: 4px; }
+  .update-features li::before { content: "✓ "; color: var(--green); font-weight: 700; margin-right: 4px; }
+  .updates-cta { text-align: center; margin-top: 32px; }
+
+  /* Collapsible mockup */
+  .mockup-toggle { display: none; width: 100%; padding: 8px; background: var(--accent-light); color: var(--accent); border: none; border-radius: 0; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .mockup-toggle:hover { background: #ddd6fe; }
+  .mockup-body.collapsible { max-height: 200px; overflow: hidden; position: relative; }
+  .mockup-body.collapsible::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1)); pointer-events: none; }
+  .mockup-body.collapsible.expanded { max-height: none; }
+  .mockup-body.collapsible.expanded::after { display: none; }
+
+  /* Floating next button */
+  .floating-next { display: none; position: fixed; bottom: 70px; right: 16px; z-index: 99; background: var(--accent); color: white; border: none; border-radius: 50%; width: 56px; height: 56px; font-size: 24px; box-shadow: 0 4px 12px rgba(99,102,241,.4); cursor: pointer; transition: transform .2s, box-shadow .2s; }
+  .floating-next:active { transform: scale(.95); }
+  .floating-next:hover { box-shadow: 0 6px 16px rgba(99,102,241,.5); }
+
+  /* Table scroll shadows */
+  .table-wrapper { position: relative; overflow-x: auto; }
+  .table-wrapper::before, .table-wrapper::after { content: ''; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .3s; }
+  .table-wrapper::before { left: 0; background: linear-gradient(to right, rgba(255,255,255,1), rgba(255,255,255,0)); }
+  .table-wrapper::after { right: 0; background: linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0)); }
+  .table-wrapper.scroll-left::before { opacity: 1; }
+  .table-wrapper.scroll-right::after { opacity: 1; }
+
+  /* Mobile improvements */
+  @media (max-width: 768px) {
+    .updates-section { padding: 16px; }
+    .updates-grid { grid-template-columns: 1fr; }
+    .update-card { padding: 16px; }
+    .updates-header h2 { font-size: 20px; }
+    .mockup-toggle { display: block; }
+    .floating-next { display: flex; align-items: center; justify-content: center; }
+    .sidebar a, .mobile-nav a, .mock-btn { min-height: 44px; }
+    .step-nav { gap: 12px; }
+  }
+
+  @media (max-width: 480px) {
+    .header { padding: 16px; }
+    .header h1 { font-size: 14px; }
+    .header p { font-size: 11px; }
+    .updates-section { padding: 12px; }
+    .updates-header h2 { font-size: 18px; }
+    .update-card { padding: 12px; }
+    .update-icon { font-size: 24px; }
+    .step-header .num { width: 28px; height: 28px; font-size: 14px; }
+    .step-header h2 { font-size: 16px; }
+    .step-desc { font-size: 13px; }
+    .mock-btn { font-size: 11px; padding: 6px 12px; }
+    .mock-table { font-size: 9px; }
+    .mock-table th, .mock-table td { padding: 3px 4px; }
+    .tip { font-size: 11px; padding: 10px; }
+    .floating-next { width: 48px; height: 48px; font-size: 20px; bottom: 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Panduan Input Laporan Harian</h1>
+  <p>Lab RS Petrokimia Gresik — Portal Kunjungan</p>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">Pengenalan</div>
+    <a href="#updates" data-step="0"><span class="step-num">✨</span> Apa yang Baru?</a>
+    <div class="sidebar-title" style="margin-top:16px">Langkah-langkah</div>
+    <a href="#step1" class="active" data-step="1"><span class="step-num">1</span> Buka Tab Input Harian</a>
+    <a href="#step2" data-step="2"><span class="step-num">2</span> Pilih Tanggal</a>
+    <a href="#step3" data-step="3"><span class="step-num">3</span> Isi Tabel Kunjungan</a>
+    <a href="#step4" data-step="4"><span class="step-num">4</span> Isi Tabel MCU</a>
+    <a href="#step5" data-step="5"><span class="step-num">5</span> Submit ke Sheets</a>
+    <a href="#step6" data-step="6"><span class="step-num">6</span> Pindah ke Tab Laporan</a>
+    <a href="#step7" data-step="7"><span class="step-num">7</span> Cek Data Otomatis</a>
+    <a href="#step8" data-step="8"><span class="step-num">8</span> Isi Field Manual</a>
+    <a href="#step9" data-step="9"><span class="step-num">9</span> Cek Preview WhatsApp</a>
+    <a href="#step10" data-step="10"><span class="step-num">10</span> Kirim Laporan</a>
+  </nav>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- ==================== UPDATES SECTION ==================== -->
+    <section class="updates-section" id="updates">
+      <div class="updates-header">
+        <h2>✨ Apa yang Baru?</h2>
+        <p>Portal ini sudah diupdate dengan 10 fitur baru yang membuat pekerjaan Anda lebih cepat dan mudah</p>
+      </div>
+
+      <div class="updates-grid">
+        <!-- Card 1: Input Lebih Cepat -->
+        <div class="update-card">
+          <div class="update-icon">⚡</div>
+          <h3>Input Data Lebih Cepat</h3>
+          <div class="update-compare">
+            <div class="before">30-45 menit</div>
+            <div class="after">10-15 menit</div>
+          </div>
+          <ul class="update-features">
+            <li>Draft auto-save</li>
+            <li>Kolom MCU AUTO & TOTAL otomatis</li>
+            <li>Tambah penjamin dari form</li>
+          </ul>
+        </div>
+
+        <!-- Card 2: Submit 2 Sheets -->
+        <div class="update-card">
+          <div class="update-icon">🚀</div>
+          <h3>Submit 2 Spreadsheet Sekaligus</h3>
+          <div class="update-compare">
+            <div class="before">2× manual</div>
+            <div class="after">1 klik</div>
+          </div>
+          <ul class="update-features">
+            <li>KUNJUNGAN 2026 + LAPORAN HARIAN</li>
+            <li>Preview modal sebelum kirim</li>
+            <li>Warning overwrite otomatis</li>
+          </ul>
+        </div>
+
+        <!-- Card 3: Laporan WA Otomatis -->
+        <div class="update-card">
+          <div class="update-icon">💬</div>
+          <h3>Laporan WhatsApp Otomatis</h3>
+          <div class="update-compare">
+            <div class="before">Ketik manual</div>
+            <div class="after">80% otomatis</div>
+          </div>
+          <ul class="update-features">
+            <li>Auto-fill dari Input Harian</li>
+            <li>Preview real-time</li>
+            <li>1 klik kirim via WhatsApp</li>
+          </ul>
+        </div>
+
+        <!-- Card 4: Target Otomatis -->
+        <div class="update-card">
+          <div class="update-icon">🎯</div>
+          <h3>Target & Capaian Otomatis</h3>
+          <div class="update-compare">
+            <div class="before">Hitung manual</div>
+            <div class="after">Dari Sheets</div>
+          </div>
+          <ul class="update-features">
+            <li>Target harian & bulanan otomatis</li>
+            <li>Kumulatif s/d kemarin otomatis</li>
+            <li>Capaian % otomatis dihitung</li>
+          </ul>
+        </div>
+
+        <!-- Card 5: Data Tidak Hilang -->
+        <div class="update-card">
+          <div class="update-icon">💾</div>
+          <h3>Data Tidak Hilang</h3>
+          <div class="update-compare">
+            <div class="before">Sering hilang</div>
+            <div class="after">Selalu aman</div>
+          </div>
+          <ul class="update-features">
+            <li>Draft tersimpan otomatis</li>
+            <li>Persist setelah submit</li>
+            <li>Persist saat pindah tab</li>
+          </ul>
+        </div>
+
+        <!-- Card 6: Export Excel -->
+        <div class="update-card">
+          <div class="update-icon">📊</div>
+          <h3>Export Excel Lengkap</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">1 klik</div>
+          </div>
+          <ul class="update-features">
+            <li>4 sheet dalam 1 file</li>
+            <li>Backup lokal</li>
+            <li>Bisa dikirim via email</li>
+          </ul>
+        </div>
+
+        <!-- Card 7: Validasi -->
+        <div class="update-card">
+          <div class="update-icon">🛡️</div>
+          <h3>Validasi & Safety Layer</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">Lengkap</div>
+          </div>
+          <ul class="update-features">
+            <li>Warning tanggal bukan hari ini</li>
+            <li>Check overwrite sebelum kirim</li>
+            <li>Sinkronisasi tanggal web vs sheet</li>
+          </ul>
+        </div>
+
+        <!-- Card 8: Manajemen Penjamin -->
+        <div class="update-card">
+          <div class="update-icon">⚙️</div>
+          <h3>Manajemen Penjamin Fleksibel</h3>
+          <div class="update-compare">
+            <div class="before">Fixed</div>
+            <div class="after">Fleksibel</div>
+          </div>
+          <ul class="update-features">
+            <li>Tambah penjamin baru</li>
+            <li>Edit/hapus nama penjamin</li>
+            <li>Settings modal (admin only)</li>
+          </ul>
+        </div>
+
+        <!-- Card 9: Panduan -->
+        <div class="update-card">
+          <div class="update-icon">📖</div>
+          <h3>Panduan Interaktif</h3>
+          <div class="update-compare">
+            <div class="before">Tidak ada</div>
+            <div class="after">File ini!</div>
+          </div>
+          <ul class="update-features">
+            <li>10 langkah step-by-step</li>
+            <li>Mockup visual tiap langkah</li>
+            <li>Bisa dibuka di HP</li>
+          </ul>
+        </div>
+
+        <!-- Card 10: Indikator Visual -->
+        <div class="update-card">
+          <div class="update-icon">🎨</div>
+          <h3>Indikator Visual Jelas</h3>
+          <div class="update-compare">
+            <div class="before">Bingung</div>
+            <div class="after">Jelas</div>
+          </div>
+          <ul class="update-features">
+            <li>Badge hijau "(auto)"</li>
+            <li>Badge biru "(dari Sheets)"</li>
+            <li>Border warna per status</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="updates-cta">
+        <a href="#step1" class="mock-btn primary" style="font-size:14px;padding:12px 24px" onclick="goStep(1)">Mulai Panduan →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 1 ==================== -->
+    <section class="step" id="step1">
+      <div class="step-header">
+        <div class="num">1</div>
+        <h2>Buka Tab Input Harian</h2>
+      </div>
+      <p class="step-desc">Buka portal, lalu klik tab <strong>"Input Harian"</strong> di bagian atas halaman.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div>
+          <div class="mockup-dot y"></div>
+          <div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">Portal Lab RS Petrokimia Gresik</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mock-tabs">
+            <div class="mock-tab">Dashboard</div>
+            <div class="mock-tab">Omzet</div>
+            <div class="mock-tab">Kunjungan</div>
+            <div class="mock-tab">MCU</div>
+            <div class="mock-tab active" style="position:relative">
+              Input Harian
+              <span style="position:absolute;top:-10px;right:-10px;background:var(--red);color:white;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700">Klik ini</span>
+            </div>
+            <div class="mock-tab">Laporan</div>
+          </div>
+          <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">
+            Halaman Input Harian akan muncul di sini
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Tab <strong>Input Harian</strong> dan <strong>Laporan</strong> ada di deretan tab paling kanan. Scroll ke kanan jika tidak terlihat di layar HP.</span>
+      </div>
+
+      <div class="step-nav">
+        <span></span>
+        <a href="#step2" class="mock-btn primary" onclick="goStep(2)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 2 ==================== -->
+    <section class="step" id="step2">
+      <div class="step-header">
+        <div class="num">2</div>
+        <h2>Pilih Tanggal</h2>
+      </div>
+      <p class="step-desc">Pastikan tanggal yang dipilih adalah <strong>hari ini</strong>. Tanggal default sudah otomatis hari ini.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+        </div>
+        <div class="mockup-body">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <span style="font-size:12px;color:var(--muted)">Tanggal</span>
+            <span class="mock-input date">2026-04-13</span>
+            <span style="font-size:10px;color:var(--muted)">💾 Draft tersimpan otomatis</span>
+          </div>
+
+          <div class="mock-warning amber">
+            <span>⚠️</span>
+            <span>Jika muncul peringatan kuning <strong>"Bukan hari ini"</strong>, berarti tanggal yang dipilih bukan hari ini. Ganti tanggal ke hari ini kecuali memang ingin input data tanggal lain.</span>
+          </div>
+
+          <div class="mock-warning red" style="margin-top:8px">
+            <span>🛡️</span>
+            <span>Jika muncul peringatan merah <strong>"Tanggal masa depan"</strong>, berarti tanggal belum terjadi. Hanya admin yang bisa submit tanggal masa depan.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Data tersimpan otomatis sebagai draft. Jika browser ditutup, data masih ada saat dibuka kembali.</span>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step1" class="mock-btn outline" onclick="goStep(1)">← Sebelumnya</a>
+        <a href="#step3" class="mock-btn primary" onclick="goStep(3)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 3 ==================== -->
+    <section class="step" id="step3">
+      <div class="step-header">
+        <div class="num">3</div>
+        <h2>Isi Tabel Kunjungan per Penjamin</h2>
+      </div>
+      <p class="step-desc">Isi angka kunjungan di setiap kolom untuk masing-masing penjamin. Kolom yang tidak ada datanya biarkan kosong.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">Kunjungan per Penjamin — 10 baris</span>
+        </div>
+        <div class="mockup-body" style="overflow-x:auto">
+          <table class="mock-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nama Penjamin</th>
+                <th>RJ Yani</th>
+                <th>RI Yani</th>
+                <th>IGD</th>
+                <th>MCU Auto</th>
+                <th>Promo</th>
+                <th>Dokter</th>
+                <th>Exc</th>
+                <th>Prior</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td class="locked">KARYAWAN PG</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">12</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">3</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">1</span></td>
+                <td class="num-cell" style="color:var(--muted);font-style:italic">0</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell" style="font-weight:700">16</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td class="locked">KELUARGA PG</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">8</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">2</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell" style="color:var(--muted);font-style:italic">0</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell" style="font-weight:700">10</td>
+              </tr>
+              <tr style="color:var(--muted)">
+                <td colspan="11" style="text-align:center;font-size:10px;padding:4px">... baris 3-9 (penjamin lainnya) ...</td>
+              </tr>
+              <tr>
+                <td>10</td>
+                <td class="locked">BPJS KETENAGAKERJAAN (JKK)</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">5</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">2</span></td>
+                <td class="num-cell" style="color:var(--muted);font-style:italic">0</td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px"></span></td>
+                <td class="num-cell" style="font-weight:700">7</td>
+              </tr>
+              <tr class="total-row">
+                <td></td>
+                <td>TOTAL</td>
+                <td class="num-cell">156</td>
+                <td class="num-cell">23</td>
+                <td class="num-cell">18</td>
+                <td class="num-cell">15</td>
+                <td class="num-cell">5</td>
+                <td class="num-cell">3</td>
+                <td class="num-cell">2</td>
+                <td class="num-cell">1</td>
+                <td class="num-cell">223</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="scroll-hint">← Geser tabel ke kanan untuk lihat semua kolom →</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+        <span class="mock-btn green-outline sm">+ Penjamin Baru</span>
+        <span style="font-size:11px;color:var(--muted);align-self:center">← Klik untuk tambah penjamin yang tidak ada di daftar default</span>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Kolom MCU AUTO</strong> tidak perlu diisi manual — otomatis terisi dari tabel MCU di bawah.<br>
+          <strong>Kolom TOTAL</strong> otomatis dihitung (jumlah semua kolom per baris).<br>
+          <strong>Nama penjamin default</strong> (abu-abu miring) tidak bisa diubah/dihapus.
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step2" class="mock-btn outline" onclick="goStep(2)">← Sebelumnya</a>
+        <a href="#step4" class="mock-btn primary" onclick="goStep(4)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 4 ==================== -->
+    <section class="step" id="step4">
+      <div class="step-header">
+        <div class="num">4</div>
+        <h2>Isi Tabel MCU Harian</h2>
+      </div>
+      <p class="step-desc">Jika ada pasien MCU hari ini, tambahkan di bagian <strong>MCU Harian</strong>. Jika tidak ada, lewati langkah ini.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">MCU Harian — 2 baris · 25 peserta</span>
+        </div>
+        <div class="mockup-body">
+          <table class="mock-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nama Penjamin</th>
+                <th>Paket</th>
+                <th>Peserta</th>
+                <th>Nominal/Org</th>
+                <th>Total</th>
+                <th>Link</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>KARYAWAN PG</td>
+                <td><span class="mock-input" style="width:100px">Paket Executive</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">15</span></td>
+                <td class="num-cell"><span class="mock-input rp" style="width:100px">Rp 850.000</span></td>
+                <td class="num-cell" style="font-weight:600">Rp 12.750.000</td>
+                <td><span class="badge badge-auto">✓ linked</span></td>
+                <td style="color:var(--red);cursor:default">🗑️</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>PASIEN UM</td>
+                <td><span class="mock-input" style="width:100px">Paket Basic</span></td>
+                <td class="num-cell"><span class="mock-input number" style="width:45px">10</span></td>
+                <td class="num-cell"><span class="mock-input rp" style="width:100px">Rp 350.000</span></td>
+                <td class="num-cell" style="font-weight:600">Rp 3.500.000</td>
+                <td><span class="badge badge-auto">✓ linked</span></td>
+                <td style="color:var(--red);cursor:default">🗑️</td>
+              </tr>
+              <tr class="total-row">
+                <td></td>
+                <td colspan="2">TOTAL</td>
+                <td class="num-cell">25</td>
+                <td></td>
+                <td class="num-cell">Rp 16.250.000</td>
+                <td colspan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top:12px">
+            <span class="mock-btn green-outline sm">+ Baris MCU</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Cara isi:</strong><br>
+          1. Klik <strong>"+ Baris MCU"</strong><br>
+          2. Pilih <strong>Nama Penjamin</strong> dari dropdown<br>
+          3. Ketik <strong>nama paket</strong> MCU<br>
+          4. Isi <strong>jumlah peserta</strong> dan <strong>nominal per orang</strong><br>
+          5. <strong>Total</strong> otomatis dihitung (Peserta × Nominal)<br>
+          6. Kolom <strong>MCU AUTO</strong> di tabel kunjungan otomatis terisi
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step3" class="mock-btn outline" onclick="goStep(3)">← Sebelumnya</a>
+        <a href="#step5" class="mock-btn primary" onclick="goStep(5)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 5 ==================== -->
+    <section class="step" id="step5">
+      <div class="step-header">
+        <div class="num">5</div>
+        <h2>Submit ke Sheets</h2>
+      </div>
+      <p class="step-desc">Klik tombol <strong>"Submit ke Sheets"</strong> untuk mengirim data ke 2 Google Spreadsheet sekaligus.</p>
+
+      <div style="text-align:center;margin:16px 0">
+        <span class="mock-btn primary" style="font-size:14px;padding:12px 24px">📤 Submit ke Sheets</span>
+      </div>
+
+      <div class="arrow-down">↓</div>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">Modal Konfirmasi Submit</span>
+        </div>
+        <div class="mockup-body">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">Konfirmasi Submit ke Sheets</h3>
+
+          <!-- Tanggal -->
+          <div class="mock-warning blue">
+            <span>📅</span>
+            <span>Tanggal web: <strong>2026-04-13</strong> — Tanggal sheet: <strong>APRIL hari 13</strong></span>
+          </div>
+
+          <!-- Status checks -->
+          <div style="margin:12px 0">
+            <div class="status-check ok">✅ <strong>KUNJUNGAN 2026</strong> — APRIL hari 13 masih kosong.</div>
+            <div class="status-check warn">⚠️ <strong>LAPORAN HARIAN</strong> — Data sudah ada! APRIL hari 13 sudah terisi (223 kunjungan). Submit akan menimpa.</div>
+          </div>
+
+          <!-- Ringkasan -->
+          <div style="margin:12px 0;padding:12px;background:#f9fafb;border-radius:8px">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Ringkasan Data</div>
+            <div class="summary-row"><span class="summary-label">Rawat Jalan</span><span class="summary-value">156</span></div>
+            <div class="summary-row"><span class="summary-label">Rawat Inap</span><span class="summary-value">23</span></div>
+            <div class="summary-row"><span class="summary-label">IGD</span><span class="summary-value">18</span></div>
+            <div class="summary-row"><span class="summary-label">MCU</span><span class="summary-value">25 <span style="font-size:10px;color:var(--muted)">(25 peserta)</span></span></div>
+            <div class="summary-row" style="border-top:2px solid var(--green-border);padding-top:8px;margin-top:4px"><span class="summary-label" style="font-weight:700">Grand Total</span><span class="summary-value" style="font-size:16px;color:var(--green)">223</span></div>
+          </div>
+
+          <!-- Buttons -->
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <span class="mock-btn outline">Batal</span>
+            <span class="mock-btn red">Overwrite & Kirim</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Warna tombol kirim:</strong><br>
+          • <span style="color:#1e3a5f;font-weight:600">Biru "Kirim ke Sheets"</span> — data belum ada, aman dikirim<br>
+          • <span style="color:var(--red);font-weight:600">Merah "Overwrite & Kirim"</span> — data sudah ada, akan ditimpa<br><br>
+          Setelah berhasil, muncul notifikasi hijau: <em>"Data berhasil dikirim!"</em>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step4" class="mock-btn outline" onclick="goStep(4)">← Sebelumnya</a>
+        <a href="#step6" class="mock-btn primary" onclick="goStep(6)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 6 ==================== -->
+    <section class="step" id="step6">
+      <div class="step-header">
+        <div class="num">6</div>
+        <h2>Pindah ke Tab Laporan</h2>
+      </div>
+      <p class="step-desc">Setelah submit berhasil, pindah ke tab <strong>"Laporan"</strong> untuk generate teks WhatsApp.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+        </div>
+        <div class="mockup-body">
+          <div class="mock-tabs">
+            <div class="mock-tab">Dashboard</div>
+            <div class="mock-tab">Omzet</div>
+            <div class="mock-tab">Kunjungan</div>
+            <div class="mock-tab">MCU</div>
+            <div class="mock-tab">Input Harian</div>
+            <div class="mock-tab active" style="position:relative">
+              Laporan
+              <span style="position:absolute;top:-10px;right:-10px;background:var(--red);color:white;font-size:9px;padding:1px 6px;border-radius:4px;font-weight:700">Klik ini</span>
+            </div>
+          </div>
+          <div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">
+            <div style="display:flex;gap:24px;justify-content:center">
+              <div style="flex:1;max-width:300px;text-align:left">
+                <div style="font-size:12px;font-weight:700;margin-bottom:8px">📋 Input Laporan Harian</div>
+                <div style="font-size:11px;color:var(--muted)">Form input (kiri)</div>
+              </div>
+              <div style="flex:1;max-width:300px;text-align:left">
+                <div style="font-size:12px;font-weight:700;margin-bottom:8px">📱 Preview Teks WhatsApp</div>
+                <div style="font-size:11px;color:var(--muted)">Preview output (kanan)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>Tab Laporan terbagi 2 kolom: <strong>form input</strong> di kiri dan <strong>preview WhatsApp</strong> di kanan. Di HP, preview ada di bawah form.</span>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step5" class="mock-btn outline" onclick="goStep(5)">← Sebelumnya</a>
+        <a href="#step7" class="mock-btn primary" onclick="goStep(7)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 7 ==================== -->
+    <section class="step" id="step7">
+      <div class="step-header">
+        <div class="num">7</div>
+        <h2>Cek Data Otomatis</h2>
+      </div>
+      <p class="step-desc">Sebagian besar field sudah <strong>otomatis terisi</strong>. Cek apakah data sudah benar.</p>
+
+      <!-- Legend -->
+      <div class="legend">
+        <div class="legend-item"><span class="badge badge-auto">(auto)</span> Otomatis dari Tab Input Harian</div>
+        <div class="legend-item"><span class="badge badge-sheets">(dari Sheets)</span> Otomatis dari Google Sheets</div>
+        <div class="legend-item"><span class="badge badge-manual">manual</span> Harus diisi manual</div>
+      </div>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">Form Laporan — Bagian B, C</span>
+        </div>
+        <div class="mockup-body">
+          <!-- Section B -->
+          <div class="mock-accordion">
+            <div class="mock-acc-header">
+              B — Kunjungan
+              <span class="mock-btn green-outline sm">🔄 Sync Input Harian</span>
+            </div>
+            <div class="mock-acc-body">
+              <p style="font-size:10px;color:var(--muted);margin-bottom:8px">Field bertanda <span style="color:#16a34a;font-weight:600">(auto)</span> diisi dari Tab Input Harian.</p>
+              <div class="field-row">
+                <span class="field-label">Rawat Jalan (Total) <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input number green">156</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">&nbsp;&nbsp;└ Non BPJS RJ <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input number green">42</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Rawat Inap (Total) <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input number green">23</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">IGD (Total) <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input number green">18</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">MCU <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input number green">25</span>
+              </div>
+              <div style="font-size:10px;color:var(--muted);text-align:center;padding:4px">... dan seterusnya (semua field hijau = otomatis) ...</div>
+            </div>
+          </div>
+
+          <!-- Section F -->
+          <div class="mock-accordion" style="margin-top:8px">
+            <div class="mock-acc-header">F — Capaian Harian</div>
+            <div class="mock-acc-body">
+              <div class="field-row">
+                <span class="field-label">Target Kunjungan Harian <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input number accent">350</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Target Omzet Harian <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input rp accent">Rp 125.000.000</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Pendapatan MCU <span class="badge badge-auto">(auto)</span></span>
+                <span class="mock-input rp green">Rp 16.250.000</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section G -->
+          <div class="mock-accordion" style="margin-top:8px">
+            <div class="mock-acc-header">G — Kumulatif Bulan <span class="badge badge-sheets">(dari Sheets)</span></div>
+            <div class="mock-acc-body">
+              <div class="field-row">
+                <span class="field-label">Pendapatan s/d kemarin <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input rp accent">Rp 1.250.000.000</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Kunjungan s/d kemarin <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input number accent">3.200</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Total Pendapatan s/d tgl <span style="font-size:9px;color:#3b82f6;font-weight:600">(auto)</span></span>
+                <span class="field-computed">Rp 1.375.000.000</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Total Kunjungan s/d tgl <span style="font-size:9px;color:#3b82f6;font-weight:600">(auto)</span></span>
+                <span class="field-computed">3.423</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Target Omzet Bulan <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input rp accent">Rp 3.500.000.000</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Target Kunjungan Bulan <span class="badge badge-sheets">(dari Sheets)</span></span>
+                <span class="mock-input number accent">8.500</span>
+              </div>
+              <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+                <div class="summary-row"><span class="summary-label">Capaian Omzet</span><span class="summary-value"><span class="pct">39%</span></span></div>
+                <div class="summary-row"><span class="summary-label">Capaian Kunjungan</span><span class="summary-value"><span class="pct">40%</span></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          Jika field bagian B tidak terisi otomatis, klik tombol <strong>"Sync Input Harian"</strong> (ikon refresh hijau) di header bagian B.<br><br>
+          <strong>Pastikan tanggal di Tab Laporan sama dengan Tab Input Harian!</strong> Jika berbeda, data tidak akan tersinkron.
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step6" class="mock-btn outline" onclick="goStep(6)">← Sebelumnya</a>
+        <a href="#step8" class="mock-btn primary" onclick="goStep(8)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 8 ==================== -->
+    <section class="step" id="step8">
+      <div class="step-header">
+        <div class="num">8</div>
+        <h2>Isi Field Manual</h2>
+      </div>
+      <p class="step-desc">Hanya <strong>3 bagian</strong> yang perlu diisi manual. Sisanya sudah otomatis.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">Field yang harus diisi manual</span>
+        </div>
+        <div class="mockup-body">
+
+          <!-- D: Promo Lab -->
+          <div class="mock-accordion">
+            <div class="mock-acc-header" style="background:var(--amber-light)">
+              D — Promo Lab <span class="badge badge-manual">manual</span>
+            </div>
+            <div class="mock-acc-body">
+              <div class="field-row">
+                <span class="mock-input" style="flex:1;font-size:11px">paket Basic pekerja (umum)</span>
+                <span class="mock-input number highlight">3</span>
+              </div>
+              <div class="field-row">
+                <span class="mock-input" style="flex:1;font-size:11px">Paket sahabat ginjal (umum)</span>
+                <span class="mock-input number highlight">1</span>
+              </div>
+              <div class="field-row">
+                <span class="mock-input" style="flex:1;font-size:11px">Screening paket B</span>
+                <span class="mock-input number highlight">0</span>
+              </div>
+              <div style="font-size:10px;color:var(--muted);text-align:center;padding:4px">... item promo lainnya ...</div>
+              <div style="margin-top:8px">
+                <span class="mock-btn green-outline sm">+ Tambah Item</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- E: Morulla -->
+          <div class="mock-accordion" style="margin-top:8px">
+            <div class="mock-acc-header" style="background:var(--amber-light)">
+              E — Pasien AS Morulla <span class="badge badge-manual">manual</span>
+            </div>
+            <div class="mock-acc-body">
+              <div class="field-row">
+                <span class="field-label">Terjadwal Hari Ini</span>
+                <span class="mock-input number highlight">5</span>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Hadir Hari Ini</span>
+                <span class="mock-input number highlight">4</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- F: Total Omzet -->
+          <div class="mock-accordion" style="margin-top:8px">
+            <div class="mock-acc-header" style="background:var(--amber-light)">
+              F — Capaian Harian <span class="badge badge-manual">1 field manual</span>
+            </div>
+            <div class="mock-acc-body">
+              <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Target sudah otomatis dari Sheets. Yang perlu diisi:</div>
+              <div class="field-row">
+                <span class="field-label" style="font-weight:600;color:#374151">Total Omzet Harian</span>
+                <span class="mock-input rp highlight" style="font-weight:700">Rp 125.000.000</span>
+              </div>
+              <div style="font-size:10px;color:var(--amber);margin-top:4px">⚠️ Field ini HARUS diisi manual — total pendapatan/omzet hari ini</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Ringkasan field manual:</strong><br>
+          1. <strong>Promo Lab</strong> — isi angka per item promo<br>
+          2. <strong>Morulla</strong> — terjadwal & hadir hari ini<br>
+          3. <strong>Total Omzet Harian</strong> — total pendapatan hari ini (Rupiah)<br><br>
+          Field dengan border kuning berkedip = perlu diisi manual.
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step7" class="mock-btn outline" onclick="goStep(7)">← Sebelumnya</a>
+        <a href="#step9" class="mock-btn primary" onclick="goStep(9)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 9 ==================== -->
+    <section class="step" id="step9">
+      <div class="step-header">
+        <div class="num">9</div>
+        <h2>Cek Preview WhatsApp</h2>
+      </div>
+      <p class="step-desc">Di panel kanan (atau bawah di HP), cek teks laporan yang akan dikirim. Pastikan angka-angka sudah benar.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px">📱 Preview Teks WhatsApp</span>
+        </div>
+        <div class="mockup-body" style="padding:0">
+          <!-- Warning -->
+          <div style="padding:12px 16px">
+            <div class="mock-warning amber" style="margin:0">
+              <span>⚠️</span>
+              <span>Total kunjungan laporan <strong>223</strong>, tidak sama dengan total di Tab Input Harian <strong>225</strong>. Cek kembali yaa.</span>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center">↑ Peringatan ini muncul jika total tidak cocok. Jika cocok, peringatan tidak muncul.</div>
+          </div>
+
+          <!-- WA Preview -->
+          <div style="padding:0 16px 16px">
+            <div class="wa-preview">LAPORAN KUNJUNGAN  
+Senin 13 April 2026
+* Rawat Jalan : 156
+▪Non BPJS : 42
+* Rawat Inap : 23
+▪Non BPJS : 8
+* IGD : 18
+▪Non BPJS : 5
+* MCU : 25
+* Rujukan SBU/Grahu : 3
+* Rujukan SBU/PPK1 : 2
+* Rujukan SBU/Satkal : 1
+* Rujukan dokter Luar : 3
+* Poli Exclusive : 2
+* Poli Prioritas : 1
+* Pasien PG:
+1. Igd Kry PG : 1
+2. Igd Kel PG : 0
+3. Rajal Kry PG : 12
+4. Rajal Kel  PG : 8
+5. Rawin Kry PG : 3
+6. Rawin Kel PG : 2
+* Promo Lab : 
+1. paket Basic pekerja (umum): 3
+2. Paket sahabat ginjal (umum): 1
+* Pasien AS Morulla 
+1. Terjadwal hari ini : 5
+2. Hadir hari ini : 4
+  ================
+Capaian Harian 
+* Total Kunj Harian : 223 (64%)
+* Pendapatan MCU :  Rp 16.250.000
+* Pendapatan selain MCU: Rp 108.750.000
+* Total Pendapatan: Rp 125.000.000 (100%)
+* Target harian : Rp 125.000.000
+----------------
+Rerata Jumlah entryan Per pasien : Rp 560.538/Pasien
+---------------
+================
+CAPAIAN 01 - 13 April 2026
+* Total pendapatan : Rp 1.375.000.000 (39%)
+* Total kunjungan  :   3423 (40%)
+----------------------------------
+Data
+Target April 2026
+* Kunjungan : 8.500
+* Omzet : Rp. 3.500.000.000</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-icon">💡</span>
+        <div>
+          <strong>Yang perlu dicek:</strong><br>
+          • Tanggal dan hari sudah benar<br>
+          • Angka kunjungan (RJ, RI, IGD, MCU) sesuai<br>
+          • Total Pendapatan dan persentase capaian masuk akal<br>
+          • Capaian kumulatif bulan (bagian bawah) sudah terisi
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step8" class="mock-btn outline" onclick="goStep(8)">← Sebelumnya</a>
+        <a href="#step10" class="mock-btn primary" onclick="goStep(10)">Selanjutnya →</a>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 10 ==================== -->
+    <section class="step" id="step10">
+      <div class="step-header">
+        <div class="num">10</div>
+        <h2>Kirim Laporan</h2>
+      </div>
+      <p class="step-desc">Jika semua data sudah benar, kirim laporan via WhatsApp atau salin teks.</p>
+
+      <div class="mockup">
+        <div class="mockup-bar">
+          <div class="mockup-dot r"></div><div class="mockup-dot y"></div><div class="mockup-dot g"></div>
+        </div>
+        <div class="mockup-body" style="text-align:center;padding:24px">
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+            <span class="mock-btn outline" style="font-size:14px;padding:12px 24px">📋 Salin Teks</span>
+            <span class="mock-btn green" style="font-size:14px;padding:12px 24px">💬 Kirim via WhatsApp</span>
+          </div>
+
+          <div style="margin-top:20px;display:flex;gap:24px;justify-content:center;text-align:left;flex-wrap:wrap">
+            <div style="max-width:250px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:4px">📋 Salin Teks</div>
+              <div style="font-size:11px;color:var(--muted)">Copy teks ke clipboard. Lalu paste manual di WhatsApp, email, atau aplikasi lain.</div>
+            </div>
+            <div style="max-width:250px">
+              <div style="font-size:12px;font-weight:700;margin-bottom:4px">💬 Kirim via WhatsApp</div>
+              <div style="font-size:11px;color:var(--muted)">Buka WhatsApp langsung dengan teks sudah terisi. Tinggal pilih kontak/grup dan kirim.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-warning green" style="margin-top:16px">
+        <span>✅</span>
+        <div>
+          <strong>Selesai!</strong> Laporan harian sudah terkirim.<br>
+          Draft tersimpan otomatis dan tidak hilang setelah kirim.
+        </div>
+      </div>
+
+      <div style="margin-top:24px;padding:20px;background:var(--accent-light);border-radius:12px;border:1px solid #a5b4fc">
+        <h3 style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px">Ringkasan Alur Harian</h3>
+        <div style="font-size:12px;line-height:2">
+          <div><strong>1.</strong> Buka Tab <strong>Input Harian</strong> → isi tabel kunjungan & MCU</div>
+          <div><strong>2.</strong> Klik <strong>Submit ke Sheets</strong> → konfirmasi → kirim</div>
+          <div><strong>3.</strong> Pindah ke Tab <strong>Laporan</strong> → cek data otomatis</div>
+          <div><strong>4.</strong> Isi <strong>Promo Lab</strong>, <strong>Morulla</strong>, <strong>Total Omzet Harian</strong></div>
+          <div><strong>5.</strong> Cek preview → <strong>Salin Teks</strong> atau <strong>Kirim via WhatsApp</strong></div>
+        </div>
+      </div>
+
+      <div class="step-nav">
+        <a href="#step9" class="mock-btn outline" onclick="goStep(9)">← Sebelumnya</a>
+        <a href="#step1" class="mock-btn primary" onclick="goStep(1)">↩ Kembali ke Awal</a>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Mobile bottom nav -->
+<div class="mobile-nav">
+  <div class="mobile-nav-inner" id="mobileNav">
+    <a href="#updates" data-step="0">✨</a>
+    <a href="#step1" class="active" data-step="1">1</a>
+    <a href="#step2" data-step="2">2</a>
+    <a href="#step3" data-step="3">3</a>
+    <a href="#step4" data-step="4">4</a>
+    <a href="#step5" data-step="5">5</a>
+    <a href="#step6" data-step="6">6</a>
+    <a href="#step7" data-step="7">7</a>
+    <a href="#step8" data-step="8">8</a>
+    <a href="#step9" data-step="9">9</a>
+    <a href="#step10" data-step="10">10</a>
+  </div>
+</div>
+
+<!-- Floating next button -->
+<button class="floating-next" id="floatingNext" onclick="nextStep()">→</button>
+
+<script>
+  // Active step tracking
+  function goStep(n) {
+    // Update sidebar
+    document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+    const sidebarLink = document.querySelector(`.sidebar a[data-step="${n}"]`);
+    if (sidebarLink) sidebarLink.classList.add('active');
+
+    // Update mobile nav
+    document.querySelectorAll('.mobile-nav a').forEach(a => a.classList.remove('active'));
+    const mobileLink = document.querySelector(`.mobile-nav a[data-step="${n}"]`);
+    if (mobileLink) mobileLink.classList.add('active');
+
+    // Scroll to step
+    const targetId = n === 0 ? 'updates' : 'step' + n;
+    const el = document.getElementById(targetId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Next step function for floating button
+  function nextStep() {
+    const currentStep = parseInt(document.querySelector('.sidebar a.active')?.dataset.step || '0');
+    if (currentStep < 10) {
+      goStep(currentStep + 1);
+    }
+  }
+
+  // Intersection observer for auto-highlighting sidebar
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        let n = '0';
+        if (id === 'updates') {
+          n = '0';
+        } else {
+          n = id.replace('step', '');
+        }
+
+        document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+        const sidebarLink = document.querySelector(`.sidebar a[data-step="${n}"]`);
+        if (sidebarLink) sidebarLink.classList.add('active');
+
+        document.querySelectorAll('.mobile-nav a').forEach(a => a.classList.remove('active'));
+        const mobileLink = document.querySelector(`.mobile-nav a[data-step="${n}"]`);
+        if (mobileLink) mobileLink.classList.add('active');
+
+        // Update floating button
+        const floatingBtn = document.getElementById('floatingNext');
+        if (floatingBtn) {
+          if (n === '10') {
+            floatingBtn.style.display = 'none';
+          } else {
+            floatingBtn.style.display = 'flex';
+          }
+        }
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  document.querySelectorAll('.step').forEach(step => observer.observe(step));
+  const updatesSection = document.getElementById('updates');
+  if (updatesSection) observer.observe(updatesSection);
+
+  // Sidebar click
+  document.querySelectorAll('.sidebar a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const n = a.dataset.step;
+      goStep(parseInt(n));
+    });
+  });
+
+  // Mobile nav click
+  document.querySelectorAll('.mobile-nav a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const n = a.dataset.step;
+      goStep(parseInt(n));
+    });
+  });
+
+  // Collapsible mockups for mobile
+  function initCollapsibleMockups() {
+    if (window.innerWidth <= 768) {
+      document.querySelectorAll('.mockup').forEach(mockup => {
+        const body = mockup.querySelector('.mockup-body');
+        if (body && body.scrollHeight > 400) {
+          // Check if toggle already exists
+          if (mockup.querySelector('.mockup-toggle')) return;
+
+          const toggle = document.createElement('button');
+          toggle.className = 'mockup-toggle';
+          toggle.textContent = 'Lihat Mockup';
+          toggle.onclick = () => {
+            body.classList.toggle('expanded');
+            toggle.textContent = body.classList.contains('expanded') ? 'Sembunyikan' : 'Lihat Mockup';
+          };
+          mockup.insertBefore(toggle, body);
+          body.classList.add('collapsible');
+        }
+      });
+    }
+  }
+
+  // Table scroll shadows
+  function initTableScrollShadows() {
+    document.querySelectorAll('.mockup-body').forEach(body => {
+      const table = body.querySelector('.mock-table');
+      if (table && body.scrollWidth > body.clientWidth) {
+        body.classList.add('table-wrapper');
+        
+        const updateShadows = () => {
+          const scrollLeft = body.scrollLeft;
+          const scrollWidth = body.scrollWidth;
+          const clientWidth = body.clientWidth;
+          
+          if (scrollLeft > 10) {
+            body.classList.add('scroll-left');
+          } else {
+            body.classList.remove('scroll-left');
+          }
+          
+          if (scrollLeft < scrollWidth - clientWidth - 10) {
+            body.classList.add('scroll-right');
+          } else {
+            body.classList.remove('scroll-right');
+          }
+        };
+        
+        body.addEventListener('scroll', updateShadows);
+        updateShadows();
+      }
+    });
+  }
+
+  // Init on load
+  window.addEventListener('load', () => {
+    initCollapsibleMockups();
+    initTableScrollShadows();
+  });
+
+  // Re-init on resize
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      initCollapsibleMockups();
+      initTableScrollShadows();
+    }, 250);
+  });
+</script>
+
+</body>
+</html>

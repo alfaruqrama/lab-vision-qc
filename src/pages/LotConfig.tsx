@@ -4,7 +4,7 @@ import type { LotConfig, CA660LotConfig, EasyliteLotConfig, OnCallLotConfig, Par
 import { Trash2, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type TabType = 'CA660' | 'EASYLITE' | 'ONCALL';
+type TabType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2';
 
 function ParamRow({ label, config, onChange }: { label: string; config: ParamConfig; onChange: (c: ParamConfig) => void }) {
   return (
@@ -160,10 +160,10 @@ export default function LotConfigPage() {
     }));
   }
 
-  function addOnCallLot() {
+  function addOnCallLot(key: 'ONCALL1' | 'ONCALL2') {
     setLocalConfig(prev => ({
       ...prev,
-      ONCALL: [...prev.ONCALL, {
+      [key]: [...prev[key], {
         lot: '', exp: '',
         CTRL0: { GDA: { mean: 0, sd: 0 } },
         CTRL1: { GDA: { mean: 0, sd: 0 } },
@@ -196,7 +196,8 @@ export default function LotConfigPage() {
         {([
           { key: 'CA660' as TabType, label: 'Sysmex CA-660' },
           { key: 'EASYLITE' as TabType, label: 'Easylite' },
-          { key: 'ONCALL' as TabType, label: 'On Call Sure' },
+          { key: 'ONCALL1' as TabType, label: 'On Call Sure 1' },
+          { key: 'ONCALL2' as TabType, label: 'On Call Sure 2' },
         ]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
             {t.label}
@@ -232,15 +233,15 @@ export default function LotConfigPage() {
             </button>
           </>
         )}
-        {tab === 'ONCALL' && (
+        {(tab === 'ONCALL1' || tab === 'ONCALL2') && (
           <>
-            {localConfig.ONCALL.map((lot, i) => (
+            {localConfig[tab].map((lot, i) => (
               <OnCallCard key={i} lot={lot}
-                onUpdate={updated => { const arr = [...localConfig.ONCALL]; arr[i] = updated; setLocalConfig(prev => ({ ...prev, ONCALL: arr })); }}
-                onDelete={() => setLocalConfig(prev => ({ ...prev, ONCALL: prev.ONCALL.filter((_, j) => j !== i) }))}
+                onUpdate={updated => { const arr = [...localConfig[tab]]; arr[i] = updated; setLocalConfig(prev => ({ ...prev, [tab]: arr })); }}
+                onDelete={() => setLocalConfig(prev => ({ ...prev, [tab]: prev[tab].filter((_, j) => j !== i) }))}
               />
             ))}
-            <button onClick={addOnCallLot} className="w-full py-4 rounded-lg border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
+            <button onClick={() => addOnCallLot(tab)} className="w-full py-4 rounded-lg border-2 border-dashed border-border text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
               <Plus size={16} /> Tambah Lot Baru
             </button>
           </>

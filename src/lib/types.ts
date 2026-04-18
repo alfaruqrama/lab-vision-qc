@@ -1,4 +1,4 @@
-export type InstrumentType = 'CA660' | 'EASYLITE' | 'ONCALL';
+export type InstrumentType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2';
 
 export type ControlLevel = 'Kontrol' | 'NORMAL' | 'HIGH' | 'CTRL0' | 'CTRL1' | 'CTRL2';
 
@@ -45,7 +45,8 @@ export interface OnCallLotConfig {
 export interface LotConfig {
   CA660: CA660LotConfig[];
   EASYLITE: EasyliteLotConfig[];
-  ONCALL: OnCallLotConfig[];
+  ONCALL1: OnCallLotConfig[];
+  ONCALL2: OnCallLotConfig[];
 }
 
 export type ParamName = 'PT' | 'APTT' | 'INR' | 'Na' | 'K' | 'Cl' | 'GDA';
@@ -65,7 +66,8 @@ export interface QCRecord {
 
 export const CA660_PARAMS: ParamName[] = ['PT', 'APTT', 'INR'];
 export const EASYLITE_PARAMS: ParamName[] = ['Na', 'K', 'Cl'];
-export const ONCALL_PARAMS: ParamName[] = ['GDA'];
+export const ONCALL1_PARAMS: ParamName[] = ['GDA'];
+export const ONCALL2_PARAMS: ParamName[] = ['GDA'];
 
 export const PARAM_UNITS: Record<ParamName, string> = {
   PT: 'detik',
@@ -79,6 +81,7 @@ export const PARAM_UNITS: Record<ParamName, string> = {
 
 export function getParamsForInstrument(alat: InstrumentType): ParamName[] {
   if (alat === 'CA660') return CA660_PARAMS;
-  if (alat === 'ONCALL') return ONCALL_PARAMS;
+  if (alat === 'ONCALL1') return ONCALL1_PARAMS;
+  if (alat === 'ONCALL2') return ONCALL2_PARAMS;
   return EASYLITE_PARAMS;
 }

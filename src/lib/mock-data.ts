@@ -29,7 +29,16 @@ export const DEFAULT_LOT_CONFIG: LotConfig = {
       },
     },
   ],
-  ONCALL: [
+  ONCALL1: [
+    {
+      lot: '1790338',
+      exp: '2026-05-28',
+      CTRL0: { GDA: { mean: 47, sd: 7.5 } },
+      CTRL1: { GDA: { mean: 134, sd: 13.5 } },
+      CTRL2: { GDA: { mean: 364, sd: 36.5 } },
+    },
+  ],
+  ONCALL2: [
     {
       lot: '1790338',
       exp: '2026-05-28',
@@ -55,7 +64,8 @@ export function generateMockRecords(): QCRecord[] {
   const analysts = ['Dewi S.', 'Rina A.', 'Budi P.', 'Sari K.'];
   const ca660Lot = DEFAULT_LOT_CONFIG.CA660[0];
   const elLot = DEFAULT_LOT_CONFIG.EASYLITE[0];
-  const ocLot = DEFAULT_LOT_CONFIG.ONCALL[0];
+  const oc1Lot = DEFAULT_LOT_CONFIG.ONCALL1[0];
+  const oc2Lot = DEFAULT_LOT_CONFIG.ONCALL2[0];
 
   for (let day = 1; day <= Math.min(now.getDate(), 28); day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -132,41 +142,81 @@ export function generateMockRecords(): QCRecord[] {
       });
     }
 
-    // On Call Sure - CTRL1 daily
-    const ocCtrl1: Partial<Record<ParamName, number>> = {
-      GDA: generateValue(ocLot.CTRL1.GDA.mean, ocLot.CTRL1.GDA.sd, day === 15 ? 3 : 0),
+    // On Call Sure 1 - CTRL1 daily
+    const oc1Ctrl1: Partial<Record<ParamName, number>> = {
+      GDA: generateValue(oc1Lot.CTRL1.GDA.mean, oc1Lot.CTRL1.GDA.sd, day === 15 ? 3 : 0),
     };
-    const ocCtrl1Status: Partial<Record<ParamName, any>> = {};
-    ocCtrl1Status.GDA = evaluateWestgard(ocCtrl1.GDA!, ocLot.CTRL1.GDA).status;
+    const oc1Ctrl1Status: Partial<Record<ParamName, any>> = {};
+    oc1Ctrl1Status.GDA = evaluateWestgard(oc1Ctrl1.GDA!, oc1Lot.CTRL1.GDA).status;
     records.push({
-      id: `mock-oc1-${day}`,
+      id: `mock-oc1a-${day}`,
       timestamp: new Date(year, month, day, 8, 15).toISOString(),
       tanggal: dateStr,
-      alat: 'ONCALL',
+      alat: 'ONCALL1',
       level: 'CTRL1',
-      lot: ocLot.lot,
-      params: ocCtrl1,
-      status: ocCtrl1Status,
+      lot: oc1Lot.lot,
+      params: oc1Ctrl1,
+      status: oc1Ctrl1Status,
       analis,
       catatan: '',
     });
 
-    // On Call Sure - CTRL2 every 3 days
+    // On Call Sure 1 - CTRL2 every 3 days
     if (day % 3 === 0) {
-      const ocCtrl2: Partial<Record<ParamName, number>> = {
-        GDA: generateValue(ocLot.CTRL2.GDA.mean, ocLot.CTRL2.GDA.sd),
+      const oc1Ctrl2: Partial<Record<ParamName, number>> = {
+        GDA: generateValue(oc1Lot.CTRL2.GDA.mean, oc1Lot.CTRL2.GDA.sd),
       };
-      const ocCtrl2Status: Partial<Record<ParamName, any>> = {};
-      ocCtrl2Status.GDA = evaluateWestgard(ocCtrl2.GDA!, ocLot.CTRL2.GDA).status;
+      const oc1Ctrl2Status: Partial<Record<ParamName, any>> = {};
+      oc1Ctrl2Status.GDA = evaluateWestgard(oc1Ctrl2.GDA!, oc1Lot.CTRL2.GDA).status;
       records.push({
-        id: `mock-oc2-${day}`,
+        id: `mock-oc1b-${day}`,
         timestamp: new Date(year, month, day, 8, 30).toISOString(),
         tanggal: dateStr,
-        alat: 'ONCALL',
+        alat: 'ONCALL1',
         level: 'CTRL2',
-        lot: ocLot.lot,
-        params: ocCtrl2,
-        status: ocCtrl2Status,
+        lot: oc1Lot.lot,
+        params: oc1Ctrl2,
+        status: oc1Ctrl2Status,
+        analis,
+        catatan: '',
+      });
+    }
+
+    // On Call Sure 2 - CTRL1 daily
+    const oc2Ctrl1: Partial<Record<ParamName, number>> = {
+      GDA: generateValue(oc2Lot.CTRL1.GDA.mean, oc2Lot.CTRL1.GDA.sd, day === 10 ? -3 : 0),
+    };
+    const oc2Ctrl1Status: Partial<Record<ParamName, any>> = {};
+    oc2Ctrl1Status.GDA = evaluateWestgard(oc2Ctrl1.GDA!, oc2Lot.CTRL1.GDA).status;
+    records.push({
+      id: `mock-oc2a-${day}`,
+      timestamp: new Date(year, month, day, 8, 45).toISOString(),
+      tanggal: dateStr,
+      alat: 'ONCALL2',
+      level: 'CTRL1',
+      lot: oc2Lot.lot,
+      params: oc2Ctrl1,
+      status: oc2Ctrl1Status,
+      analis,
+      catatan: '',
+    });
+
+    // On Call Sure 2 - CTRL2 every 3 days
+    if (day % 3 === 0) {
+      const oc2Ctrl2: Partial<Record<ParamName, number>> = {
+        GDA: generateValue(oc2Lot.CTRL2.GDA.mean, oc2Lot.CTRL2.GDA.sd),
+      };
+      const oc2Ctrl2Status: Partial<Record<ParamName, any>> = {};
+      oc2Ctrl2Status.GDA = evaluateWestgard(oc2Ctrl2.GDA!, oc2Lot.CTRL2.GDA).status;
+      records.push({
+        id: `mock-oc2b-${day}`,
+        timestamp: new Date(year, month, day, 9, 0).toISOString(),
+        tanggal: dateStr,
+        alat: 'ONCALL2',
+        level: 'CTRL2',
+        lot: oc2Lot.lot,
+        params: oc2Ctrl2,
+        status: oc2Ctrl2Status,
         analis,
         catatan: '',
       });
