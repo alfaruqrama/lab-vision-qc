@@ -1185,7 +1185,6 @@ export default function InputHarianTab() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
   const [showSubmitPreview, setShowSubmitPreview] = useState(false);
   const [sheetCheckTanggal, setSheetCheckTanggal] = useState('');
 
@@ -1195,7 +1194,7 @@ export default function InputHarianTab() {
   const [kunjCheckData, setKunjCheckData] = useState<CheckData>(null);
   const [lapCheckStatus, setLapCheckStatus] = useState<CheckStatus>('idle');
   const [lapCheckData, setLapCheckData] = useState<CheckData>(null);
-  const openAdminSettings = () => setShowPinModal(true);
+  const openAdminSettings = () => setShowSettings(true);
 
   // Tanggal validation
   const isToday = tanggal === todayISO();
@@ -1454,12 +1453,6 @@ export default function InputHarianTab() {
 
   return (
     <>
-      {showPinModal && (
-        <PinModal
-          onSuccess={() => { setShowPinModal(false); setShowSettings(true); }}
-          onClose={() => setShowPinModal(false)}
-        />
-      )}
       {showSettings && (
         <SettingsModal
           list={allList} custom={custom}
