@@ -20,6 +20,7 @@ import LotConfig from "@/pages/LotConfig";
 import NotFound from "@/pages/NotFound";
 import LoginPage from "@/pages/LoginPage";
 import AdminUserPanel from "@/pages/AdminUserPanel";
+import TCMForm from "@/pages/TCMForm";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,9 @@ const App = () => (
               <Routes>
                 {/* Login page - no auth required */}
                 <Route path="/login" element={<LoginPage />} />
+                
+                {/* TCM Form - public access, no auth required */}
+                <Route path="/tcm" element={<TCMForm />} />
 
                 {/* Protected routes - Portal pages with top navbar */}
                 <Route path="/" element={<ProtectedRoute><PortalLayout><PortalHome /></PortalLayout></ProtectedRoute>} />
