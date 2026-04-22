@@ -432,7 +432,7 @@ export default function TCMForm() {
           .tcm-app { display: block; }
           .tcm-sidebar { display: none !important; }
           .tcm-main { padding: 0; max-width: 100%; }
-          .main-header, .pasien-list, .action-bar, .preview-toolbar, .no-print { display: none !important; }
+          .main-header, .pasien-list, .action-bar, .preview-toolbar, .no-print, .btn-add { display: none !important; }
           .preview-wrap { margin: 0; border: none; padding: 0; }
           .preview-doc { border: none; border-radius: 0; padding: 5cm 2cm 1.5cm 2cm; box-shadow: none; margin-bottom: 0; }
           .ttd-space { height: 90px; }
