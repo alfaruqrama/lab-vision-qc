@@ -11,8 +11,18 @@ interface Pasien {
 }
 
 const SPESIMEN_OPTIONS = [
-  "Dahak Sewaktu", "Dahak Pagi", "BAL", "Jaringan", "Urin",
+  "Dahak", "BAL", "Jaringan", "Urin",
   "Cairan Pleura", "LCS", "Lainnya"
+];
+
+const DRIVERS = [
+  { nama: 'MUHAMMAD RAHMAN HANIF',   nik: 'K21011' },
+  { nama: 'MOCHAMAD ZAENAL ABIDIN',  nik: 'K17131' },
+  { nama: 'MUHAMMAD SYIFAUL UYUN',   nik: 'K12564' },
+  { nama: 'AHMAD DAI ROBBY',         nik: 'K22177' },
+  { nama: 'RIYADUS SHOLIHIN',        nik: 'K12347' },
+  { nama: 'MAHSUN AZIZI',            nik: 'K14887' },
+  { nama: 'MATSYAFIK',               nik: 'K13654' },
 ];
 
 const PEMERIKSAAN_OPTIONS = [
@@ -37,6 +47,7 @@ export default function TCMForm() {
   const [namaPengirim, setNamaPengirim] = useState('');
   const [nikPengirim, setNikPengirim] = useState('');
   const [jabatanPengirim, setJabatanPengirim] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState('');
 
   const tambahPasien = () => {
     const newId = counter + 1;
@@ -70,8 +81,17 @@ export default function TCMForm() {
   };
 
   const handleNikPengirimChange = (value: string) => {
-    // NIK pengirim boleh kombinasi huruf dan angka
     setNikPengirim(value);
+  };
+
+  const handleDriverSelect = (val: string) => {
+    setSelectedDriver(val);
+    const driver = DRIVERS.find(d => d.nama === val);
+    if (driver) {
+      setNamaPengirim(driver.nama);
+      setNikPengirim(driver.nik);
+      setJabatanPengirim('Driver');
+    }
   };
 
   const formatTgl = (val: string) => {
@@ -89,6 +109,7 @@ export default function TCMForm() {
     setNamaPengirim('');
     setNikPengirim('');
     setJabatanPengirim('');
+    setSelectedDriver('');
     setPasienList([{ id: 1, nama: '', nik: '', umur: '', jk: '', spes1: '', spes2: '' }]);
     setCounter(1);
     setShowPreview(false);
@@ -413,7 +434,8 @@ export default function TCMForm() {
           .tcm-main { padding: 0; max-width: 100%; }
           .main-header, .pasien-list, .action-bar, .preview-toolbar, .no-print { display: none !important; }
           .preview-wrap { margin: 0; border: none; padding: 0; }
-          .preview-doc { border: none; border-radius: 0; padding: 1.5cm 2cm; box-shadow: none; margin-bottom: 0; }
+          .preview-doc { border: none; border-radius: 0; padding: 5cm 2cm 1.5cm 2cm; box-shadow: none; margin-bottom: 0; }
+          .ttd-space { height: 90px; }
           .page-break { page-break-after: always; break-after: page; }
           @page { margin: 0; }
         }
@@ -465,14 +487,27 @@ export default function TCMForm() {
           </div>
 
           <hr className="sidebar-divider" />
-          <div className="sidebar-label">Petugas</div>
+          <div className="sidebar-label">Petugas pengirim</div>
+          <div className="sidebar-field">
+            <label>Pilih driver <span style={{color:'#E53E3E'}}>*</span></label>
+            <select value={selectedDriver} onChange={(e) => handleDriverSelect(e.target.value)} style={{width:'100%', height:'36px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'0 10px', fontSize:'12px', background:'var(--bg)', color:'var(--text)', fontFamily:'inherit'}}>
+              <option value="">— input manual —</option>
+              {DRIVERS.map(d => <option key={d.nik} value={d.nama}>{d.nama}</option>)}
+            </select>
+          </div>
           <div className="sidebar-field">
             <label>Nama petugas pengirim <span style={{color:'#E53E3E'}}>*</span></label>
-            <input type="text" value={namaPengirim} onChange={(e) => setNamaPengirim(e.target.value)} placeholder="Nama lengkap pengirim..." required />
+            {selectedDriver
+              ? <div className="readonly-field" style={{fontSize:'11px', letterSpacing:'0.01em'}}>{namaPengirim}</div>
+              : <input type="text" value={namaPengirim} onChange={(e) => setNamaPengirim(e.target.value)} placeholder="Nama lengkap pengirim..." required />
+            }
           </div>
           <div className="sidebar-field">
             <label>NIK pengirim <span style={{color:'#E53E3E'}}>*</span></label>
-            <input type="text" value={nikPengirim} onChange={(e) => handleNikPengirimChange(e.target.value)} placeholder="NIK pengirim" required />
+            {selectedDriver
+              ? <div className="readonly-field">{nikPengirim}</div>
+              : <input type="text" value={nikPengirim} onChange={(e) => handleNikPengirimChange(e.target.value)} placeholder="NIK pengirim" required />
+            }
           </div>
           <div className="sidebar-field">
             <label>Jabatan pengirim <span style={{color:'#E53E3E'}}>*</span></label>
