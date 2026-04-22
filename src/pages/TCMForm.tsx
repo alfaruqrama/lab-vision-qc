@@ -170,6 +170,9 @@ export default function TCMForm() {
         .preview-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
         .preview-label { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
         .preview-doc { background: white; color: #111; border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; font-size: 11.5px; line-height: 1.65; font-family: 'Times New Roman', serif; box-shadow: 0 2px 12px rgba(0,0,0,0.04); margin-bottom: 1.5rem; }
+        .doc-logo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 8px; }
+        .doc-logo-header .doc-title { margin-bottom: 0; flex: 1; }
+        .doc-logo-img { width: 70px; height: 70px; object-fit: contain; flex-shrink: 0; }
         .doc-title { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 1.25rem; text-transform: uppercase; }
         .doc-meta { display: grid; grid-template-columns: 190px 1fr; gap: 2px; margin-bottom: 1rem; }
         .doc-meta .k { color: #333; }
@@ -363,7 +366,11 @@ export default function TCMForm() {
               
               {/* TANDA TERIMA - Halaman 1 */}
               <div className="preview-doc page-break">
-                <div className="doc-title">Tanda Terima Pengiriman Spesimen<br/>untuk Pemeriksaan {jenisPemeriksaan || 'TCM MTB RIF'}</div>
+                <div className="doc-logo-header">
+                  <img src="/logo-gresik.png" alt="Pemkab Gresik" className="doc-logo-img" />
+                  <div className="doc-title">Tanda Terima Pengiriman Spesimen<br/>untuk Pemeriksaan {jenisPemeriksaan || 'TCM MTB RIF'}</div>
+                  <img src="/logo-toss-tb.png" alt="TOSS TBC" className="doc-logo-img" />
+                </div>
 
                 <div className="doc-meta">
                   <span className="k">Fasyankes pengirim</span><span>: RS Petrokimia Gresik</span>
