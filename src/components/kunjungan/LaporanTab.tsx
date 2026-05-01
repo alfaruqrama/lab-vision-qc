@@ -82,9 +82,9 @@ function readInputHarianDraft(tanggal: string) {
     const grandTotal = rows.reduce((s: number, r: any) =>
       s + ['rjYani','riYani','igd','mcuAuto','promo','dokter','exc','prior','grhuRj','grhuRi','sat','ppk1']
         .reduce((rs, k) => rs + (Number(r[k])||0), 0), 0);
-    // Pasien PG: baris 1-4 (KARYAWAN PG, KELUARGA PG, KARYAWAN PG BRI LIFE, KELUARGA PG BRI LIFE)
-    const pgNames = ['KARYAWAN PG', 'KARYAWAN PG BRI LIFE'];
-    const pgKelNames = ['KELUARGA PG', 'KELUARGA PG BRI LIFE'];
+    // Pasien PG: baris 1-4 (KARYAWAN PG, KELUARGA PG, KARYAWAN PG INHEALTH PLUS, KELUARGA PG INHEALTH PLUS)
+    const pgNames = ['KARYAWAN PG', 'KARYAWAN PG INHEALTH PLUS'];
+    const pgKelNames = ['KELUARGA PG', 'KELUARGA PG INHEALTH PLUS'];
     const pgKryRows = rows.filter((r: any) => pgNames.includes(r.namaPenjamin));
     const pgKelRows = rows.filter((r: any) => pgKelNames.includes(r.namaPenjamin));
     const sumRows = (arr: any[], key: string) => arr.reduce((s: number, r: any) => s + (Number(r[key]) || 0), 0);
@@ -435,7 +435,7 @@ export default function LaporanTab() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* C: BRI Life */}
+          {/* C: Inhealth PG */}
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
