@@ -59,6 +59,7 @@ export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
 export const LABEL_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   'PG':            { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-300' },
   'BPJS':          { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' },
+  'INHEALTH PG':   { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-300' },
   'BRI LIFE PG':   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-300' },
   'PROKESPEN':     { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-300' },
   'PROKESPEN BPJS':{ bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-300' },
@@ -83,8 +84,8 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'BPJS KESEHATAN', badge: 'BPJS' },
   { nama: 'BPJS KESEHATAN - KAPITASI', badge: 'NPG' },
   { nama: 'BPJS NAIK KELAS', badge: 'BPJS' },
-  { nama: 'KARYAWAN PG BRI LIFE', badge: 'BRI LIFE PG' },
-  { nama: 'KELUARGA PG BRI LIFE', badge: 'BRI LIFE PG' },
+  { nama: 'KARYAWAN PG INHEALTH PLUS', badge: 'INHEALTH PG' },
+  { nama: 'KELUARGA PG INHEALTH PLUS', badge: 'INHEALTH PG' },
   { nama: 'PROKESPEN MURNI', badge: 'PROKESPEN' },
   { nama: 'PROKESPEN BPJS COB', badge: 'PROKESPEN BPJS' },
   { nama: 'PASIEN UMUM', badge: 'UMUM' },
@@ -110,6 +111,8 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'ASURANSI ASTRA BUANA, PT', badge: 'AS' },
   { nama: 'ASURANSI AXA INDONESIA (ADMEDIKA), PT', badge: 'AS' },
   { nama: 'ASURANSI BRI LIFE, PT', badge: 'AS' },
+  { nama: 'KARYAWAN PG BRI LIFE', badge: 'BRI LIFE PG' },
+  { nama: 'KELUARGA PG BRI LIFE', badge: 'BRI LIFE PG' },
   { nama: 'ASURANSI GARDA MEDIKA (ADMEDIKA)', badge: 'AS' },
   { nama: 'ASURANSI INHEALTH (ADMEDIKA)', badge: 'AS' },
   { nama: 'ASURANSI JIWA MANULIFE INDONESIA, PT (ADMEDIKA)', badge: 'AS' },
@@ -475,8 +478,8 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
 const DEFAULT_ROWS: Omit<KunjunganInputRow, 'id'>[] = [
   { namaPenjamin: 'KARYAWAN PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'KELUARGA PG',               badge: 'PG',             rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'KARYAWAN PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
-  { namaPenjamin: 'KELUARGA PG BRI LIFE',      badge: 'BRI LIFE PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'KARYAWAN PG INHEALTH PLUS',  badge: 'INHEALTH PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
+  { namaPenjamin: 'KELUARGA PG INHEALTH PLUS', badge: 'INHEALTH PG',   rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN MURNI',           badge: 'PROKESPEN',      rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'PROKESPEN BPJS COB',        badge: 'PROKESPEN BPJS', rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
   { namaPenjamin: 'BPJS KESEHATAN',            badge: 'BPJS',           rjYani:0,riYani:0,igd:0,mcuAuto:0,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0 },
@@ -593,6 +596,7 @@ function usePenjaminList() {
 const REKAP_LABEL_MAP: Record<string, string> = {
   'PG':           'PT PETROKIMIA',
   'NPG':          'PERUSAHAAN LAIN',
+  'INHEALTH PG':  'INHEALTH (PG)',
   'BRI LIFE PG':  'BRI (PG)',
   'AS':           'ASURANSI KOMERSIAL',
   'PROKESPEN':    'PROKESPEN MURNI',
@@ -601,7 +605,7 @@ const REKAP_LABEL_MAP: Record<string, string> = {
   'JKK':          'BPJS TK',
   'UMUM':         'TUNAI/UMUM',
 };
-const REKAP_LABEL_ORDER = ['PG','NPG','BRI LIFE PG','AS','PROKESPEN','PROKESPEN BPJS','BPJS','JKK','UMUM'];
+const REKAP_LABEL_ORDER = ['PG','NPG','INHEALTH PG','AS','PROKESPEN','PROKESPEN BPJS','BPJS','JKK','UMUM'];
 
 function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: McuInputRow[]) {
   const wb = XLSX.utils.book_new();
@@ -694,10 +698,10 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   // Format: 12 blok bulan, tiap blok punya header + 31 baris hari + TOTAL + Sub Total + separator
   const BULAN_NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
   // 9 payer untuk RJ/RI/IGD
-  const PAYER_9 = ['PT PETROKIMIA','PERUSAHAAN LAIN','BRI (PG)','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
+  const PAYER_9 = ['PT PETROKIMIA','PERUSAHAAN LAIN','INHEALTH (PG)','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
   // Badge → index di PAYER_9
   const BADGE_TO_IDX: Record<string, number> = {
-    'PG': 0, 'NPG': 1, 'BRI LIFE PG': 2, 'AS': 3,
+    'PG': 0, 'NPG': 1, 'INHEALTH PG': 2, 'BRI LIFE PG': 2, 'AS': 3,
     'PROKESPEN': 4, 'PROKESPEN BPJS': 5, 'BPJS': 6, 'JKK': 7, 'UMUM': 8,
   };
   // MCU hanya 4 kolom: PT PETROKIMIA, PERUSAHAAN LAIN, ASURANSI KOMERSIAL, UMUM
