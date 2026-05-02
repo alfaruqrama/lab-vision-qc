@@ -451,36 +451,42 @@ export default function LaporanTab() {
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
-              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
-              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
-              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
-              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
-              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
+              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)}   auto={isAuto('briIgdKry')} />
+              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)}   auto={isAuto('briIgdKel')} />
+              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} auto={isAuto('briRajalKry')} />
+              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} auto={isAuto('briRajalKel')} />
+              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} auto={isAuto('briRawinKry')} />
+              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} auto={isAuto('briRawinKel')} />
             </AccordionContent>
           </AccordionItem>
 
           {/* D: Promo Lab */}
           <AccordionItem value="d" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">D — Promo Lab</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              D — Promo Lab
+              {isAuto('promoItems') && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               {form.promoItems.map((p, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  <Input value={p.label} onChange={e => setPromoLabel(i, e.target.value)} className="flex-1 h-7 text-[11px]" />
+                  <Input value={p.label} onChange={e => setPromoLabel(i, e.target.value)} className="flex-1 h-7 text-[11px]" disabled={isAuto('promoItems')} />
                   <Input
                     type="text" inputMode="numeric"
                     value={p.value || ''}
                     onChange={e => setPromo(i, Number(e.target.value.replace(/\D/g, '')) || 0)}
                     className="w-16 h-7 text-right text-xs font-mono" placeholder="0"
+                    disabled={isAuto('promoItems')}
                   />
-                  <button onClick={() => removePromo(i)} className="p-1 text-muted-foreground hover:text-destructive">
+                  <button onClick={() => removePromo(i)} className="p-1 text-muted-foreground hover:text-destructive" disabled={isAuto('promoItems')}>
                     <Minus className="w-3 h-3" />
                   </button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={addPromo} className="h-7 text-[10px] w-full">
-                <Plus className="w-3 h-3 mr-1" /> Tambah Item
-              </Button>
+              {!isAuto('promoItems') && (
+                <Button variant="outline" size="sm" onClick={addPromo} className="h-7 text-[10px] w-full">
+                  <Plus className="w-3 h-3 mr-1" /> Tambah Item
+                </Button>
+              )}
             </AccordionContent>
           </AccordionItem>
 

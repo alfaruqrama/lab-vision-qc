@@ -46,7 +46,7 @@ export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'riYani',  l: 'RI YANI' },
   { k: 'igd',     l: 'IGD' },
   { k: 'mcuAuto', l: 'MCU AUTO', readOnly: true },
-  { k: 'promo',   l: 'PROMO' },
+  { k: 'promo',   l: 'PROMO', readOnly: true },
   { k: 'dokter',  l: 'DOKTER' },
   { k: 'exc',     l: 'EXC' },
   { k: 'prior',   l: 'PRIOR' },
@@ -1890,7 +1890,7 @@ export default function InputHarianTab() {
             <div>
               <h3 className="text-xs font-bold">MCU Harian</h3>
               <p className="text-[9px] text-muted-foreground">
-                Peserta dijumlah per nama penjamin → otomatis masuk kolom MCU AUTO
+                Peserta dijumlah per nama penjamin → otomatis masuk kolom MCU AUTO. Nama dengan "PAKET"/"PROMO" → masuk kolom PROMO.
               </p>
             </div>
             <span className="text-[9px] text-muted-foreground">{mcu.length} baris · {mcuTotalPeserta} peserta</span>
