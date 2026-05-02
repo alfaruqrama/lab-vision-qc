@@ -60,6 +60,7 @@ var BULAN_NAMES = [
 var BADGE_TO_IDX = {
   'PG': 0,
   'NPG': 1,
+  'INHEALTH PG': 2,
   'BRI LIFE PG': 2,
   'AS': 3,
   'PROKESPEN': 4,
