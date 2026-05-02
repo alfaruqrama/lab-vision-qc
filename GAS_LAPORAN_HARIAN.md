@@ -158,9 +158,11 @@ function writeLaporanData(sheet, dataStartRow, kunjungan) {
   var maxRows = 50;
   var colAB = sheet.getRange(dataStartRow, 1, maxRows, 2).getValues();
 
-  // 12 nama penjamin default (template) — selalu ada di sheet
+  // Nama penjamin default (template) — selalu ada di sheet
   var DEFAULT_NAMES = [
-    'KARYAWAN PG', 'KELUARGA PG', 'KARYAWAN PG BRI LIFE', 'KELUARGA PG BRI LIFE',
+    'KARYAWAN PG', 'KELUARGA PG',
+    'KARYAWAN PG INHEALTH PLUS', 'KELUARGA PG INHEALTH PLUS',
+    'KARYAWAN PG BRI LIFE', 'KELUARGA PG BRI LIFE',
     'PROKESPEN MURNI', 'PROKESPEN BPJS COB',
     'BPJS KESEHATAN', 'BPJS NAIK KELAS', 'BPJS NAIK KELAS.',
     'PASIEN UMUM', 'BPJS KETENAGAKERJAAN (JKK)'
