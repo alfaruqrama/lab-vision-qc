@@ -1206,13 +1206,24 @@ export default function InputHarianTab() {
   const isFuture = tanggal > todayISO();
   const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
 
-  // ── Draft Sync (auto-save ke server + offline fallback) ──
-  const [draftSyncEnabled, setDraftSyncEnabled] = useState(true);
-  const { syncStatus, isOnline, lastSavedBy, lastSavedAt, loadFromServer, forceSave } = useDraftSync({
-    tanggal, kunjungan, mcu,
-    username: user?.nama || user?.username || 'unknown',
-    enabled: draftSyncEnabled,
-  });
+  // ── Draft Sync (manual save ke server + auto-load) ──
+  const { syncStatus, isOnline, lastSavedBy, lastSavedAt, saveToServer, loadFromServer, markUnsaved } = useDraftSync(
+    user?.nama || user?.username || 'unknown'
+  );
+
+  // Auto-save ke localStorage (setiap perubahan)
+  useEffect(() => {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
+    markUnsaved();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tanggal, kunjungan, mcu]);
+
+  // Manual save handler (tombol Simpan)
+  const handleSaveDraft = useCallback(async () => {
+    const ok = await saveToServer(tanggal, kunjungan, mcu);
+    if (ok) toast.success('Draft tersimpan ke server');
+    else toast.error('Gagal menyimpan draft');
+  }, [saveToServer, tanggal, kunjungan, mcu]);
 
   // Load draft dari server saat ganti tanggal
   const prevTanggalRef = useRef(tanggal);
@@ -1220,23 +1231,19 @@ export default function InputHarianTab() {
     if (prevTanggalRef.current === tanggal) return;
     prevTanggalRef.current = tanggal;
 
-    // Disable sync sementara agar load tidak trigger save
-    setDraftSyncEnabled(false);
-
     loadFromServer(tanggal).then(result => {
       if (result) {
         const { data, meta } = result;
         if (data.kunjungan?.length) setKunjungan(data.kunjungan);
         else setKunjungan(defaultRows());
         setMcu(data.mcu || []);
-
         // Conflict warning
         if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
           const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
           toast.info(`Data terakhir diedit oleh ${meta.updatedBy}${time ? ' pada ' + time : ''}`);
         }
       } else {
-        // Tidak ada draft di server — cek localStorage
+        // Tidak ada di server — fallback localStorage
         try {
           const local = JSON.parse(localStorage.getItem(DRAFT_KEY) || '');
           if (local.tanggal === tanggal && local.kunjungan?.length) {
@@ -1251,21 +1258,11 @@ export default function InputHarianTab() {
           setMcu([]);
         }
       }
-      // Re-enable sync setelah load selesai
-      setTimeout(() => setDraftSyncEnabled(true), 500);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggal]);
 
-  // Fallback: jika GAS URL tidak ada, tetap save ke localStorage
-  useEffect(() => {
-    const GS_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
-    if (!GS_URL) {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
-    }
-  }, [tanggal, kunjungan, mcu]);
-
-  // Initial mount: background sync dari server (jika server punya data lebih baru)
+  // Initial mount: load dari server
   const mountedRef = useRef(false);
   useEffect(() => {
     if (mountedRef.current) return;
@@ -1273,12 +1270,9 @@ export default function InputHarianTab() {
     loadFromServer(tanggal).then(result => {
       if (result) {
         const { data, meta } = result;
-        // Hanya overwrite jika server punya data
         if (data.kunjungan?.length) {
-          setDraftSyncEnabled(false);
           setKunjungan(data.kunjungan);
           setMcu(data.mcu || []);
-          setTimeout(() => setDraftSyncEnabled(true), 500);
         }
         if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
           const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
@@ -1503,6 +1497,8 @@ export default function InputHarianTab() {
     } else if (results.length > 0) {
       toast.success(`Data berhasil dikirim! ${results.join(', ')}`);
       // Draft TIDAK dihapus setelah submit — tab Laporan membaca dari draft ini
+      // Auto-save draft ke server setelah submit berhasil
+      saveToServer(tanggal, kunjungan, mcu).catch(() => {});
     } else {
       toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
     }
@@ -1795,6 +1791,13 @@ export default function InputHarianTab() {
               <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
                 className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isAdmin ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
             </div>
+            <Button variant="outline" size="sm" className="h-7 text-[10px] px-2.5 gap-1"
+              onClick={handleSaveDraft}
+              disabled={syncStatus === 'saving' || !isOnline}>
+              {syncStatus === 'saving'
+                ? <><Loader2 className="w-3 h-3 animate-spin" /> Menyimpan</>
+                : <><Cloud className="w-3 h-3" /> Simpan</>}
+            </Button>
           </div>
           {!isToday && !isFuture && (
             <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5 font-semibold">
@@ -1809,15 +1812,15 @@ export default function InputHarianTab() {
           <span className={`text-[9px] flex items-center gap-1 ${
             syncStatus === 'saved' ? 'text-green-600' :
             syncStatus === 'saving' ? 'text-amber-600' :
-            syncStatus === 'offline' ? 'text-muted-foreground' :
+            syncStatus === 'unsaved' ? 'text-muted-foreground' :
             syncStatus === 'error' ? 'text-red-600' :
             'text-muted-foreground'
           }`}>
             {syncStatus === 'saved' && <><Check className="w-2.5 h-2.5" /> Tersimpan{lastSavedBy ? ` · ${lastSavedBy}` : ''}{lastSavedAt ? `, ${new Date(lastSavedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}` : ''}</>}
             {syncStatus === 'saving' && <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Menyimpan...</>}
-            {syncStatus === 'offline' && <><CloudOff className="w-2.5 h-2.5" /> Offline (lokal)</>}
+            {syncStatus === 'unsaved' && <><Save className="w-2.5 h-2.5" /> Belum disimpan</>}
             {syncStatus === 'error' && <><CloudOff className="w-2.5 h-2.5" /> Gagal simpan</>}
-            {syncStatus === 'idle' && <><Save className="w-2.5 h-2.5" /> Draft otomatis</>}
+            {syncStatus === 'idle' && <><Save className="w-2.5 h-2.5" /> Draft lokal</>}
           </span>
           <div className="ml-auto"><ActionButtons /></div>
         </div>
