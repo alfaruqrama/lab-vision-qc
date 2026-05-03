@@ -1225,25 +1225,27 @@ export default function InputHarianTab() {
     else toast.error('Gagal menyimpan draft');
   }, [saveToServer, tanggal, kunjungan, mcu]);
 
-  // Load draft dari server saat ganti tanggal
-  const prevTanggalRef = useRef(tanggal);
+  // Load draft dari server: saat mount pertama + saat ganti tanggal
+  // null = belum pernah load (mount pertama)
+  const prevTanggalRef = useRef<string | null>(null);
   useEffect(() => {
-    if (prevTanggalRef.current === tanggal) return;
+    const isFirstLoad = prevTanggalRef.current === null;
+    const tanggalChanged = prevTanggalRef.current !== tanggal;
+    if (!isFirstLoad && !tanggalChanged) return;
     prevTanggalRef.current = tanggal;
 
     loadFromServer(tanggal).then(result => {
       if (result) {
         const { data, meta } = result;
         if (data.kunjungan?.length) setKunjungan(data.kunjungan);
-        else setKunjungan(defaultRows());
+        else if (!isFirstLoad) setKunjungan(defaultRows());
         setMcu(data.mcu || []);
-        // Conflict warning
         if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
           const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
           toast.info(`Data terakhir diedit oleh ${meta.updatedBy}${time ? ' pada ' + time : ''}`);
         }
-      } else {
-        // Tidak ada di server — fallback localStorage
+      } else if (!isFirstLoad) {
+        // Ganti tanggal + server kosong → fallback localStorage → defaultRows
         try {
           const local = JSON.parse(localStorage.getItem(DRAFT_KEY) || '');
           if (local.tanggal === tanggal && local.kunjungan?.length) {
@@ -1258,30 +1260,10 @@ export default function InputHarianTab() {
           setMcu([]);
         }
       }
+      // isFirstLoad + server kosong → biarkan data dari localStorage (lazy init)
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggal]);
-
-  // Initial mount: load dari server
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
-    loadFromServer(tanggal).then(result => {
-      if (result) {
-        const { data, meta } = result;
-        if (data.kunjungan?.length) {
-          setKunjungan(data.kunjungan);
-          setMcu(data.mcu || []);
-        }
-        if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
-          const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
-          toast.info(`Data terakhir diedit oleh ${meta.updatedBy}${time ? ' pada ' + time : ''}`);
-        }
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Warn on leave
   useEffect(() => {
