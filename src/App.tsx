@@ -13,7 +13,7 @@ import KunjunganDashboard from "@/pages/KunjunganDashboard";
 import MonitorSuhu from "@/pages/MonitorSuhu";
 import { SuhuProvider } from "@/hooks/use-suhu-store";
 import Dashboard from "@/pages/Dashboard";
-import InputQC from "@/pages/InputQC";
+import InputQC from "@/pages/InputQC/index";
 import LeveyJennings from "@/pages/LeveyJennings";
 import MonthlyReport from "@/pages/MonthlyReport";
 import LotConfig from "@/pages/LotConfig";
