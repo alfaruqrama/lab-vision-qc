@@ -113,10 +113,11 @@ export function useDraftSync({
 
   // ── Debounced auto-save ──
   useEffect(() => {
-    if (!enabled || !GS_URL) return;
-
-    // Always save to localStorage immediately
+    // Always save to localStorage immediately (regardless of enabled/online/GS_URL)
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
+
+    // Skip server save if disabled or no URL
+    if (!enabled || !GS_URL) return;
 
     if (!isOnline) {
       setSyncStatus('offline');

@@ -1257,14 +1257,6 @@ export default function InputHarianTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tanggal]);
 
-  // Fallback: jika GAS URL tidak ada, tetap save ke localStorage
-  useEffect(() => {
-    const GS_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
-    if (!GS_URL) {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
-    }
-  }, [tanggal, kunjungan, mcu]);
-
   // Initial mount: background sync dari server (jika server punya data lebih baru)
   const mountedRef = useRef(false);
   useEffect(() => {
