@@ -2,6 +2,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, LineChart, FileText, Settings, Plus, ChevronLeft, FlaskConical, Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/qc', label: 'Dashboard', icon: LayoutDashboard },
@@ -22,12 +24,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
         <div className="max-w-[860px] mx-auto flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => navigate('/')}
-              className="p-1.5 -ml-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              className="h-8 w-8 -ml-1 text-muted-foreground"
             >
               <ChevronLeft size={20} />
-            </button>
+            </Button>
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
               <FlaskConical size={14} className="text-accent-foreground" />
             </div>
@@ -38,12 +42,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-success animate-pulse-dot' : 'bg-muted-foreground/40'}`} />
+              <span
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  connected ? 'bg-success animate-pulse-dot' : 'bg-muted-foreground/40',
+                )}
+              />
               {connected ? 'LIVE' : 'OFFLINE'}
             </div>
-            <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              className="h-8 w-8 text-muted-foreground"
+            >
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -57,11 +71,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
                   active
                     ? 'bg-sidebar-accent text-sidebar-primary'
-                    : 'text-navy-foreground/70 hover:bg-sidebar-accent/50 hover:text-navy-foreground'
-                }`}
+                    : 'text-navy-foreground/70 hover:bg-sidebar-accent/50 hover:text-navy-foreground',
+                )}
               >
                 <item.icon size={18} />
                 {item.label}
@@ -70,13 +85,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="p-3">
-          <button
-            onClick={() => navigate('/qc/input')}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-semibold transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
-          >
+          <Button onClick={() => navigate('/qc/input')} className="w-full gap-2 h-11">
             <Plus size={18} />
             Input QC
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -96,9 +108,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] font-medium transition-colors ${
-                  active ? 'text-primary' : 'text-muted-foreground'
-                }`}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] font-medium transition-colors',
+                  active ? 'text-primary' : 'text-muted-foreground',
+                )}
               >
                 <item.icon size={20} />
                 {item.label}
@@ -109,6 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => navigate('/qc/input')}
             className="nav-fab -mt-5 w-14 h-14 flex items-center justify-center"
+            aria-label="Input QC"
           >
             <Plus size={26} />
           </button>
@@ -119,9 +133,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] font-medium transition-colors ${
-                  active ? 'text-primary' : 'text-muted-foreground'
-                }`}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] font-medium transition-colors',
+                  active ? 'text-primary' : 'text-muted-foreground',
+                )}
               >
                 <item.icon size={20} />
                 {item.label}

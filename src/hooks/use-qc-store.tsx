@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { LotConfig, QCRecord } from '@/lib/types';
-import { DEFAULT_LOT_CONFIG, generateMockRecords } from '@/lib/mock-data';
+import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
 import * as api from '@/lib/api';
+import { useQCRecords, useAddQCRecord, qcRecordKeys } from '@/features/qc/hooks/useQCRecords';
+import { useQCConfig, useUpdateQCConfig, qcConfigKeys } from '@/features/qc/hooks/useQCConfig';
 
 interface QCStore {
   records: QCRecord[];
@@ -15,64 +18,39 @@ interface QCStore {
 
 const QCContext = createContext<QCStore | null>(null);
 
+/**
+ * QCProvider — now powered by React Query internally.
+ * Maintains the same interface for backward compatibility.
+ */
 export function QCProvider({ children }: { children: React.ReactNode }) {
-  const [records, setRecords] = useState<QCRecord[]>([]);
-  const [config, setConfig] = useState<LotConfig>(DEFAULT_LOT_CONFIG);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const connected = api.isConnected();
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (connected) {
-        const [recs, cfg] = await Promise.all([api.fetchAllRecords(), api.fetchConfig()]);
-        setRecords(recs);
-        // Merge with defaults so new instruments (ONCALL) always have config
-        setConfig({
-          CA660: cfg.CA660 || DEFAULT_LOT_CONFIG.CA660,
-          EASYLITE: cfg.EASYLITE || DEFAULT_LOT_CONFIG.EASYLITE,
-          ONCALL1: cfg.ONCALL1 || DEFAULT_LOT_CONFIG.ONCALL1,
-          ONCALL2: cfg.ONCALL2 || DEFAULT_LOT_CONFIG.ONCALL2,
-        });
-      } else {
-        const storedConfig = localStorage.getItem('labqc_config');
-        const storedRecords = localStorage.getItem('labqc_records');
-        setConfig(storedConfig ? JSON.parse(storedConfig) : DEFAULT_LOT_CONFIG);
-        setRecords(storedRecords ? JSON.parse(storedRecords) : generateMockRecords());
-      }
-    } catch {
-      setConfig(DEFAULT_LOT_CONFIG);
-      setRecords(generateMockRecords());
-    } finally {
-      setLoading(false);
-    }
-  }, [connected]);
+  const { data: records = [], isLoading: recordsLoading } = useQCRecords();
+  const { data: config = DEFAULT_LOT_CONFIG, isLoading: configLoading } = useQCConfig();
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const addRecordMutation = useAddQCRecord();
+  const updateConfigMutation = useUpdateQCConfig();
+
+  const loading = recordsLoading || configLoading;
 
   const addRecord = async (record: QCRecord) => {
-    if (connected) {
-      await api.saveRecord(record);
-      await loadData();
-    } else {
-      const updated = [...records, record];
-      setRecords(updated);
-      localStorage.setItem('labqc_records', JSON.stringify(updated));
-    }
+    await addRecordMutation.mutateAsync(record);
   };
 
   const updateConfig = async (newConfig: LotConfig) => {
-    if (connected) {
-      await api.saveConfig(newConfig);
-      await loadData();
-    } else {
-      setConfig(newConfig);
-      localStorage.setItem('labqc_config', JSON.stringify(newConfig));
-    }
+    await updateConfigMutation.mutateAsync(newConfig);
+  };
+
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qcRecordKeys.all }),
+      queryClient.invalidateQueries({ queryKey: qcConfigKeys.all }),
+    ]);
   };
 
   return (
-    <QCContext.Provider value={{ records, config, loading, connected, addRecord, updateConfig, refresh: loadData }}>
+    <QCContext.Provider value={{ records, config, loading, connected, addRecord, updateConfig, refresh }}>
       {children}
     </QCContext.Provider>
   );

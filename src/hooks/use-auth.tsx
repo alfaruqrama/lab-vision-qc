@@ -22,12 +22,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// DEV bypass: auto-login as admin in development mode
+const DEV_BYPASS_AUTH = import.meta.env.DEV;
+const DEV_USER: AuthUser = {
+  username: 'dev-admin',
+  nama: 'Developer (Bypass)',
+  role: 'admin',
+  token: 'dev-bypass-token',
+  loginAt: Date.now(),
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(DEV_BYPASS_AUTH ? DEV_USER : null);
+  const [isLoading, setIsLoading] = useState(DEV_BYPASS_AUTH ? false : true);
 
   // Check session on mount — validasi ke server, bukan hanya localStorage
   useEffect(() => {
+    // Skip session check in dev bypass mode
+    if (DEV_BYPASS_AUTH) return;
+
     const checkSession = async () => {
       const storedAuth = getStoredAuth();
       
@@ -79,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-check session setiap 60 detik
   useEffect(() => {
-    if (!user) return;
+    if (!user || DEV_BYPASS_AUTH) return;
 
     const interval = setInterval(async () => {
       if (!isSessionTimeValid()) {
