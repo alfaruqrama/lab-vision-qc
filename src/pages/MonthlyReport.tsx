@@ -1,10 +1,30 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, WestgardStatus } from '@/lib/types';
-import { PARAM_UNITS, getParamsForInstrument } from '@/lib/types';
+import { getParamsForInstrument } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
-import { FileText, Printer, Download } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { StatusBadge } from '@/features/qc/components';
+import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
+import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+interface SummaryRow {
+  param: ParamName;
+  alat: string;
+  level: string;
+  n: number;
+  meanTarget: number;
+  meanActual: number;
+  sd: number;
+  cv: number;
+  status: WestgardStatus;
+}
 
 export default function MonthlyReport() {
   const { records, config } = useQCStore();
@@ -15,47 +35,38 @@ export default function MonthlyReport() {
   const reportRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
-    let recs = records.filter(r => r.tanggal.startsWith(month));
-    if (instrument !== 'ALL') recs = recs.filter(r => r.alat === instrument);
+    let recs = records.filter((r) => r.tanggal.startsWith(month));
+    if (instrument !== 'ALL') recs = recs.filter((r) => r.alat === instrument);
     return recs;
   }, [records, month, instrument]);
 
-  interface SummaryRow {
-    param: ParamName;
-    alat: string;
-    level: string;
-    n: number;
-    meanTarget: number;
-    meanActual: number;
-    sd: number;
-    cv: number;
-    status: WestgardStatus;
-  }
-
   const summary = useMemo((): SummaryRow[] => {
-    const groups: Record<string, { param: ParamName; alat: string; level: string; values: number[]; statuses: WestgardStatus[]; meanTarget: number }> = {};
+    const groups: Record<
+      string,
+      { param: ParamName; alat: string; level: string; values: number[]; statuses: WestgardStatus[]; meanTarget: number }
+    > = {};
 
-    filtered.forEach(r => {
+    filtered.forEach((r) => {
       const params = getParamsForInstrument(r.alat);
-      params.forEach(p => {
+      params.forEach((p) => {
         if (r.params[p] == null) return;
         const key = `${r.alat}-${r.level}-${p}`;
         if (!groups[key]) {
           let meanTarget = 0;
           if (r.alat === 'CA660') {
-            const lot = config.CA660.find(l => l.lot === r.lot);
+            const lot = config.CA660.find((l) => l.lot === r.lot);
             meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
           } else if (r.alat === 'ONCALL1') {
-            const lot = config.ONCALL1.find(l => l.lot === r.lot);
+            const lot = config.ONCALL1.find((l) => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else if (r.alat === 'ONCALL2') {
-            const lot = config.ONCALL2.find(l => l.lot === r.lot);
+            const lot = config.ONCALL2.find((l) => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else {
-            const lot = config.EASYLITE.find(l => l.lot === r.lot);
+            const lot = config.EASYLITE.find((l) => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
           }
-          const alatLabel = r.alat === 'CA660' ? 'Sysmex CA-660' : r.alat === 'ONCALL1' ? 'On Call Sure 1' : r.alat === 'ONCALL2' ? 'On Call Sure 2' : 'Easylite';
+          const alatLabel = INSTRUMENT_LABELS[r.alat] || r.alat;
           groups[key] = { param: p, alat: alatLabel, level: r.level, values: [], statuses: [], meanTarget };
         }
         groups[key].values.push(r.params[p]!);
@@ -63,7 +74,7 @@ export default function MonthlyReport() {
       });
     });
 
-    return Object.values(groups).map(g => {
+    return Object.values(groups).map((g) => {
       const n = g.values.length;
       const mean = g.values.reduce((a, b) => a + b, 0) / n;
       const sd = n > 1 ? Math.sqrt(g.values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : 0;
@@ -73,14 +84,25 @@ export default function MonthlyReport() {
     });
   }, [filtered, config]);
 
+  // Summary stats
+  const summaryStats = useMemo(() => {
+    const pass = summary.filter((r) => r.status === 'ok').length;
+    const warn = summary.filter((r) => r.status === 'warning').length;
+    const reject = summary.filter((r) => r.status === 'oos').length;
+    return { pass, warn, reject, total: summary.length };
+  }, [summary]);
+
   function handlePrint() {
     window.print();
   }
 
   function handleExportExcel() {
     const headers = ['Parameter', 'Alat', 'Level', 'N', 'Mean Target', 'Mean Aktual', 'SD', 'CV%', 'Status'];
-    const rows = summary.map(r => [
-      r.param, r.alat, r.level, r.n,
+    const rows = summary.map((r) => [
+      r.param,
+      r.alat,
+      r.level,
+      r.n,
       parseFloat(r.meanTarget.toFixed(2)),
       parseFloat(r.meanActual.toFixed(2)),
       parseFloat(r.sd.toFixed(2)),
@@ -89,7 +111,7 @@ export default function MonthlyReport() {
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!cols'] = [8, 16, 10, 5, 12, 12, 8, 8, 10].map(w => ({ wch: w }));
+    ws['!cols'] = [8, 16, 10, 5, 12, 12, 8, 8, 10].map((w) => ({ wch: w }));
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Laporan PMI');
@@ -105,13 +127,22 @@ export default function MonthlyReport() {
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Bulan</label>
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm font-mono-data" />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Bulan</Label>
+          <Input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="font-mono-data"
+          />
         </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Instrumen</label>
-          <select value={instrument} onChange={e => setInstrument(e.target.value as any)} className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-card text-sm">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Instrumen</Label>
+          <select
+            value={instrument}
+            onChange={(e) => setInstrument(e.target.value as any)}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
             <option value="ALL">Semua</option>
             <option value="CA660">Sysmex CA-660</option>
             <option value="EASYLITE">Easylite</option>
@@ -120,26 +151,51 @@ export default function MonthlyReport() {
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={() => setShowReport(true)} className="w-full py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+          <Button onClick={() => setShowReport(true)} className="w-full gap-2">
             <FileText size={16} /> Generate
-          </button>
+          </Button>
         </div>
       </div>
 
       {showReport && (
         <>
+          {/* Summary stat cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="p-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <CheckCircle size={14} className="text-success" />
+                <span className="text-xs text-muted-foreground">Pass</span>
+              </div>
+              <p className="text-lg font-bold font-mono-data text-success">{summaryStats.pass}</p>
+            </Card>
+            <Card className="p-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <AlertTriangle size={14} className="text-warning" />
+                <span className="text-xs text-muted-foreground">Warning</span>
+              </div>
+              <p className="text-lg font-bold font-mono-data text-warning">{summaryStats.warn}</p>
+            </Card>
+            <Card className="p-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <XCircle size={14} className="text-destructive" />
+                <span className="text-xs text-muted-foreground">Reject</span>
+              </div>
+              <p className="text-lg font-bold font-mono-data text-destructive">{summaryStats.reject}</p>
+            </Card>
+          </div>
+
           {/* Export buttons */}
           <div className="flex gap-2">
-            <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-sm font-medium hover:bg-muted/80 transition-colors">
+            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
               <Printer size={14} /> Print / PDF
-            </button>
-            <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-sm font-medium hover:bg-muted/80 transition-colors">
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5">
               <Download size={14} /> Export Excel
-            </button>
+            </Button>
           </div>
 
           {/* Report preview */}
-          <div ref={reportRef} className="card-clinical overflow-hidden print:shadow-none print:border-none">
+          <Card ref={reportRef} className="overflow-hidden print:shadow-none print:border-none">
             {/* Header banner */}
             <div className="gradient-navy px-6 py-5 text-center">
               <h2 className="text-lg font-bold text-navy-foreground">RS Petrokimia Gresik</h2>
@@ -152,51 +208,53 @@ export default function MonthlyReport() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <p>Periode: <span className="font-semibold text-foreground">{month}</span></p>
-                <p>Total Data: <span className="font-semibold text-foreground">{filtered.length}</span></p>
-                <p>Tanggal Cetak: <span className="font-semibold text-foreground">{new Date().toLocaleDateString('id-ID')}</span></p>
-                <p>Sumber Data: <span className="font-semibold text-foreground">LabQC App</span></p>
+                <p>
+                  Periode: <span className="font-semibold text-foreground">{month}</span>
+                </p>
+                <p>
+                  Total Data: <span className="font-semibold text-foreground">{filtered.length}</span>
+                </p>
+                <p>
+                  Tanggal Cetak: <span className="font-semibold text-foreground">{new Date().toLocaleDateString('id-ID')}</span>
+                </p>
+                <p>
+                  Sumber Data: <span className="font-semibold text-foreground">LabQC App</span>
+                </p>
               </div>
 
               {/* Summary table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-muted">
-                      <th className="px-2 py-2 text-left font-semibold">Parameter</th>
-                      <th className="px-2 py-2 text-left font-semibold">Alat</th>
-                      <th className="px-2 py-2 text-left font-semibold">Level</th>
-                      <th className="px-2 py-2 text-center font-semibold">N</th>
-                      <th className="px-2 py-2 text-center font-semibold">Mean Target</th>
-                      <th className="px-2 py-2 text-center font-semibold">Mean Aktual</th>
-                      <th className="px-2 py-2 text-center font-semibold">SD</th>
-                      <th className="px-2 py-2 text-center font-semibold">CV%</th>
-                      <th className="px-2 py-2 text-center font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.map((row, i) => (
-                      <tr key={i} className="border-b border-border">
-                        <td className="px-2 py-2 font-semibold">{row.param}</td>
-                        <td className="px-2 py-2">{row.alat}</td>
-                        <td className="px-2 py-2">{row.level}</td>
-                        <td className="px-2 py-2 text-center font-mono-data">{row.n}</td>
-                        <td className="px-2 py-2 text-center font-mono-data">{row.meanTarget.toFixed(2)}</td>
-                        <td className="px-2 py-2 text-center font-mono-data">{row.meanActual.toFixed(2)}</td>
-                        <td className="px-2 py-2 text-center font-mono-data">{row.sd.toFixed(2)}</td>
-                        <td className="px-2 py-2 text-center font-mono-data">{row.cv.toFixed(1)}%</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            row.status === 'ok' ? 'status-ok' : row.status === 'warning' ? 'status-warning' : 'status-oos'
-                          }`}>
-                            {row.status === 'ok' ? 'Pass' : row.status === 'warning' ? 'Warning' : 'Reject'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="h-9 px-2 text-xs">Parameter</TableHead>
+                    <TableHead className="h-9 px-2 text-xs">Alat</TableHead>
+                    <TableHead className="h-9 px-2 text-xs">Level</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">N</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">Mean Target</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">Mean Aktual</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">SD</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">CV%</TableHead>
+                    <TableHead className="h-9 px-2 text-xs text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {summary.map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="px-2 py-2 text-xs font-semibold">{row.param}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs">{row.alat}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs">{row.level}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.n}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanTarget.toFixed(2)}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanActual.toFixed(2)}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.sd.toFixed(2)}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.cv.toFixed(1)}%</TableCell>
+                      <TableCell className="px-2 py-2 text-center">
+                        <StatusBadge status={row.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
               {/* Signature section */}
               <div className="grid grid-cols-2 gap-8 pt-8 mt-8 border-t border-border">
@@ -214,7 +272,7 @@ export default function MonthlyReport() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
         </>
       )}
     </div>
