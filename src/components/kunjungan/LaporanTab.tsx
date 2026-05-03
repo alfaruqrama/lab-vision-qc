@@ -361,8 +361,12 @@ export default function LaporanTab() {
     lines.push(`4. Rajal Kel  PG : ${fmtKunj(form.briRajalKel)}`);
     lines.push(`5. Rawin Kry PG : ${fmtKunj(form.briRawinKry)}`);
     lines.push(`6. Rawin Kel PG : ${fmtKunj(form.briRawinKel)}`);
-    lines.push(`* Promo Lab : `);
-    form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${fmtKunj(p.value)}`); });
+    if (form.promoItems.length > 0) {
+  lines.push(`* Promo Lab : `);
+  form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${fmtKunj(p.value)}`); });
+} else {
+  lines.push(`* Promo Lab : 0`);
+}
     lines.push(`* Pasien AS Morula `);
     lines.push(`1. Terjadwal hari ini : ${fmtKunj(form.morullaTerjadwal)}`);
     lines.push(`2. Hadir hari ini : ${fmtKunj(form.morullaHadir)}`);
