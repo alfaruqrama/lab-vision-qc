@@ -87,7 +87,12 @@ export function useDraftSync(username: string): UseDraftSyncResult {
 
     try {
       const res = await fetch(`${GS_URL}?action=loadDraft&tanggal=${encodeURIComponent(tanggal)}`);
-      const result = await res.json();
+      const text = await res.text();
+      if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+        console.warn('[DraftSync] GAS returned HTML, not JSON — check redirect/auth');
+        return null;
+      }
+      const result = JSON.parse(text);
       if (result.status === 'ok' && result.data) {
         setLastSavedBy(result.updatedBy || null);
         setLastSavedAt(result.updatedAt || null);
@@ -101,7 +106,8 @@ export function useDraftSync(username: string): UseDraftSyncResult {
         };
       }
       return null;
-    } catch {
+    } catch (err) {
+      console.error('[DraftSync] loadFromServer error:', err);
       return null;
     }
   }, [GS_URL]);
