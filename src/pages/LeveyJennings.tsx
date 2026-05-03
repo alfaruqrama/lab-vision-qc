@@ -1,10 +1,22 @@
 import { useState, useMemo } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
-import { PARAM_UNITS } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  ReferenceArea, ReferenceLine, Tooltip, Dot
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ReferenceArea,
+  ReferenceLine,
+  Tooltip,
+  Dot,
 } from 'recharts';
 
 const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[] }[] = [
@@ -41,7 +53,7 @@ export default function LeveyJennings() {
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   );
 
   const selected = ALL_PARAMS[selectedIdx];
@@ -50,11 +62,12 @@ export default function LeveyJennings() {
   const filteredRecords = useMemo(() => {
     const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
     return records
-      .filter(r =>
-        r.alat === selected.alat &&
-        r.level === lvl &&
-        r.params[selected.name] != null &&
-        r.tanggal.startsWith(selectedMonth)
+      .filter(
+        (r) =>
+          r.alat === selected.alat &&
+          r.level === lvl &&
+          r.params[selected.name] != null &&
+          r.tanggal.startsWith(selectedMonth),
       )
       .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [records, selected, selectedLevel, selectedMonth]);
@@ -66,11 +79,11 @@ export default function LeveyJennings() {
     } else if (selected.alat === 'ONCALL1' || selected.alat === 'ONCALL2') {
       const lot = (selected.alat === 'ONCALL1' ? config.ONCALL1 : config.ONCALL2)[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      return lot?.[lvl as 'CTRL0' | 'CTRL1' | 'CTRL2']?.GDA || null;
+      return (lot as any)?.[lvl]?.GDA || null;
     } else {
       const lot = config.EASYLITE[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      return lot?.[lvl as 'NORMAL' | 'HIGH']?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
+      return (lot as any)?.[lvl]?.[selected.name] || null;
     }
   }, [config, selected, selectedLevel]);
 
@@ -80,6 +93,7 @@ export default function LeveyJennings() {
       value: r.params[selected.name],
       status: r.status[selected.name] || 'ok',
       date: r.tanggal,
+      analis: r.analis,
     }));
   }, [filteredRecords, selected]);
 
@@ -87,13 +101,14 @@ export default function LeveyJennings() {
   const sd = lotConfig?.sd || 1;
 
   // Stats
-  const actualValues = chartData.map(d => d.value!).filter(v => v != null);
+  const actualValues = chartData.map((d) => d.value!).filter((v) => v != null);
   const actualMean = actualValues.length ? actualValues.reduce((a, b) => a + b, 0) / actualValues.length : 0;
-  const actualSD = actualValues.length > 1
-    ? Math.sqrt(actualValues.reduce((sum, v) => sum + Math.pow(v - actualMean, 2), 0) / (actualValues.length - 1))
-    : 0;
+  const actualSD =
+    actualValues.length > 1
+      ? Math.sqrt(actualValues.reduce((sum, v) => sum + Math.pow(v - actualMean, 2), 0) / (actualValues.length - 1))
+      : 0;
   const cv = actualMean !== 0 ? (actualSD / actualMean) * 100 : 0;
-  const inControl = chartData.filter(d => d.status === 'ok').length;
+  const inControl = chartData.filter((d) => d.status === 'ok').length;
   const inControlPct = chartData.length ? (inControl / chartData.length) * 100 : 0;
 
   return (
@@ -103,32 +118,40 @@ export default function LeveyJennings() {
         <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
       </div>
 
-      {/* Month selector — compact */}
+      {/* Month selector */}
       <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Bulan:</label>
-        <input
+        <Label className="text-xs whitespace-nowrap">Bulan:</Label>
+        <Input
           type="month"
           value={selectedMonth}
-          onChange={e => setSelectedMonth(e.target.value)}
-          className="px-2 py-1 rounded-md border border-border bg-card text-sm font-mono-data w-36"
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-36 h-8 text-sm font-mono-data"
         />
       </div>
 
       {/* Parameter tabs — grouped by instrument */}
-      <div className="space-y-2">
-        {(['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2'] as InstrumentType[]).map(alat => {
-          const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter(p => p.alat === alat);
+      <Card className="p-3 space-y-2.5">
+        {(['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2'] as InstrumentType[]).map((alat) => {
+          const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter((p) => p.alat === alat);
           return (
             <div key={alat} className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">{alat}</span>
+              <span className="text-[10px] font-semibold text-muted-foreground w-20 shrink-0 truncate">
+                {INSTRUMENT_LABELS[alat].split(' ').slice(-1)[0]}
+              </span>
               <div className="flex gap-1.5 flex-wrap">
-                {params.map(p => (
+                {params.map((p) => (
                   <button
                     key={p.i}
-                    onClick={() => { setSelectedIdx(p.i); setSelectedLevel(p.levels[0]); }}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                      selectedIdx === p.i ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-                    }`}
+                    onClick={() => {
+                      setSelectedIdx(p.i);
+                      setSelectedLevel(p.levels[0]);
+                    }}
+                    className={cn(
+                      'px-3 py-1 rounded-md text-xs font-medium transition-all',
+                      selectedIdx === p.i
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80',
+                    )}
                   >
                     {p.name}
                   </button>
@@ -137,18 +160,21 @@ export default function LeveyJennings() {
             </div>
           );
         })}
-      </div>
+      </Card>
 
       {/* Level selector for multi-level params */}
       {levelOptions.length > 1 && (
         <div className="flex gap-2">
-          {levelOptions.map(lvl => (
+          {levelOptions.map((lvl) => (
             <button
               key={lvl}
               onClick={() => setSelectedLevel(lvl)}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                selectedLevel === lvl ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'
-              }`}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                selectedLevel === lvl
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:text-foreground',
+              )}
             >
               {lvl}
             </button>
@@ -157,13 +183,16 @@ export default function LeveyJennings() {
       )}
 
       {/* Chart */}
-      <div className="card-clinical p-3">
+      <Card className="p-4">
         {chartData.length === 0 ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">Belum ada data untuk bulan ini</div>
+          <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <p className="text-sm font-medium">Belum ada data untuk bulan ini</p>
+            <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,32%,91%)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
               {/* SD bands */}
               <ReferenceArea y1={mean - 3 * sd} y2={mean - 2 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
               <ReferenceArea y1={mean + 2 * sd} y2={mean + 3 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
@@ -171,20 +200,29 @@ export default function LeveyJennings() {
               <ReferenceArea y1={mean + sd} y2={mean + 2 * sd} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
               <ReferenceArea y1={mean - sd} y2={mean + sd} fill="hsl(160,94%,31%)" fillOpacity={0.06} />
 
-              <ReferenceLine y={mean} stroke="hsl(214,70%,14%)" strokeDasharray="5 3" label={{ value: 'Mean', position: 'left', fontSize: 10 }} />
-              <ReferenceLine y={mean + sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" label={{ value: '+1SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" label={{ value: '-1SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean + 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" label={{ value: '+2SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" label={{ value: '-2SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean} stroke="hsl(var(--foreground))" strokeDasharray="5 3" strokeOpacity={0.5} label={{ value: 'Mean', position: 'left', fontSize: 10 }} />
+              <ReferenceLine y={mean + sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+1SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean - sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-1SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean + 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+2SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean - 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-2SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
+              <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
 
-              <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(215,16%,47%)' }} />
-              <YAxis fontSize={10} tick={{ fill: 'hsl(215,16%,47%)' }} domain={[mean - 4 * sd, mean + 4 * sd]} />
+              <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+              <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} />
               <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(214,32%,91%)' }}
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: '1px solid hsl(var(--border))',
+                  backgroundColor: 'hsl(var(--card))',
+                  color: 'hsl(var(--foreground))',
+                }}
                 formatter={(value: number) => [value, selected.name]}
-                labelFormatter={(label) => `Run #${label}`}
+                labelFormatter={(label, payload) => {
+                  const item = payload?.[0]?.payload;
+                  return item ? `Run #${label} — ${item.date} (${item.analis})` : `Run #${label}`;
+                }}
               />
               <Line
                 type="linear"
@@ -197,26 +235,21 @@ export default function LeveyJennings() {
             </LineChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </Card>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="card-clinical p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">Mean Aktual</p>
-          <p className="text-lg font-mono-data font-bold">{actualMean.toFixed(2)}</p>
-        </div>
-        <div className="card-clinical p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">SD</p>
-          <p className="text-lg font-mono-data font-bold">{actualSD.toFixed(2)}</p>
-        </div>
-        <div className="card-clinical p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">CV%</p>
-          <p className="text-lg font-mono-data font-bold">{cv.toFixed(1)}%</p>
-        </div>
-        <div className="card-clinical p-3 text-center">
-          <p className="text-[10px] text-muted-foreground">In-Control</p>
-          <p className="text-lg font-mono-data font-bold text-success">{inControlPct.toFixed(0)}%</p>
-        </div>
+        {[
+          { label: 'Mean Aktual', value: actualMean.toFixed(2), color: '' },
+          { label: 'SD', value: actualSD.toFixed(2), color: '' },
+          { label: 'CV%', value: `${cv.toFixed(1)}%`, color: '' },
+          { label: 'In-Control', value: `${inControlPct.toFixed(0)}%`, color: 'text-success' },
+        ].map((stat) => (
+          <Card key={stat.label} className="p-3 text-center">
+            <p className="text-[10px] text-muted-foreground font-medium">{stat.label}</p>
+            <p className={cn('text-lg font-mono-data font-bold mt-0.5', stat.color)}>{stat.value}</p>
+          </Card>
+        ))}
       </div>
     </div>
   );
