@@ -13,7 +13,8 @@ const LS_KEY = 'laporan-draft';
 const INPUT_HARIAN_KEY = 'input-harian-draft';
 
 const fmtRpWA = (n: number) => Math.round(n).toLocaleString('id-ID');
-const fmtKunjTarget = (n: number) => n.toLocaleString('id-ID');
+const fmtKunj = (n: number) => Math.round(n).toLocaleString('id-ID');
+const fmtKunjTarget = (n: number) => Math.round(n).toLocaleString('id-ID');
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 interface PromoItem { label: string; value: number }
@@ -105,10 +106,14 @@ function readInputHarianDraft(tanggal: string) {
       // Pasien PG (auto dari baris 1-4)
       briIgdKry:    sumRows(pgKryRows, 'igd'),
       briIgdKel:    sumRows(pgKelRows, 'igd'),
-      briRajalKry:  sumRows(pgKryRows, 'rjYani'),
-      briRajalKel:  sumRows(pgKelRows, 'rjYani'),
+      briRajalKry:  sumRows(pgKryRows, 'rjYani') + sumRows(pgKryRows, 'exc'),
+      briRajalKel:  sumRows(pgKelRows, 'rjYani') + sumRows(pgKelRows, 'exc'),
       briRawinKry:  sumRows(pgKryRows, 'riYani'),
       briRawinKel:  sumRows(pgKelRows, 'riYani'),
+      // Promo items: baris yang promo > 0 dari tabel utama
+      promoItems: rows
+        .filter((r: any) => (Number(r.promo) || 0) > 0)
+        .map((r: any) => ({ label: r.namaPenjamin || '', value: Number(r.promo) || 0 })),
     };
   } catch { return null; }
 }
@@ -318,49 +323,56 @@ export default function LaporanTab() {
   const isAuto = (k: string) => autoFields.has(k);
 
   const outputTeks = useMemo(() => {
+    const SEP = '──────────────────────────────────';
     const lines: string[] = [];
+    // 1. Header
     lines.push(`LAPORAN KUNJUNGAN  `);
     lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
-    lines.push(`* Rawat Jalan : ${form.rj}`);
-    lines.push(`▪Non BPJS : ${form.nonBpjsRJ}`);
-    lines.push(`* Rawat Inap : ${form.ri}`);
-    lines.push(`▪Non BPJS : ${form.nonBpjsRI}`);
-    lines.push(`* IGD : ${form.igd}`);
-    lines.push(`▪Non BPJS : ${form.nonBpjsIGD}`);
-    lines.push(`* MCU : ${form.mcu}`);
-    lines.push(`* Rujukan SBU/Grahu : ${form.rujukanGrahu}`);
-    lines.push(`* Rujukan SBU/PPK1 : ${form.rujukanPPK1}`);
-    lines.push(`* Rujukan SBU/Satkal : ${form.rujukanSatkal}`);
-    lines.push(`* Rujukan dokter Luar : ${form.rujukanDokterLuar}`);
-    lines.push(`* Poli Exclusive : ${form.poliExclusive}`);
-    lines.push(`* Poli Prioritas : ${form.poliPrioritas}`);
-    lines.push(`* Pasien PG:`);
-    lines.push(`1. Igd Kry PG : ${form.briIgdKry}`);
-    lines.push(`2. Igd Kel PG : ${form.briIgdKel}`);
-    lines.push(`3. Rajal Kry PG : ${form.briRajalKry}`);
-    lines.push(`4. Rajal Kel  PG : ${form.briRajalKel}`);
-    lines.push(`5. Rawin Kry PG : ${form.briRawinKry}`);
-    lines.push(`6. Rawin Kel PG : ${form.briRawinKel}`);
-    lines.push(`* Promo Lab : `);
-    form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${p.value}`); });
-    lines.push(`* Pasien AS Morulla `);
-    lines.push(`1. Terjadwal hari ini : ${form.morullaTerjadwal}`);
-    lines.push(`2. Hadir hari ini : ${form.morullaHadir}`);
-    lines.push(`  ================`);
+    lines.push(``);
+    // 2. Capaian Harian
     lines.push(`Capaian Harian `);
-    lines.push(`* Total Kunj Harian : ${totalKunjungan} (${pctKunjungan}%)`);
+    lines.push(`* Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
     lines.push(`* Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
     lines.push(`* Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
     lines.push(`* Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
-    lines.push(`----------------`);
-    lines.push(`Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
-    lines.push(`---------------`);
+    lines.push(`* Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
+    lines.push(SEP);
+    lines.push(``);
+    // 3. Rincian
+    lines.push(`Rincian `);
+    lines.push(`* Rawat Jalan : ${fmtKunj(form.rj)}`);
+    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsRJ)}`);
+    lines.push(`* Rawat Inap : ${fmtKunj(form.ri)}`);
+    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
+    lines.push(`* IGD : ${fmtKunj(form.igd)}`);
+    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
+    lines.push(`* MCU : ${fmtKunj(form.mcu)}`);
+    lines.push(`* Rujukan SBU/Grahu : ${fmtKunj(form.rujukanGrahu)}`);
+    lines.push(`* Rujukan SBU/PPK1 : ${fmtKunj(form.rujukanPPK1)}`);
+    lines.push(`* Rujukan SBU/Satkal : ${fmtKunj(form.rujukanSatkal)}`);
+    lines.push(`* Rujukan dokter Luar : ${fmtKunj(form.rujukanDokterLuar)}`);
+    lines.push(`* Poli Exclusive : ${fmtKunj(form.poliExclusive)}`);
+    lines.push(`* Poli Prioritas : ${fmtKunj(form.poliPrioritas)}`);
+    lines.push(`* Pasien PG:`);
+    lines.push(`1. Igd Kry PG : ${fmtKunj(form.briIgdKry)}`);
+    lines.push(`2. Igd Kel PG : ${fmtKunj(form.briIgdKel)}`);
+    lines.push(`3. Rajal Kry PG : ${fmtKunj(form.briRajalKry)}`);
+    lines.push(`4. Rajal Kel  PG : ${fmtKunj(form.briRajalKel)}`);
+    lines.push(`5. Rawin Kry PG : ${fmtKunj(form.briRawinKry)}`);
+    lines.push(`6. Rawin Kel PG : ${fmtKunj(form.briRawinKel)}`);
+    lines.push(`* Promo Lab : `);
+    form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${fmtKunj(p.value)}`); });
+    lines.push(`* Pasien AS Morula `);
+    lines.push(`1. Terjadwal hari ini : ${fmtKunj(form.morullaTerjadwal)}`);
+    lines.push(`2. Hadir hari ini : ${fmtKunj(form.morullaHadir)}`);
+    lines.push(SEP);
     lines.push(`================`);
+    // 4. Capaian Bulan
     lines.push(`CAPAIAN 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
     lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzetTotal)} (${pctKumOmzet}%)`);
-    lines.push(`* Total kunjungan  :   ${kumKunjTotal} (${pctKumKunj}%)`);
-    lines.push(`----------------------------------`);
+    lines.push(`* Total kunjungan  :   ${fmtKunj(kumKunjTotal)} (${pctKumKunj}%)`);
+    lines.push(SEP);
     lines.push(`Data`);
     lines.push(`Target ${namaBulan} ${tahun}`);
     lines.push(`* Kunjungan : ${fmtKunjTarget(form.targetKunjBulan)}`);
@@ -439,42 +451,48 @@ export default function LaporanTab() {
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)} />
-              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)} />
-              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} />
-              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} />
-              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} />
-              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} />
+              <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)}   auto={isAuto('briIgdKry')} />
+              <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)}   auto={isAuto('briIgdKel')} />
+              <NumInput label="Rajal Kry PG"  value={form.briRajalKry} onChange={v => set('briRajalKry', v)} auto={isAuto('briRajalKry')} />
+              <NumInput label="Rajal Kel PG"  value={form.briRajalKel} onChange={v => set('briRajalKel', v)} auto={isAuto('briRajalKel')} />
+              <NumInput label="Rawin Kry PG"  value={form.briRawinKry} onChange={v => set('briRawinKry', v)} auto={isAuto('briRawinKry')} />
+              <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} auto={isAuto('briRawinKel')} />
             </AccordionContent>
           </AccordionItem>
 
           {/* D: Promo Lab */}
           <AccordionItem value="d" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">D — Promo Lab</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              D — Promo Lab
+              {isAuto('promoItems') && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               {form.promoItems.map((p, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  <Input value={p.label} onChange={e => setPromoLabel(i, e.target.value)} className="flex-1 h-7 text-[11px]" />
+                  <Input value={p.label} onChange={e => setPromoLabel(i, e.target.value)} className="flex-1 h-7 text-[11px]" disabled={isAuto('promoItems')} />
                   <Input
                     type="text" inputMode="numeric"
                     value={p.value || ''}
                     onChange={e => setPromo(i, Number(e.target.value.replace(/\D/g, '')) || 0)}
                     className="w-16 h-7 text-right text-xs font-mono" placeholder="0"
+                    disabled={isAuto('promoItems')}
                   />
-                  <button onClick={() => removePromo(i)} className="p-1 text-muted-foreground hover:text-destructive">
+                  <button onClick={() => removePromo(i)} className="p-1 text-muted-foreground hover:text-destructive" disabled={isAuto('promoItems')}>
                     <Minus className="w-3 h-3" />
                   </button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={addPromo} className="h-7 text-[10px] w-full">
-                <Plus className="w-3 h-3 mr-1" /> Tambah Item
-              </Button>
+              {!isAuto('promoItems') && (
+                <Button variant="outline" size="sm" onClick={addPromo} className="h-7 text-[10px] w-full">
+                  <Plus className="w-3 h-3 mr-1" /> Tambah Item
+                </Button>
+              )}
             </AccordionContent>
           </AccordionItem>
 
-          {/* E: Morulla */}
+          {/* E: Morula */}
           <AccordionItem value="e" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">E — Pasien AS Morulla</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">E — Pasien AS Morula</AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <NumInput label="Terjadwal Hari Ini" value={form.morullaTerjadwal} onChange={v => set('morullaTerjadwal', v)} />
               <NumInput label="Hadir Hari Ini"     value={form.morullaHadir}     onChange={v => set('morullaHadir', v)} />

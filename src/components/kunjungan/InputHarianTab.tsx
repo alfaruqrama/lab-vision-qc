@@ -46,7 +46,7 @@ export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'riYani',  l: 'RI YANI' },
   { k: 'igd',     l: 'IGD' },
   { k: 'mcuAuto', l: 'MCU AUTO', readOnly: true },
-  { k: 'promo',   l: 'PROMO' },
+  { k: 'promo',   l: 'PROMO', readOnly: true },
   { k: 'dokter',  l: 'DOKTER' },
   { k: 'exc',     l: 'EXC' },
   { k: 'prior',   l: 'PRIOR' },
@@ -1219,12 +1219,23 @@ export default function InputHarianTab() {
     return () => window.removeEventListener('beforeunload', h);
   }, [kunjungan, mcu]);
 
-  // ── MCU → aggregate mcuAuto by NAMA PENJAMIN, auto-add missing rows ──────────
+  // ── MCU → aggregate by NAMA PENJAMIN ──────────────────────────────────────
+  // Jika nama mengandung "PAKET" atau "PROMO" → masuk kolom promo
+  // Selain itu → masuk kolom mcuAuto
+  const isPromoName = (nama: string) => /PAKET|PROMO/i.test(nama);
+
   useEffect(() => {
-    const byName: Record<string, number> = {};
+    const mcuByName: Record<string, number> = {};
+    const promoByName: Record<string, number> = {};
     for (const r of mcu) {
-      if (r.namaPenjamin) byName[r.namaPenjamin] = (byName[r.namaPenjamin]||0) + (r.peserta||0);
+      if (!r.namaPenjamin) continue;
+      if (isPromoName(r.namaPenjamin)) {
+        promoByName[r.namaPenjamin] = (promoByName[r.namaPenjamin]||0) + (r.peserta||0);
+      } else {
+        mcuByName[r.namaPenjamin] = (mcuByName[r.namaPenjamin]||0) + (r.peserta||0);
+      }
     }
+    const byName = { ...mcuByName, ...promoByName };
     setKunjungan(prev => {
       const existingNames = new Set(prev.map(r => r.namaPenjamin));
       const newRows: KunjunganInputRow[] = [];
@@ -1232,18 +1243,26 @@ export default function InputHarianTab() {
         if (!existingNames.has(nama)) {
           const entry = BUILTIN_PENJAMIN.find(p => p.nama === nama);
           const badge = entry?.badge || 'NPG';
+          const isPromo = isPromoName(nama);
           const row: KunjunganInputRow = {
             id: nanoid(), namaPenjamin: nama, badge,
-            rjYani:0,riYani:0,igd:0,mcuAuto:peserta,promo:0,dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0,
+            rjYani:0,riYani:0,igd:0,
+            mcuAuto: isPromo ? 0 : peserta,
+            promo: isPromo ? peserta : 0,
+            dokter:0,exc:0,prior:0,grhuRj:0,grhuRi:0,sat:0,ppk1:0,total:0,
           };
           row.total = calcTotal(row);
           newRows.push(row);
         }
       }
       const updated = prev.map(row => {
-        const agg = byName[row.namaPenjamin] || 0;
-        if (row.mcuAuto === agg) return row;
-        const u = { ...row, mcuAuto: agg };
+        const isPromo = isPromoName(row.namaPenjamin);
+        const aggMcu = mcuByName[row.namaPenjamin] || 0;
+        const aggPromo = promoByName[row.namaPenjamin] || 0;
+        const newMcu = isPromo ? 0 : aggMcu;
+        const newPromo = isPromo ? aggPromo : row.promo;
+        if (row.mcuAuto === newMcu && row.promo === newPromo) return row;
+        const u = { ...row, mcuAuto: newMcu, promo: newPromo };
         u.total = calcTotal(u);
         return u;
       });
@@ -1871,7 +1890,7 @@ export default function InputHarianTab() {
             <div>
               <h3 className="text-xs font-bold">MCU Harian</h3>
               <p className="text-[9px] text-muted-foreground">
-                Peserta dijumlah per nama penjamin → otomatis masuk kolom MCU AUTO
+                Peserta dijumlah per nama penjamin → otomatis masuk kolom MCU AUTO. Nama dengan "PAKET"/"PROMO" → masuk kolom PROMO.
               </p>
             </div>
             <span className="text-[9px] text-muted-foreground">{mcu.length} baris · {mcuTotalPeserta} peserta</span>
