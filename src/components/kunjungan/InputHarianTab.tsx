@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert, Cloud, CloudOff, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
+import { useDraftSync } from '@/hooks/use-draft-sync';
 import * as XLSX from 'xlsx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1205,10 +1206,88 @@ export default function InputHarianTab() {
   const isFuture = tanggal > todayISO();
   const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
 
-  // Auto-save (draft is loaded via lazy useState initializers above)
+  // ── Draft Sync (auto-save ke server + offline fallback) ──
+  const [draftSyncEnabled, setDraftSyncEnabled] = useState(true);
+  const { syncStatus, isOnline, lastSavedBy, lastSavedAt, loadFromServer, forceSave } = useDraftSync({
+    tanggal, kunjungan, mcu,
+    username: user?.nama || user?.username || 'unknown',
+    enabled: draftSyncEnabled,
+  });
+
+  // Load draft dari server saat ganti tanggal
+  const prevTanggalRef = useRef(tanggal);
   useEffect(() => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
+    if (prevTanggalRef.current === tanggal) return;
+    prevTanggalRef.current = tanggal;
+
+    // Disable sync sementara agar load tidak trigger save
+    setDraftSyncEnabled(false);
+
+    loadFromServer(tanggal).then(result => {
+      if (result) {
+        const { data, meta } = result;
+        if (data.kunjungan?.length) setKunjungan(data.kunjungan);
+        else setKunjungan(defaultRows());
+        setMcu(data.mcu || []);
+
+        // Conflict warning
+        if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
+          const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
+          toast.info(`Data terakhir diedit oleh ${meta.updatedBy}${time ? ' pada ' + time : ''}`);
+        }
+      } else {
+        // Tidak ada draft di server — cek localStorage
+        try {
+          const local = JSON.parse(localStorage.getItem(DRAFT_KEY) || '');
+          if (local.tanggal === tanggal && local.kunjungan?.length) {
+            setKunjungan(local.kunjungan);
+            setMcu(local.mcu || []);
+          } else {
+            setKunjungan(defaultRows());
+            setMcu([]);
+          }
+        } catch {
+          setKunjungan(defaultRows());
+          setMcu([]);
+        }
+      }
+      // Re-enable sync setelah load selesai
+      setTimeout(() => setDraftSyncEnabled(true), 500);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tanggal]);
+
+  // Fallback: jika GAS URL tidak ada, tetap save ke localStorage
+  useEffect(() => {
+    const GS_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
+    if (!GS_URL) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ tanggal, kunjungan, mcu }));
+    }
   }, [tanggal, kunjungan, mcu]);
+
+  // Initial mount: background sync dari server (jika server punya data lebih baru)
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+    loadFromServer(tanggal).then(result => {
+      if (result) {
+        const { data, meta } = result;
+        // Hanya overwrite jika server punya data
+        if (data.kunjungan?.length) {
+          setDraftSyncEnabled(false);
+          setKunjungan(data.kunjungan);
+          setMcu(data.mcu || []);
+          setTimeout(() => setDraftSyncEnabled(true), 500);
+        }
+        if (meta.updatedBy && meta.updatedBy !== (user?.nama || user?.username)) {
+          const time = meta.updatedAt ? new Date(meta.updatedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '';
+          toast.info(`Data terakhir diedit oleh ${meta.updatedBy}${time ? ' pada ' + time : ''}`);
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Warn on leave
   useEffect(() => {
@@ -1727,8 +1806,18 @@ export default function InputHarianTab() {
               <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isAdmin ? ' (admin override)' : ' — tidak bisa submit'}
             </span>
           )}
-          <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-            <Save className="w-2.5 h-2.5" /> Draft tersimpan otomatis
+          <span className={`text-[9px] flex items-center gap-1 ${
+            syncStatus === 'saved' ? 'text-green-600' :
+            syncStatus === 'saving' ? 'text-amber-600' :
+            syncStatus === 'offline' ? 'text-muted-foreground' :
+            syncStatus === 'error' ? 'text-red-600' :
+            'text-muted-foreground'
+          }`}>
+            {syncStatus === 'saved' && <><Check className="w-2.5 h-2.5" /> Tersimpan{lastSavedBy ? ` · ${lastSavedBy}` : ''}{lastSavedAt ? `, ${new Date(lastSavedAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}` : ''}</>}
+            {syncStatus === 'saving' && <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Menyimpan...</>}
+            {syncStatus === 'offline' && <><CloudOff className="w-2.5 h-2.5" /> Offline (lokal)</>}
+            {syncStatus === 'error' && <><CloudOff className="w-2.5 h-2.5" /> Gagal simpan</>}
+            {syncStatus === 'idle' && <><Save className="w-2.5 h-2.5" /> Draft otomatis</>}
           </span>
           <div className="ml-auto"><ActionButtons /></div>
         </div>

@@ -42,6 +42,9 @@ function doPost(e) {
     if (body.action === 'inputLaporan') {
       return handleInputLaporan(body);
     }
+    if (body.action === 'saveDraft') {
+      return handleSaveDraft(body);
+    }
     return jsonResponse({ error: 'Unknown action: ' + body.action });
   } catch (err) {
     return jsonResponse({ error: err.message || String(err) });
@@ -55,6 +58,9 @@ function doGet(e) {
   }
   if (action === 'checkDay') {
     return handleCheckDay(e.parameter);
+  }
+  if (action === 'loadDraft') {
+    return handleLoadDraft(e.parameter);
   }
   return jsonResponse({ status: 'ok', service: 'laporanHarian' });
 }
@@ -403,6 +409,79 @@ function parseTanggal(tanggal) {
   var m2 = parseInt(parts[1], 10);
   if (!isNaN(m2) && m2 >= 1 && m2 <= 12) return { dayNum: p0, monthIdx: m2 - 1, year: parseInt(parts[2], 10) };
   return null;
+}
+
+// ─── Draft Management (tab DRAFT_HARIAN) ───
+
+function handleSaveDraft(body) {
+  var tanggal = body.tanggal;
+  if (!tanggal) return jsonResponse({ error: 'tanggal required' });
+
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('DRAFT_HARIAN');
+  if (!sheet) {
+    sheet = ss.insertSheet('DRAFT_HARIAN');
+    sheet.getRange(1, 1, 1, 4).setValues([['TANGGAL', 'DATA', 'UPDATED_AT', 'UPDATED_BY']]);
+  }
+
+  var data = JSON.stringify({ kunjungan: body.kunjungan || [], mcu: body.mcu || [] });
+  var now = new Date().toISOString();
+  var username = body.username || 'unknown';
+
+  // Cari baris dengan tanggal yang sama (skip header row 1)
+  var lastRow = sheet.getLastRow();
+  var targetRow = -1;
+  if (lastRow > 1) {
+    var colA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < colA.length; i++) {
+      if (String(colA[i][0]).trim() === tanggal) {
+        targetRow = i + 2; // +2 karena skip header + 0-indexed
+        break;
+      }
+    }
+  }
+
+  if (targetRow > 0) {
+    // Update existing row
+    sheet.getRange(targetRow, 2, 1, 3).setValues([[data, now, username]]);
+  } else {
+    // Append new row
+    sheet.appendRow([tanggal, data, now, username]);
+  }
+
+  return jsonResponse({ status: 'ok', updatedAt: now, updatedBy: username });
+}
+
+function handleLoadDraft(params) {
+  var tanggal = params.tanggal;
+  if (!tanggal) return jsonResponse({ error: 'tanggal required' });
+
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('DRAFT_HARIAN');
+  if (!sheet) return jsonResponse({ status: 'empty' });
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return jsonResponse({ status: 'empty' });
+
+  var colA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < colA.length; i++) {
+    if (String(colA[i][0]).trim() === tanggal) {
+      var row = sheet.getRange(i + 2, 1, 1, 4).getValues()[0];
+      try {
+        var parsed = JSON.parse(row[1]);
+        return jsonResponse({
+          status: 'ok',
+          data: parsed,
+          updatedAt: row[2],
+          updatedBy: row[3]
+        });
+      } catch (err) {
+        return jsonResponse({ error: 'Failed to parse draft data: ' + err.message });
+      }
+    }
+  }
+
+  return jsonResponse({ status: 'empty' });
 }
 
 // ─── JSON Response ───
