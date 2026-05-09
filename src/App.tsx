@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QCProvider } from "@/hooks/use-qc-store";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
@@ -25,43 +26,45 @@ import TCMForm from "@/pages/TCMForm";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Sonner position="top-center" />
-      <ThemeProvider>
-        <AuthProvider>
-          <QCProvider>
-            <BrowserRouter>
-              <Routes>
-                {/* Login page - no auth required */}
-                <Route path="/login" element={<LoginPage />} />
-                
-                {/* TCM Form - public access, no auth required */}
-                <Route path="/tcm" element={<TCMForm />} />
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Sonner position="top-center" />
+        <ThemeProvider>
+          <AuthProvider>
+            <QCProvider>
+              <BrowserRouter>
+                <Routes>
+                  {/* Login page - no auth required */}
+                  <Route path="/login" element={<LoginPage />} />
+                  
+                  {/* TCM Form - public access, no auth required */}
+                  <Route path="/tcm" element={<TCMForm />} />
 
-                {/* Protected routes - Portal pages with top navbar */}
-                <Route path="/" element={<ProtectedRoute><PortalLayout><PortalHome /></PortalLayout></ProtectedRoute>} />
-                <Route path="/kunjungan" element={<ProtectedRoute><PortalLayout><KunjunganDashboard /></PortalLayout></ProtectedRoute>} />
-                <Route path="/suhu" element={<ProtectedRoute><PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout></ProtectedRoute>} />
+                  {/* Protected routes - Portal pages with top navbar */}
+                  <Route path="/" element={<ProtectedRoute><PortalLayout><PortalHome /></PortalLayout></ProtectedRoute>} />
+                  <Route path="/kunjungan" element={<ProtectedRoute><PortalLayout><KunjunganDashboard /></PortalLayout></ProtectedRoute>} />
+                  <Route path="/suhu" element={<ProtectedRoute><PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout></ProtectedRoute>} />
 
-                {/* Protected routes - QC module with sidebar/bottom nav */}
-                <Route path="/qc" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><InputQC /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/chart" element={<ProtectedRoute><AppLayout><LeveyJennings /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/report" element={<ProtectedRoute><AppLayout><MonthlyReport /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/config" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><LotConfig /></AppLayout></ProtectedRoute>} />
+                  {/* Protected routes - QC module with sidebar/bottom nav */}
+                  <Route path="/qc" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
+                  <Route path="/qc/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><InputQC /></AppLayout></ProtectedRoute>} />
+                  <Route path="/qc/chart" element={<ProtectedRoute><AppLayout><LeveyJennings /></AppLayout></ProtectedRoute>} />
+                  <Route path="/qc/report" element={<ProtectedRoute><AppLayout><MonthlyReport /></AppLayout></ProtectedRoute>} />
+                  <Route path="/qc/config" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><LotConfig /></AppLayout></ProtectedRoute>} />
 
-                {/* Admin only routes */}
-                <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
+                  {/* Admin only routes */}
+                  <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
 
-                <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />
-              </Routes>
-            </BrowserRouter>
-          </QCProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+                  <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />
+                </Routes>
+              </BrowserRouter>
+            </QCProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

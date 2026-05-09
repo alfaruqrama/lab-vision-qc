@@ -3,6 +3,8 @@ import type { QCRecord } from '@/lib/types';
 import * as api from '@/lib/api';
 import { generateMockRecords } from '@/lib/mock-data';
 import { toast } from 'sonner';
+import { safeJSONParse, QCRecordSchema } from '@/lib/validation';
+import { z } from 'zod';
 
 const STORAGE_KEY = 'labqc_records';
 
@@ -11,10 +13,14 @@ async function fetchRecords(): Promise<QCRecord[]> {
   if (api.isConnected()) {
     return api.fetchAllRecords();
   }
-  // Demo mode: read from localStorage or generate mock data
+  // Demo mode: read from localStorage with safe parsing
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
-    return JSON.parse(stored) as QCRecord[];
+    const parsed = safeJSONParse(stored, z.array(QCRecordSchema));
+    if (parsed.success && parsed.data) {
+      return parsed.data;
+    }
+    console.warn('Invalid QC records in localStorage, generating mock data');
   }
   const mock = generateMockRecords();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(mock));
@@ -27,7 +33,15 @@ async function saveRecord(record: QCRecord): Promise<QCRecord> {
     await api.saveRecord(record);
   } else {
     const stored = localStorage.getItem(STORAGE_KEY);
-    const records: QCRecord[] = stored ? JSON.parse(stored) : [];
+    let records: QCRecord[] = [];
+    
+    if (stored) {
+      const parsed = safeJSONParse(stored, z.array(QCRecordSchema));
+      if (parsed.success && parsed.data) {
+        records = parsed.data;
+      }
+    }
+    
     records.push(record);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   }

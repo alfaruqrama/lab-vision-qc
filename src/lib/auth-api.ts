@@ -9,6 +9,7 @@ import {
   AUTH_STORAGE_KEY,
   AUTH_URL_KEY,
 } from './auth-types';
+import { initCSRFToken, clearCSRFToken, addCSRFToken } from './csrf';
 
 // Get GAS URL with hybrid approach (localStorage override > environment variable > null)
 function getAuthUrl(): string | null {
@@ -73,6 +74,7 @@ export function getStoredAuth(): AuthUser | null {
 
 export function clearAuth(): void {
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  clearCSRFToken(); // Clear CSRF token on logout
 }
 
 export function isSessionTimeValid(): boolean {
@@ -96,6 +98,10 @@ export async function login(username: string, password: string): Promise<LoginRe
     if (data.success && data.user) {
       const authUser: AuthUser = { ...data.user, loginAt: Date.now() };
       storeAuth(authUser);
+      
+      // Initialize CSRF token after successful login
+      initCSRFToken();
+      
       return { success: true, user: authUser };
     }
     
@@ -112,7 +118,9 @@ export async function logout(token: string): Promise<void> {
   const url = getAuthUrl();
   if (url) {
     try {
-      await gasRequest(url, { action: 'logout', token });
+      // Add CSRF token to logout request
+      const payload = addCSRFToken({ action: 'logout', token });
+      await gasRequest(url, payload);
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -157,7 +165,8 @@ export async function createUser(token: string, userData: CreateUserRequest): Pr
   if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
-    return await gasRequest(url, { action: 'createUser', token, ...userData });
+    const payload = addCSRFToken({ action: 'createUser', token, ...userData });
+    return await gasRequest(url, payload);
   } catch (error) {
     console.error('Create user error:', error);
     return { success: false, message: 'Gagal membuat user' };
@@ -169,7 +178,8 @@ export async function updateUser(token: string, userData: UpdateUserRequest): Pr
   if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
-    return await gasRequest(url, { action: 'updateUser', token, ...userData });
+    const payload = addCSRFToken({ action: 'updateUser', token, ...userData });
+    return await gasRequest(url, payload);
   } catch (error) {
     console.error('Update user error:', error);
     return { success: false, message: 'Gagal mengupdate user' };
@@ -181,7 +191,8 @@ export async function resetPassword(token: string, resetData: ResetPasswordReque
   if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
-    return await gasRequest(url, { action: 'resetPassword', token, ...resetData });
+    const payload = addCSRFToken({ action: 'resetPassword', token, ...resetData });
+    return await gasRequest(url, payload);
   } catch (error) {
     console.error('Reset password error:', error);
     return { success: false, message: 'Gagal reset password' };
@@ -193,7 +204,8 @@ export async function deleteUser(token: string, username: string): Promise<Login
   if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
 
   try {
-    return await gasRequest(url, { action: 'deleteUser', token, username });
+    const payload = addCSRFToken({ action: 'deleteUser', token, username });
+    return await gasRequest(url, payload);
   } catch (error) {
     console.error('Delete user error:', error);
     return { success: false, message: 'Gagal menghapus user' };
