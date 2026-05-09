@@ -1,73 +1,85 @@
-# Welcome to your Lovable project
+# Portal Lab Internal — RS Petrokimia Gresik
 
-## Project info
+Sistem informasi laboratorium terintegrasi untuk Pemantapan Mutu Internal (PMI), monitoring suhu, dan manajemen operasional laboratorium.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+> Integrated laboratory information system for Internal Quality Assurance, temperature monitoring, and lab operations management.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Fitur / Features
 
-**Use Lovable**
+| Modul | Deskripsi | Description |
+|-------|-----------|-------------|
+| QC / PMI | Input kontrol harian, grafik Levey-Jennings, laporan bulanan | Daily QC input, L-J charts, monthly reports |
+| Monitor Suhu | Pemantauan suhu peralatan laboratorium | Equipment temperature monitoring |
+| Kunjungan | Dashboard statistik kunjungan pasien | Patient visit statistics dashboard |
+| TCM Form | Formulir pengiriman spesimen (akses publik) | Specimen submission form (public access) |
+| Admin | Manajemen user & role-based access | User & role management |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- React 18 · TypeScript · Vite
+- Tailwind CSS · shadcn/ui
+- Recharts · React Query
+- XLSX & DOCX export
+- Vercel (deployment)
 
-**Use your preferred IDE**
+## Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js >= 18
+- Bun (recommended) atau npm
 
-Follow these steps:
+### Install & Run
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone repository
+git clone <repository-url>
+cd lab-vision-qc
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+bun install
+# atau: npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Jalankan development server
+bun dev
+# atau: npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Aplikasi akan berjalan di `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Project Structure
 
-**Use GitHub Codespaces**
+```
+src/
+├── components/     # UI components (shadcn/ui + custom)
+├── hooks/          # Custom hooks (auth, QC store, suhu, theme)
+├── lib/            # Utilities & API layer
+├── pages/          # Route pages
+└── main.tsx        # Entry point
+public/
+├── favicon.ico
+└── manifest.json
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Scripts
 
-## What technologies are used for this project?
+| Command | Keterangan |
+|---------|------------|
+| `bun dev` | Development server |
+| `bun run build` | Production build |
+| `bun run test` | Run unit tests |
+| `bun run lint` | ESLint check |
 
-This project is built with:
+## Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Deploy otomatis via Vercel. Setiap push ke branch `main` akan trigger production build.
 
-## How can I deploy this project?
+## License
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Internal use only — RS Petrokimia Gresik
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Dikembangkan untuk Unit Laboratorium RS Petrokimia Gresik.
