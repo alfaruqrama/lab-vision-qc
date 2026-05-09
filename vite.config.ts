@@ -19,6 +19,6 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    include: ['dompurify'],
+    include: ['dompurify', 'docx'],
   },
 }));
