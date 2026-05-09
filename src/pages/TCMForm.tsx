@@ -11,8 +11,18 @@ interface Pasien {
 }
 
 const SPESIMEN_OPTIONS = [
-  "Dahak Sewaktu", "Dahak Pagi", "BAL", "Jaringan", "Urin",
+  "Dahak", "BAL", "Jaringan", "Urin",
   "Cairan Pleura", "LCS", "Lainnya"
+];
+
+const DRIVERS = [
+  { nama: 'MUHAMMAD RAHMAN HANIF',   nik: 'K21011' },
+  { nama: 'MOCHAMAD ZAENAL ABIDIN',  nik: 'K17131' },
+  { nama: 'MUHAMMAD SYIFAUL UYUN',   nik: 'K12564' },
+  { nama: 'AHMAD DAI ROBBY',         nik: 'K22177' },
+  { nama: 'RIYADUS SHOLIHIN',        nik: 'K12347' },
+  { nama: 'MAHSUN AZIZI',            nik: 'K14887' },
+  { nama: 'MATSYAFIK',               nik: 'K13654' },
 ];
 
 const PEMERIKSAAN_OPTIONS = [
@@ -37,6 +47,7 @@ export default function TCMForm() {
   const [namaPengirim, setNamaPengirim] = useState('');
   const [nikPengirim, setNikPengirim] = useState('');
   const [jabatanPengirim, setJabatanPengirim] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState('');
 
   const tambahPasien = () => {
     const newId = counter + 1;
@@ -70,8 +81,17 @@ export default function TCMForm() {
   };
 
   const handleNikPengirimChange = (value: string) => {
-    // NIK pengirim boleh kombinasi huruf dan angka
     setNikPengirim(value);
+  };
+
+  const handleDriverSelect = (val: string) => {
+    setSelectedDriver(val);
+    const driver = DRIVERS.find(d => d.nama === val);
+    if (driver) {
+      setNamaPengirim(driver.nama);
+      setNikPengirim(driver.nik);
+      setJabatanPengirim('Driver');
+    }
   };
 
   const formatTgl = (val: string) => {
@@ -89,6 +109,7 @@ export default function TCMForm() {
     setNamaPengirim('');
     setNikPengirim('');
     setJabatanPengirim('');
+    setSelectedDriver('');
     setPasienList([{ id: 1, nama: '', nik: '', umur: '', jk: '', spes1: '', spes2: '' }]);
     setCounter(1);
     setShowPreview(false);
@@ -97,6 +118,223 @@ export default function TCMForm() {
   const handlePrint = () => {
     setShowPreview(true);
     setTimeout(() => window.print(), 200);
+  };
+
+  const handleExportWord = async () => {
+    const {
+      Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+      AlignmentType, WidthType, BorderStyle, ImageRun, ShadingType,
+    } = await import('docx');
+
+    let gresikBuf: ArrayBuffer | null = null;
+    let tossTbBuf: ArrayBuffer | null = null;
+    try { gresikBuf = await (await fetch('/logo-gresik.png')).arrayBuffer(); } catch { /* no logo */ }
+    try { tossTbBuf = await (await fetch('/logo-toss-tb.png')).arrayBuffer(); } catch { /* no logo */ }
+
+    const tglKirimStr = tglKirim ? formatTgl(tglKirim)! : '…………………………';
+    const tglTerimaStr = tglTerima ? formatTgl(tglTerima)! : '…………………………';
+
+    const nb = (side: 'top' | 'bottom' | 'left' | 'right') =>
+      ({ style: BorderStyle.NONE, size: 0, color: 'FFFFFF' });
+    const noBorder = { top: nb('top'), bottom: nb('bottom'), left: nb('left'), right: nb('right') };
+    const lineBorder = { style: BorderStyle.SINGLE, size: 4, color: '666666' };
+    const cellBorder = { top: lineBorder, bottom: lineBorder, left: lineBorder, right: lineBorder };
+    const noTableBorder = { ...noBorder, insideH: nb('top'), insideV: nb('left') };
+
+    const txt = (text: string, opts: Record<string, unknown> = {}) =>
+      new TextRun({ text, font: 'Times New Roman', size: 22, ...opts });
+
+    const metaKV = (key: string, val: string, keyW = 2700, valW = 6538) =>
+      new TableRow({
+        children: [
+          new TableCell({ borders: noBorder, width: { size: keyW, type: WidthType.DXA }, children: [new Paragraph({ children: [txt(key)] })] }),
+          new TableCell({ borders: noBorder, width: { size: 300, type: WidthType.DXA },   children: [new Paragraph({ children: [txt(': ')] })] }),
+          new TableCell({ borders: noBorder, width: { size: valW, type: WidthType.DXA }, children: [new Paragraph({ children: [txt(val)] })] }),
+        ],
+      });
+
+    const CONTENT_W = 9638;
+    const LOGO_PX   = 65;
+
+    const logoCell = (buf: ArrayBuffer | null, align: typeof AlignmentType.LEFT, w: number) =>
+      new TableCell({
+        borders: noBorder,
+        width: { size: w, type: WidthType.DXA },
+        children: [new Paragraph({
+          alignment: align,
+          children: buf
+            ? [new ImageRun({ data: buf, transformation: { width: LOGO_PX, height: LOGO_PX }, type: 'png' })]
+            : [txt('')],
+        })],
+      });
+
+    const doc = new Document({
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 },
+          },
+        },
+        children: [
+          /* ── LOGO HEADER ── */
+          new Table({
+            width: { size: CONTENT_W, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [new TableRow({ children: [
+              logoCell(gresikBuf, AlignmentType.LEFT, 1440),
+              new TableCell({
+                borders: noBorder,
+                width: { size: CONTENT_W - 2880, type: WidthType.DXA },
+                children: [
+                  new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120 }, children: [txt('TANDA TERIMA PENGIRIMAN SPESIMEN', { bold: true, size: 24 })] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(`UNTUK PEMERIKSAAN ${(jenisPemeriksaan || 'TCM MTB RIF').toUpperCase()}`, { bold: true, size: 24 })] }),
+                ],
+              }),
+              logoCell(tossTbBuf, AlignmentType.RIGHT, 1440),
+            ]})],
+          }),
+
+          new Paragraph({ children: [txt('')] }),
+
+          /* ── METADATA ── */
+          new Table({
+            width: { size: CONTENT_W, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [
+              metaKV('Fasyankes pengirim',    'RS Petrokimia Gresik'),
+              metaKV('Berupa',                `${pasienList.length} spesimen dari ${pasienList.length} terduga TB`),
+              metaKV('Fasyankes penerima',    faskesPenerima  || '…………………………………'),
+              metaKV('Untuk keperluan',       jenisPemeriksaan || '…………………………………'),
+              metaKV('Alasan pemeriksaan',    'Diagnosis Terduga TB'),
+              metaKV('Tgl. pengiriman spesimen', tglKirimStr),
+              metaKV('Tgl. penerimaan spesimen', tglTerimaStr),
+            ],
+          }),
+
+          new Paragraph({ children: [txt('')] }),
+
+          /* ── TABEL PASIEN ── */
+          new Table({
+            width: { size: CONTENT_W, type: WidthType.DXA },
+            rows: [
+              new TableRow({
+                tableHeader: true,
+                children: [
+                  ['No', 400], ['Nama Lengkap Pasien', 2800], ['NIK', 1700],
+                  ['Umur (Th)', 800], ['Jenis Kelamin', 1000], ['Jenis Spesimen', 2938],
+                ].map(([label, w]) => new TableCell({
+                  borders: cellBorder,
+                  width: { size: w as number, type: WidthType.DXA },
+                  shading: { type: ShadingType.CLEAR, fill: 'EEEEEE' },
+                  children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(label as string, { bold: true, size: 20 })] })],
+                })),
+              }),
+              ...pasienList.map((p, i) => new TableRow({
+                children: [
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(String(i + 1), { size: 20 })] })] }),
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ children: [txt(p.nama || '—', { size: 20 })] })] }),
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(p.nik  || '—', { size: 20 })] })] }),
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(p.umur || '—', { size: 20 })] })] }),
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(p.jk   || '—', { size: 20 })] })] }),
+                  new TableCell({ borders: cellBorder, children: [new Paragraph({ children: [txt([p.spes1, p.spes2].filter(Boolean).join(' + ') || '—', { size: 20 })] })] }),
+                ],
+              })),
+            ],
+          }),
+
+          new Paragraph({ children: [txt('')] }),
+
+          /* ── TANDA TANGAN ── */
+          new Table({
+            width: { size: CONTENT_W, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [new TableRow({ children: [
+              new TableCell({
+                borders: noBorder,
+                width: { size: Math.floor(CONTENT_W / 2), type: WidthType.DXA },
+                children: [
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('Penerima')] }),
+                  new Paragraph({ children: [txt('')] }), new Paragraph({ children: [txt('')] }), new Paragraph({ children: [txt('')] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('(____________________)')] }),
+                ],
+              }),
+              new TableCell({
+                borders: noBorder,
+                width: { size: CONTENT_W - Math.floor(CONTENT_W / 2), type: WidthType.DXA },
+                children: [
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('Pengirim')] }),
+                  new Paragraph({ children: [txt('')] }), new Paragraph({ children: [txt('')] }), new Paragraph({ children: [txt('')] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(namaPengirim ? `(${namaPengirim})` : '(____________________)', { bold: !!namaPengirim })] }),
+                ],
+              }),
+            ]})],
+          }),
+
+          /* ══ HALAMAN 2: SURAT KETERANGAN ══ */
+          new Paragraph({ pageBreakBefore: true, alignment: AlignmentType.CENTER, children: [txt('SURAT KETERANGAN', { bold: true, size: 26 })] }),
+
+          new Paragraph({ spacing: { after: 80 }, children: [txt('Yang bertanda tangan dibawah ini:')] }),
+
+          new Table({
+            width: { size: 6000, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [
+              metaKV('Nama',    'dr. Dian Ayu Lukitasari, M.H., C.M.C.', 1500, 4200),
+              metaKV('NIK',     'PGM11216',  1500, 4200),
+              metaKV('Jabatan', 'Direktur',  1500, 4200),
+            ],
+          }),
+
+          new Paragraph({ spacing: { before: 160, after: 80 }, children: [txt('Menerangkan bahwa benar petugas yang bernama:')] }),
+
+          new Table({
+            width: { size: 6000, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [
+              metaKV('Nama',    namaPengirim    || '………………………', 1500, 4200),
+              metaKV('NIK',     nikPengirim     || '………………………', 1500, 4200),
+              metaKV('Jabatan', jabatanPengirim || '………………………', 1500, 4200),
+            ],
+          }),
+
+          new Paragraph({
+            spacing: { before: 160, after: 160 },
+            children: [txt(`Melakukan pengiriman pada tanggal ${tglKirimStr} ke ${faskesPenerima || '…………………………'}. Demikian surat keterangan ini dibuat, terima kasih.`)],
+          }),
+
+          /* Tanda tangan direktur (kanan) */
+          new Table({
+            width: { size: CONTENT_W, type: WidthType.DXA },
+            borders: noTableBorder,
+            rows: [new TableRow({ children: [
+              new TableCell({ borders: noBorder, width: { size: Math.floor(CONTENT_W / 2), type: WidthType.DXA }, children: [new Paragraph({ children: [] })] }),
+              new TableCell({
+                borders: noBorder,
+                width: { size: CONTENT_W - Math.floor(CONTENT_W / 2), type: WidthType.DXA },
+                children: [
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(`Gresik, ${tglKirimStr}`)] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('Direktur RS Petrokimia Gresik')] }),
+                  new Paragraph({ children: [] }), new Paragraph({ children: [] }), new Paragraph({ children: [] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('dr. Dian Ayu Lukitasari, M.H., C.M.C.', { bold: true })] }),
+                  new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('Direktur')] }),
+                ],
+              }),
+            ]})],
+          }),
+        ],
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `tanda-terima-tcm-${tglKirim || 'draft'}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -170,6 +408,9 @@ export default function TCMForm() {
         .preview-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
         .preview-label { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
         .preview-doc { background: white; color: #111; border: 1px solid var(--border); border-radius: var(--radius); padding: 2.5rem; font-size: 11.5px; line-height: 1.65; font-family: 'Times New Roman', serif; box-shadow: 0 2px 12px rgba(0,0,0,0.04); margin-bottom: 1.5rem; }
+        .doc-logo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 8px; }
+        .doc-logo-header .doc-title { margin-bottom: 0; flex: 1; }
+        .doc-logo-img { width: 70px; height: 70px; object-fit: contain; flex-shrink: 0; }
         .doc-title { text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 1.25rem; text-transform: uppercase; }
         .doc-meta { display: grid; grid-template-columns: 190px 1fr; gap: 2px; margin-bottom: 1rem; }
         .doc-meta .k { color: #333; }
@@ -191,9 +432,10 @@ export default function TCMForm() {
           .tcm-app { display: block; }
           .tcm-sidebar { display: none !important; }
           .tcm-main { padding: 0; max-width: 100%; }
-          .main-header, .pasien-list, .action-bar, .preview-toolbar, .no-print { display: none !important; }
+          .main-header, .pasien-list, .action-bar, .preview-toolbar, .no-print, .btn-add { display: none !important; }
           .preview-wrap { margin: 0; border: none; padding: 0; }
-          .preview-doc { border: none; border-radius: 0; padding: 1.5cm 2cm; box-shadow: none; margin-bottom: 0; }
+          .preview-doc { border: none; border-radius: 0; padding: 5cm 2cm 1.5cm 2cm; box-shadow: none; margin-bottom: 0; }
+          .ttd-space { height: 90px; }
           .page-break { page-break-after: always; break-after: page; }
           @page { margin: 0; }
         }
@@ -245,14 +487,27 @@ export default function TCMForm() {
           </div>
 
           <hr className="sidebar-divider" />
-          <div className="sidebar-label">Petugas</div>
+          <div className="sidebar-label">Petugas pengirim</div>
+          <div className="sidebar-field">
+            <label>Pilih driver <span style={{color:'#E53E3E'}}>*</span></label>
+            <select value={selectedDriver} onChange={(e) => handleDriverSelect(e.target.value)} style={{width:'100%', height:'36px', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'0 10px', fontSize:'12px', background:'var(--bg)', color:'var(--text)', fontFamily:'inherit'}}>
+              <option value="">— input manual —</option>
+              {DRIVERS.map(d => <option key={d.nik} value={d.nama}>{d.nama}</option>)}
+            </select>
+          </div>
           <div className="sidebar-field">
             <label>Nama petugas pengirim <span style={{color:'#E53E3E'}}>*</span></label>
-            <input type="text" value={namaPengirim} onChange={(e) => setNamaPengirim(e.target.value)} placeholder="Nama lengkap pengirim..." required />
+            {selectedDriver
+              ? <div className="readonly-field" style={{fontSize:'11px', letterSpacing:'0.01em'}}>{namaPengirim}</div>
+              : <input type="text" value={namaPengirim} onChange={(e) => setNamaPengirim(e.target.value)} placeholder="Nama lengkap pengirim..." required />
+            }
           </div>
           <div className="sidebar-field">
             <label>NIK pengirim <span style={{color:'#E53E3E'}}>*</span></label>
-            <input type="text" value={nikPengirim} onChange={(e) => handleNikPengirimChange(e.target.value)} placeholder="NIK pengirim" required />
+            {selectedDriver
+              ? <div className="readonly-field">{nikPengirim}</div>
+              : <input type="text" value={nikPengirim} onChange={(e) => handleNikPengirimChange(e.target.value)} placeholder="NIK pengirim" required />
+            }
           </div>
           <div className="sidebar-field">
             <label>Jabatan pengirim <span style={{color:'#E53E3E'}}>*</span></label>
@@ -348,6 +603,7 @@ export default function TCMForm() {
             <button className="btn-ghost" onClick={() => setShowPreview(!showPreview)}>
               {showPreview ? 'Tutup preview' : 'Preview dokumen'}
             </button>
+            <button className="btn-ghost" onClick={handleExportWord}>Export Word</button>
             <button className="btn-primary" onClick={handlePrint}>Print / Save PDF</button>
           </div>
 
@@ -358,12 +614,17 @@ export default function TCMForm() {
                 <span className="preview-label">Preview dokumen</span>
                 <div className="spacer"></div>
                 <button className="btn-ghost" onClick={() => setShowPreview(false)}>Tutup preview</button>
+                <button className="btn-ghost" onClick={handleExportWord}>Export Word</button>
                 <button className="btn-primary" onClick={() => window.print()}>Print / Save PDF</button>
               </div>
               
               {/* TANDA TERIMA - Halaman 1 */}
               <div className="preview-doc page-break">
-                <div className="doc-title">Tanda Terima Pengiriman Spesimen<br/>untuk Pemeriksaan {jenisPemeriksaan || 'TCM MTB RIF'}</div>
+                <div className="doc-logo-header">
+                  <img src="/logo-gresik.png" alt="Pemkab Gresik" className="doc-logo-img" />
+                  <div className="doc-title">Tanda Terima Pengiriman Spesimen<br/>untuk Pemeriksaan {jenisPemeriksaan || 'TCM MTB RIF'}</div>
+                  <img src="/logo-toss-tb.png" alt="TOSS TBC" className="doc-logo-img" />
+                </div>
 
                 <div className="doc-meta">
                   <span className="k">Fasyankes pengirim</span><span>: RS Petrokimia Gresik</span>
