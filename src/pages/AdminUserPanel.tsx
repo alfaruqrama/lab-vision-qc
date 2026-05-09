@@ -11,12 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export default function AdminUserPanel() {
   const { user: currentUser } = useAuth();
-  const { toast } = useToast();
   
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +26,6 @@ export default function AdminUserPanel() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form states
   const [formData, setFormData] = useState<CreateUserRequest>({
     username: '',
     nama: '',
@@ -48,11 +46,7 @@ export default function AdminUserPanel() {
       const data = await getUsers(currentUser.token);
       setUsers(data);
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Gagal memuat data user',
-        variant: 'destructive',
-      });
+      toast.error('Gagal memuat data user');
     } finally {
       setIsLoading(false);
     }
@@ -62,11 +56,7 @@ export default function AdminUserPanel() {
     if (!currentUser) return;
     
     if (!formData.username || !formData.nama || !formData.password) {
-      toast({
-        title: 'Error',
-        description: 'Semua field harus diisi',
-        variant: 'destructive',
-      });
+      toast.error('Semua field harus diisi');
       return;
     }
 
@@ -75,26 +65,15 @@ export default function AdminUserPanel() {
       const result = await createUser(currentUser.token, formData);
       
       if (result.success) {
-        toast({
-          title: 'Berhasil',
-          description: 'User berhasil dibuat',
-        });
+        toast.success('User berhasil dibuat');
         setIsCreateDialogOpen(false);
         setFormData({ username: '', nama: '', password: '', role: 'viewer' });
         loadUsers();
       } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Gagal membuat user',
-          variant: 'destructive',
-        });
+        toast.error(result.message || 'Gagal membuat user');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan',
-        variant: 'destructive',
-      });
+      toast.error('Terjadi kesalahan');
     } finally {
       setIsSubmitting(false);
     }
@@ -113,26 +92,15 @@ export default function AdminUserPanel() {
       });
       
       if (result.success) {
-        toast({
-          title: 'Berhasil',
-          description: 'User berhasil diupdate',
-        });
+        toast.success('User berhasil diupdate');
         setIsEditDialogOpen(false);
         setSelectedUser(null);
         loadUsers();
       } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Gagal mengupdate user',
-          variant: 'destructive',
-        });
+        toast.error(result.message || 'Gagal mengupdate user');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan',
-        variant: 'destructive',
-      });
+      toast.error('Terjadi kesalahan');
     } finally {
       setIsSubmitting(false);
     }
@@ -149,26 +117,15 @@ export default function AdminUserPanel() {
       });
       
       if (result.success) {
-        toast({
-          title: 'Berhasil',
-          description: 'Password berhasil direset',
-        });
+        toast.success('Password berhasil direset');
         setIsResetPasswordDialogOpen(false);
         setSelectedUser(null);
         setNewPassword('');
       } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Gagal reset password',
-          variant: 'destructive',
-        });
+        toast.error(result.message || 'Gagal reset password');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan',
-        variant: 'destructive',
-      });
+      toast.error('Terjadi kesalahan');
     } finally {
       setIsSubmitting(false);
     }
@@ -182,26 +139,15 @@ export default function AdminUserPanel() {
       const result = await deleteUser(currentUser.token, selectedUser.username);
       
       if (result.success) {
-        toast({
-          title: 'Berhasil',
-          description: 'User berhasil dihapus',
-        });
+        toast.success('User berhasil dihapus');
         setIsDeleteDialogOpen(false);
         setSelectedUser(null);
         loadUsers();
       } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Gagal menghapus user',
-          variant: 'destructive',
-        });
+        toast.error(result.message || 'Gagal menghapus user');
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan',
-        variant: 'destructive',
-      });
+      toast.error('Terjadi kesalahan');
     } finally {
       setIsSubmitting(false);
     }

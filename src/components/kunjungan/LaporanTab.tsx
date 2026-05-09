@@ -210,7 +210,6 @@ export default function LaporanTab() {
       .then(d => {
         if (cancelled) return;
         if (d.error) { console.warn('getTarget error:', d.error); return; }
-        console.log('getTarget response:', d);
         setForm(prev => ({
           ...prev,
           targetKunjungan: d.targetKunjHarian || prev.targetKunjungan,
@@ -245,7 +244,6 @@ export default function LaporanTab() {
       .then(d => {
         if (cancelled) return;
         if (d.error) { console.warn('getKumulatif error:', d.error); return; }
-        console.log('getKumulatif response:', d);
         setForm(prev => ({
           ...prev,
           kumOmzet: d.kumOmzet ?? prev.kumOmzet,

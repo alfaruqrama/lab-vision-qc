@@ -1,7 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Camera, Loader2, Sparkles, RotateCcw } from 'lucide-react';
+import { Camera, Loader2, Sparkles, RotateCcw, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { processFile, formatFileSize, getCompressionRatio } from '@/lib/file-validation';
+import { toast } from 'sonner';
 
 interface PhotoCaptureProps {
   photoPreview: string | null;
@@ -21,16 +23,42 @@ export function PhotoCapture({
   className,
 }: PhotoCaptureProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ stage: string; progress: number } | null>(null);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      onCapture(dataUrl);
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      // Process file with validation and compression
+      const processed = await processFile(file, {
+        compress: true,
+        onProgress: (stage, progress) => {
+          setUploadProgress({ stage, progress });
+        },
+      });
+
+      // Show compression info if file was compressed
+      if (processed.compressed) {
+        const ratio = getCompressionRatio(processed.originalSize, processed.processedSize);
+        toast.success(
+          `Gambar dikompres ${ratio}% (${formatFileSize(processed.originalSize)} → ${formatFileSize(processed.processedSize)})`
+        );
+      }
+
+      // Clear progress
+      setUploadProgress(null);
+
+      // Pass data URL to parent
+      onCapture(processed.dataURL);
+    } catch (error) {
+      setUploadProgress(null);
+      const message = error instanceof Error ? error.message : 'Gagal memproses file';
+      toast.error(message);
+      
+      // Reset file input
+      if (fileRef.current) fileRef.current.value = '';
+    }
   }
 
   function handleRetake() {
@@ -61,8 +89,24 @@ export function PhotoCapture({
             className="w-full max-h-48 object-contain bg-muted/30"
           />
 
+          {/* Upload Progress overlay */}
+          {uploadProgress && (
+            <div className="absolute inset-0 bg-card/90 backdrop-blur-sm flex flex-col items-center justify-center">
+              <Loader2 className="animate-spin text-primary" size={32} />
+              <p className="text-xs text-muted-foreground mt-2">
+                {uploadProgress.stage}... {Math.round(uploadProgress.progress)}%
+              </p>
+              <div className="w-3/4 h-1 bg-muted rounded-full mt-2 overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${uploadProgress.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* AI Loading overlay */}
-          {isLoading && (
+          {isLoading && !uploadProgress && (
             <div className="absolute inset-0 bg-card/80 backdrop-blur-sm flex flex-col items-center justify-center">
               <Loader2 className="animate-spin text-primary" size={32} />
               <p className="text-xs text-muted-foreground mt-2">AI membaca struk... (3-8 detik)</p>

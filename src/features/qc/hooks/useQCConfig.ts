@@ -3,6 +3,7 @@ import type { LotConfig } from '@/lib/types';
 import * as api from '@/lib/api';
 import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
 import { toast } from 'sonner';
+import { safeJSONParse, LotConfigSchema } from '@/lib/validation';
 
 const STORAGE_KEY = 'labqc_config';
 
@@ -22,9 +23,16 @@ async function fetchConfig(): Promise<LotConfig> {
       return DEFAULT_LOT_CONFIG;
     }
   }
-  // Demo mode: read from localStorage or use defaults
+  // Demo mode: read from localStorage with safe parsing
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : DEFAULT_LOT_CONFIG;
+  if (stored) {
+    const parsed = safeJSONParse(stored, LotConfigSchema);
+    if (parsed.success && parsed.data) {
+      return parsed.data;
+    }
+    console.warn('Invalid lot config in localStorage, using defaults');
+  }
+  return DEFAULT_LOT_CONFIG;
 }
 
 /** Save lot configuration — handles both online and demo mode */

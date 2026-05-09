@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { Settings, Camera, Download, Printer, BarChart3, FileText, Thermometer } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Settings, Thermometer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,59 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useSuhuStore, type SuhuEntry } from '@/hooks/use-suhu-store';
 import { toast } from 'sonner';
-
-const ROOMS = [
-  { id: 'ruang_proses', label: 'Ruang Proses', icon: '🔬', hasHumidity: true, type: 'room' as const, code: 'RP-01' },
-  { id: 'ruang_mikrobio', label: 'Ruang Mikrobiologi', icon: '🧫', hasHumidity: true, type: 'room' as const, code: 'RM-02' },
-  { id: 'ruang_reagen', label: 'Ruang Reagen', icon: '⚗️', hasHumidity: true, type: 'room' as const, code: 'RR-03' },
-  { id: 'kulkas_gea', label: 'Kulkas GEA', icon: '❄️', hasHumidity: false, type: 'fridge' as const, code: 'KG-04' },
-  { id: 'kulkas_polytron', label: 'Kulkas Polytron', icon: '❄️', hasHumidity: false, type: 'fridge' as const, code: 'KP-05' },
-  { id: 'kulkas_sharp', label: 'Kulkas Sharp', icon: '❄️', hasHumidity: false, type: 'fridge' as const, code: 'KS-06' },
-];
-
-function parseRange(s: string) {
-  const [min, max] = s.split('-').map(Number);
-  return { min: min || 0, max: max || 100 };
-}
-
-function isNormal(suhu: number, type: 'room' | 'fridge') {
-  const batasRuang = localStorage.getItem('suhu_batas_ruang') || '18-28';
-  const batasKulkas = localStorage.getItem('suhu_batas_kulkas') || '2-8';
-  const { min, max } = parseRange(type === 'fridge' ? batasKulkas : batasRuang);
-  return suhu >= min && suhu <= max;
-}
-
-function exportCSV(sessionData: Record<string, SuhuEntry>, petugas: string) {
-  const today = new Date();
-  const dd = String(today.getDate()).padStart(2, '0');
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const yyyy = today.getFullYear();
-  let csv = 'No,Ruangan,Kode,Suhu (°C),Kelembapan (%),Waktu,Petugas,Status,Catatan\n';
-  ROOMS.forEach((room, i) => {
-    const d = sessionData[room.id];
-    if (!d) {
-      csv += `${i + 1},"${room.label}","${room.code}",,,,,Belum Diinput,\n`;
-      return;
-    }
-    const t = new Date(d.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const ok = isNormal(d.suhu, room.type);
-    csv += `${i + 1},"${room.label}","${room.code}",${d.suhu},${d.rh ?? ''},"${t}","${petugas}","${ok ? 'Normal' : 'Periksa'}","${(d.catatan || '').replace(/"/g, '""')}"\n`;
-  });
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'), { href: url, download: `Suhu_${dd}-${mm}-${yyyy}.csv` });
-  a.click();
-  URL.revokeObjectURL(url);
-  toast.success('CSV berhasil diunduh ✓');
-}
-
-const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+import { InputTab, GrafikTab, LaporanTab, ROOMS } from '@/features/suhu/components';
 
 export default function MonitorSuhu() {
   const store = useSuhuStore();
@@ -77,7 +26,6 @@ export default function MonitorSuhu() {
   const [loadingRoom, setLoadingRoom] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<'suhu' | 'rh'>('suhu');
 
-  // Settings state
   const [sGasAi, setSGasAi] = useState(() => localStorage.getItem('suhu_gas_ai') || '');
   const [sGasSave, setSGasSave] = useState(() => localStorage.getItem('suhu_gas_save') || '');
   const [sBatasRuang, setSBatasRuang] = useState(() => localStorage.getItem('suhu_batas_ruang') || '18-28');
@@ -105,7 +53,6 @@ export default function MonitorSuhu() {
 
       const gasUrl = localStorage.getItem('suhu_gas_ai') || '';
       if (!gasUrl) {
-        // No AI URL - open dialog with empty fields
         setAiResult(null);
         setConfirmSuhu('');
         setConfirmRh('');
@@ -163,7 +110,6 @@ export default function MonitorSuhu() {
     const rh = activeRoom.hasHumidity && confirmRh ? parseFloat(confirmRh) : null;
     const entry: SuhuEntry = { suhu, rh, timestamp: new Date().toISOString(), catatan: confirmCatatan };
 
-    // Save to GAS
     const gasSaveUrl = localStorage.getItem('suhu_gas_save') || '';
     if (gasSaveUrl) {
       try {
@@ -192,7 +138,6 @@ export default function MonitorSuhu() {
     setSettingsOpen(false);
   };
 
-  // Chart data
   const chartData = useMemo(() => {
     return ROOMS.map(r => {
       const d = sessionData[r.id];
@@ -211,13 +156,10 @@ export default function MonitorSuhu() {
     return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
   }, [sessionData]);
 
-  const today = new Date();
-  const todayStr = `${HARI_ID[today.getDay()]}, ${today.getDate()} ${BULAN_ID[today.getMonth()]} ${today.getFullYear()}`;
   const noGasAi = !localStorage.getItem('suhu_gas_ai');
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2"><Thermometer size={22} className="text-accent2" /> Monitor Suhu Lab</h1>
@@ -239,304 +181,39 @@ export default function MonitorSuhu() {
           <TabsTrigger value="laporan">📄 Laporan</TabsTrigger>
         </TabsList>
 
-        {/* TAB INPUT */}
         <TabsContent value="input" className="space-y-4">
-          {/* Session bar */}
-          <Card>
-            <CardContent className="pt-4 pb-4 space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                <div className="flex-1 w-full">
-                  <Label className="text-xs text-muted-foreground">Nama Petugas</Label>
-                  <Input placeholder="Nama petugas..." value={petugas} onChange={e => setPetugas(e.target.value)} className="mt-1" />
-                </div>
-                <div className="text-right whitespace-nowrap">
-                  <span className="text-sm font-semibold">{doneCount} / 6 selesai</span>
-                </div>
-              </div>
-              <Progress value={(doneCount / 6) * 100} className="h-2" />
-            </CardContent>
-          </Card>
-
-          {/* Room cards */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Ruangan</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {ROOMS.filter(r => r.type === 'room').map(room => {
-                const d = sessionData[room.id];
-                const loading = loadingRoom === room.id;
-                return (
-                  <Card
-                    key={room.id}
-                    className={`cursor-pointer transition-all hover:shadow-md border-t-[3px] border-t-emerald-500 ${d ? 'bg-emerald-500/5' : ''}`}
-                    onClick={() => handleCardClick(room)}
-                  >
-                    <CardContent className="pt-4 pb-4 text-center space-y-1">
-                      <div className="text-2xl">{room.icon}</div>
-                      <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
-                      <p className="text-xs font-semibold truncate">{room.label}</p>
-                      {loading ? (
-                        <Badge variant="outline" className="text-[10px] animate-pulse">Membaca...</Badge>
-                      ) : d ? (
-                        <>
-                          <p className="text-lg font-mono font-bold">{d.suhu}°C</p>
-                          {d.rh != null && <p className="text-[10px] text-muted-foreground">RH {d.rh}%</p>}
-                          <Badge className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0">✓ Done</Badge>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-muted-foreground">Tap untuk foto</p>
-                          <Badge variant="outline" className="text-[10px]">Belum</Badge>
-                        </>
-                      )}
-                    </CardContent>
-                    <input
-                      ref={el => { fileRefs.current[room.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={e => handleFileChange(room, e)}
-                    />
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Kulkas</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {ROOMS.filter(r => r.type === 'fridge').map(room => {
-                const d = sessionData[room.id];
-                const loading = loadingRoom === room.id;
-                return (
-                  <Card
-                    key={room.id}
-                    className={`cursor-pointer transition-all hover:shadow-md border-t-[3px] border-t-blue-500 ${d ? 'bg-blue-500/5' : ''}`}
-                    onClick={() => handleCardClick(room)}
-                  >
-                    <CardContent className="pt-4 pb-4 text-center space-y-1">
-                      <div className="text-2xl">{room.icon}</div>
-                      <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
-                      <p className="text-xs font-semibold truncate">{room.label}</p>
-                      {loading ? (
-                        <Badge variant="outline" className="text-[10px] animate-pulse">Membaca...</Badge>
-                      ) : d ? (
-                        <>
-                          <p className="text-lg font-mono font-bold">{d.suhu}°C</p>
-                          <Badge className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-400 border-0">✓ Done</Badge>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-muted-foreground">Tap untuk foto</p>
-                          <Badge variant="outline" className="text-[10px]">Belum</Badge>
-                        </>
-                      )}
-                    </CardContent>
-                    <input
-                      ref={el => { fileRefs.current[room.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={e => handleFileChange(room, e)}
-                    />
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Session log */}
-          {sessionLog.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2 pt-4">
-                <CardTitle className="text-sm">Log Sesi</CardTitle>
-              </CardHeader>
-              <CardContent className="pb-4">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Waktu</TableHead>
-                        <TableHead className="text-xs">Ruangan</TableHead>
-                        <TableHead className="text-xs">Suhu</TableHead>
-                        <TableHead className="text-xs">RH</TableHead>
-                        <TableHead className="text-xs">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sessionLog.map((log, i) => {
-                        const room = ROOMS.find(r => r.id === log.roomId);
-                        const ok = room ? isNormal(log.suhu, room.type) : true;
-                        return (
-                          <TableRow key={i}>
-                            <TableCell className="text-xs font-mono">{new Date(log.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                            <TableCell className="text-xs">{log.roomLabel}</TableCell>
-                            <TableCell className="text-xs font-mono font-semibold">{log.suhu}°C</TableCell>
-                            <TableCell className="text-xs font-mono">{log.rh != null ? `${log.rh}%` : '—'}</TableCell>
-                            <TableCell>
-                              <Badge variant={ok ? 'default' : 'outline'} className={`text-[10px] ${ok ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'border-amber-500 text-amber-600'}`}>
-                                {ok ? 'Normal' : '⚠ Cek'}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {doneCount > 0 && (
-            <Button variant="outline" size="sm" className="text-destructive" onClick={() => { clearSession(); toast.success('Sesi direset'); }}>
-              🗑 Reset Sesi
-            </Button>
-          )}
+          <InputTab
+            sessionData={sessionData}
+            sessionLog={sessionLog}
+            petugas={petugas}
+            setPetugas={setPetugas}
+            loadingRoom={loadingRoom}
+            doneCount={doneCount}
+            onCardClick={handleCardClick}
+            onFileChange={handleFileChange}
+            onClearSession={() => { clearSession(); toast.success('Sesi direset'); }}
+            fileRefs={fileRefs}
+          />
         </TabsContent>
 
-        {/* TAB GRAFIK */}
         <TabsContent value="grafik" className="space-y-4">
-          {doneCount === 0 ? (
-            <Card className="p-12 text-center">
-              <Camera size={40} className="mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">📷 Input data di tab Input dulu</p>
-            </Card>
-          ) : (
-            <>
-              {/* Stat cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-[10px] text-muted-foreground">Lokasi</p><p className="text-xl font-bold">{doneCount}/6</p></CardContent></Card>
-                <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-[10px] text-muted-foreground">Rata-rata Suhu</p><p className="text-xl font-bold font-mono">{avgSuhu}°C</p></CardContent></Card>
-                <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-[10px] text-muted-foreground">Rata-rata RH</p><p className="text-xl font-bold font-mono">{avgRh}%</p></CardContent></Card>
-              </div>
-
-              {/* Toggle */}
-              <div className="flex gap-2">
-                <Button size="sm" variant={chartMode === 'suhu' ? 'default' : 'outline'} onClick={() => setChartMode('suhu')}>Suhu °C</Button>
-                <Button size="sm" variant={chartMode === 'rh' ? 'default' : 'outline'} onClick={() => setChartMode('rh')}>Kelembapan %</Button>
-              </div>
-
-              {/* Chart */}
-              <Card>
-                <CardContent className="pt-4 pb-4">
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={chartMode === 'rh' ? chartData.filter(d => d.rh !== null) : chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} domain={chartMode === 'rh' ? [0, 100] : ['auto', 'auto']} />
-                      <Tooltip formatter={(val: number) => chartMode === 'rh' ? `${val}%` : `${val}°C`} />
-                      <Bar dataKey={chartMode === 'rh' ? 'rh' : 'suhu'} radius={[4, 4, 0, 0]}>
-                        {(chartMode === 'rh' ? chartData.filter(d => d.rh !== null) : chartData).map((entry, idx) => (
-                          <Cell key={idx} fill={chartMode === 'rh' ? '#3b82f6' : entry.type === 'fridge' ? '#3b82f6' : '#10b981'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Summary list */}
-              <div className="space-y-2">
-                {ROOMS.map(room => {
-                  const d = sessionData[room.id];
-                  const ok = d ? isNormal(d.suhu, room.type) : null;
-                  return (
-                    <div key={room.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
-                      <span className="text-lg">{room.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate">{room.label}</p>
-                      </div>
-                      <span className="font-mono text-sm font-semibold">{d ? `${d.suhu}°C` : '—'}</span>
-                      {d?.rh != null && <span className="font-mono text-xs text-muted-foreground">{d.rh}%</span>}
-                      {ok !== null && (
-                        <Badge variant={ok ? 'default' : 'outline'} className={`text-[10px] ${ok ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'border-amber-500 text-amber-600'}`}>
-                          {ok ? 'Normal' : '⚠ Cek'}
-                        </Badge>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+          <GrafikTab
+            sessionData={sessionData}
+            doneCount={doneCount}
+            avgSuhu={avgSuhu}
+            avgRh={avgRh}
+            chartMode={chartMode}
+            setChartMode={setChartMode}
+            chartData={chartData}
+          />
         </TabsContent>
 
-        {/* TAB LAPORAN */}
         <TabsContent value="laporan" className="space-y-4">
-          {/* Header */}
-          <Card>
-            <CardContent className="pt-4 pb-4 space-y-2">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-semibold">{todayStr}</p>
-                  <p className="text-xs text-muted-foreground">Petugas: {petugas || '—'}</p>
-                  <p className="text-xs text-muted-foreground">Lokasi dicatat: {doneCount} / 6</p>
-                </div>
-                <Badge variant={doneCount === 6 ? 'default' : 'outline'} className={doneCount === 6 ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : ''}>
-                  {doneCount === 6 ? '✓ Lengkap' : `${6 - doneCount} belum`}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Export buttons */}
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => window.print()}>
-              <Printer size={14} className="mr-1" /> Export PDF
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => exportCSV(sessionData, petugas)}>
-              <Download size={14} className="mr-1" /> Export CSV
-            </Button>
-          </div>
-
-          {/* Report table */}
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs w-8">#</TableHead>
-                      <TableHead className="text-xs">Ruangan</TableHead>
-                      <TableHead className="text-xs">Kode</TableHead>
-                      <TableHead className="text-xs">Suhu</TableHead>
-                      <TableHead className="text-xs">RH</TableHead>
-                      <TableHead className="text-xs">Waktu</TableHead>
-                      <TableHead className="text-xs">Status</TableHead>
-                      <TableHead className="text-xs">Catatan</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ROOMS.map((room, i) => {
-                      const d = sessionData[room.id];
-                      const ok = d ? isNormal(d.suhu, room.type) : null;
-                      return (
-                        <TableRow key={room.id} className={ok === false ? 'bg-amber-50 dark:bg-amber-950/20' : ''}>
-                          <TableCell className="text-xs">{i + 1}</TableCell>
-                          <TableCell className="text-xs font-medium">{room.label}</TableCell>
-                          <TableCell className="text-xs font-mono">{room.code}</TableCell>
-                          <TableCell className="text-xs font-mono font-semibold">{d ? `${d.suhu}°C` : '—'}</TableCell>
-                          <TableCell className="text-xs font-mono">{d?.rh != null ? `${d.rh}%` : '—'}</TableCell>
-                          <TableCell className="text-xs font-mono">{d ? new Date(d.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '—'}</TableCell>
-                          <TableCell>
-                            {ok === null ? <span className="text-xs text-muted-foreground">—</span> : (
-                              <Badge variant={ok ? 'default' : 'outline'} className={`text-[10px] ${ok ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'border-amber-500 text-amber-600'}`}>
-                                {ok ? 'Normal' : 'Periksa'}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs max-w-[100px] truncate">{d?.catatan || '—'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <LaporanTab
+            sessionData={sessionData}
+            petugas={petugas}
+            doneCount={doneCount}
+          />
         </TabsContent>
       </Tabs>
 
@@ -611,7 +288,6 @@ export default function MonitorSuhu() {
         </DialogContent>
       </Dialog>
 
-      {/* Print styles */}
       <style>{`
         @media print {
           nav, header, [role="tablist"], button, .no-print { display: none !important; }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthUser, UserRole } from '@/lib/auth-types';
 import { 
   login as apiLogin, 
@@ -22,25 +22,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// DEV bypass: auto-login as admin in development mode
-const DEV_BYPASS_AUTH = import.meta.env.DEV;
-const DEV_USER: AuthUser = {
-  username: 'dev-admin',
-  nama: 'Developer (Bypass)',
-  role: 'admin',
-  token: 'dev-bypass-token',
-  loginAt: Date.now(),
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(DEV_BYPASS_AUTH ? DEV_USER : null);
-  const [isLoading, setIsLoading] = useState(DEV_BYPASS_AUTH ? false : true);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const intervalRef = useRef<number | null>(null);
 
   // Check session on mount — validasi ke server, bukan hanya localStorage
   useEffect(() => {
-    // Skip session check in dev bypass mode
-    if (DEV_BYPASS_AUTH) return;
-
     const checkSession = async () => {
       const storedAuth = getStoredAuth();
       
@@ -74,14 +62,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           storeAuth(validatedUser);
           setUser(validatedUser);
         } else {
-          // Token tidak valid di server — hapus session
+          // Token tidak valid di server — FORCE LOGOUT (no fallback)
+          console.warn('Token validation failed - forcing logout');
           apiClearAuth();
           setUser(null);
         }
       } catch (error) {
-        // Kalau server tidak bisa dihubungi, fallback ke localStorage
-        console.warn('Server validation failed, using cached session:', error);
-        setUser(storedAuth);
+        // Server tidak bisa dihubungi — FORCE LOGOUT (no fallback)
+        console.error('Server validation error - forcing logout:', error);
+        apiClearAuth();
+        setUser(null);
       }
       
       setIsLoading(false);
@@ -92,9 +82,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-check session setiap 60 detik
   useEffect(() => {
-    if (!user || DEV_BYPASS_AUTH) return;
+    if (!user) return;
 
-    const interval = setInterval(async () => {
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = window.setInterval(async () => {
       if (!isSessionTimeValid()) {
         apiClearAuth();
         setUser(null);
@@ -111,11 +106,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.location.href = '/login';
         }
       } catch {
-        // Network error — skip, coba lagi di interval berikutnya
+        // Network error — force logout for security
+        console.error('Periodic validation failed - forcing logout');
+        apiClearAuth();
+        setUser(null);
+        window.location.href = '/login';
       }
     }, 60 * 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [user]);
 
   const login = useCallback(async (username: string, password: string) => {

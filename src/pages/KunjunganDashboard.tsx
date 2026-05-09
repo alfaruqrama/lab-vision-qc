@@ -1,460 +1,32 @@
 import { useState, useMemo, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
-} from 'recharts';
-import { ChevronLeft, RefreshCw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import {
-  type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER
+  type KunjunganData,
+  normalizeMonthKeys, sortMonths, BULAN_ORDER
 } from '@/lib/kunjungan-types';
-import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
+import { useKunjunganData } from '@/hooks/use-kunjungan-data';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import LaporanTab from '@/components/kunjungan/LaporanTab';
 import InputHarianTab from '@/components/kunjungan/InputHarianTab';
+import {
+  OmzetTab,
+  KunjunganTab,
+  McuTab,
+  ConnectionStatusBadge,
+} from '@/features/kunjungan/components';
 
 type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan' | 'input';
 
 const CURRENT_MONTH_NAME = BULAN_ORDER[new Date().getMonth()];
 
-// ─── KPI Card ───
-function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
-  return (
-    <div className="card-clinical flex-shrink-0 min-w-[150px] p-4 relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl" style={{ background: color }} />
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-2">{label}</p>
-      <p className="text-lg font-bold font-display" style={{ color }}>{value}</p>
-      <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>
-    </div>
-  );
-}
-
-// ─── Badge ───
-function PctBadge({ pct }: { pct: number }) {
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass(pct)}`}>
-      {pct}%
-    </span>
-  );
-}
-
-// ─── TAB: OMZET ───
-function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data omzet" />;
-
-  const tot = data.reduce((s, r) => s + r.total, 0);
-  const dHit = data.filter(r => r.pct >= 100).length;
-  const best = data.reduce((a, b) => (b.pct > a.pct ? b : a));
-  const avgPct = Math.round(data.reduce((s, r) => s + r.pct, 0) / data.length);
-  const avgTgt = data.reduce((s, r) => s + r.target, 0) / data.length;
-
-  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct }));
-  const payerTotals = PAYERS.map(p => ({
-    name: p.l,
-    value: data.reduce((s, r) => s + ((r as any)[p.k] || 0), 0),
-    color: p.c,
-  }));
-
-  return (
-    <div className="space-y-4 page-transition">
-      {/* KPIs */}
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total Omzet ${month}`} value={fmtRp(tot)} sub={`${data.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Avg Target / Hari" value={fmtRp(avgTgt)} sub="Target rata-rata harian" color="#3b82f6" />
-        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
-        <KpiCard label="Capaian Tertinggi" value={`${best.pct}%`} sub={`Tgl ${best.d} ${month}`} color="#e11d48" />
-        <KpiCard label="Avg Capaian" value={`${avgPct}%`} sub="Rata-rata per hari" color="#8b5cf6" />
-      </div>
-
-      {/* Payer grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-        {payerTotals.map(p => (
-          <div key={p.name} className="card-clinical p-3 hover:shadow-md transition-shadow">
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{p.name}</p>
-            <p className="text-sm font-bold font-display" style={{ color: p.color }}>{fmtRp(p.value)}</p>
-            <p className="text-[10px] text-muted-foreground">{((p.value / tot) * 100).toFixed(1)}% dari total</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart: Daily vs Target */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-1">Omzet Harian vs Target — {month}</h3>
-        <p className="text-[11px] text-muted-foreground mb-3">Hijau = melampaui target · Biru = di bawah target · Garis oranye = target</p>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
-              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-              <Bar dataKey="total" name="Omzet Aktual" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
-                ))}
-              </Bar>
-              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Chart row: Capaian % + Pie */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Capaian % per Hari</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
-                <Tooltip formatter={(v: number) => `${v}%`} />
-                <Bar dataKey="pct" name="Capaian" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={
-                      entry.pct >= 150 ? 'rgba(139,92,246,0.7)' :
-                      entry.pct >= 100 ? 'rgba(10,158,135,0.7)' :
-                      entry.pct >= 80 ? 'rgba(245,158,11,0.7)' : 'rgba(240,78,55,0.65)'
-                    } />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Komposisi Payer — {month}</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={payerTotals} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="45%" outerRadius="75%">
-                  {payerTotals.map((p, i) => <Cell key={i} fill={p.color + '40'} stroke={p.color} strokeWidth={2} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card-clinical p-4 overflow-hidden">
-        <h3 className="text-sm font-bold mb-3">Detail Data Harian — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left">Tgl</th>
-                {PAYERS.map(p => <th key={p.k} className="px-2 py-2 text-right whitespace-nowrap">{p.l}</th>)}
-                <th className="px-2 py-2 text-right font-bold">Total</th>
-                <th className="px-2 py-2 text-right">Target</th>
-                <th className="px-2 py-2 text-center">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50 transition-colors">
-                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
-                  {PAYERS.map(p => (
-                    <td key={p.k} className="px-2 py-1.5 text-right text-muted-foreground">
-                      {(r as any)[p.k] ? fmtRp((r as any)[p.k]) : '—'}
-                    </td>
-                  ))}
-                  <td className="px-2 py-1.5 text-right font-semibold">{fmtRp(r.total)}</td>
-                  <td className="px-2 py-1.5 text-right text-muted-foreground">{fmtRp(r.target)}</td>
-                  <td className="px-2 py-1.5 text-center"><PctBadge pct={r.pct} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: KUNJUNGAN ───
-function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data kunjungan" />;
-
-  const totK = data.reduce((s, r) => s + r.total, 0);
-  const dHit = data.filter(r => r.pct >= 100).length;
-  const bestK = data.reduce((a, b) => (b.total > a.total ? b : a));
-  const avgK = Math.round(totK / data.length);
-  const totRJ = data.reduce((s, r) => s + r.rjTotal, 0);
-  const totRI = data.reduce((s, r) => s + r.riTotal, 0);
-  const totIGD = data.reduce((s, r) => s + r.igdTotal, 0);
-  const totMCU = data.reduce((s, r) => s + r.mcuTotal, 0);
-
-  const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct, rj: r.rjTotal, ri: r.riTotal, igd: r.igdTotal, mcu: r.mcuTotal }));
-  const unitData = [
-    { name: 'Rawat Jalan', value: totRJ, color: '#3b82f6', emoji: '🚶' },
-    { name: 'Rawat Inap', value: totRI, color: '#8b5cf6', emoji: '🛏️' },
-    { name: 'IGD', value: totIGD, color: '#e11d48', emoji: '🚨' },
-    { name: 'MCU', value: totMCU, color: '#f59e0b', emoji: '🩺' },
-  ];
-
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total Kunjungan ${month}`} value={totK.toLocaleString('id-ID')} sub={`${data.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Avg per Hari" value={String(avgK)} sub="Pasien rata-rata harian" color="#3b82f6" />
-        <KpiCard label="Hari Capai Target" value={`${dHit} hari`} sub={`dari ${data.length} hari`} color="#f59e0b" />
-        <KpiCard label="Kunjungan Terbanyak" value={String(bestK.total)} sub={`Tgl ${bestK.d} ${month}`} color="#e11d48" />
-      </div>
-
-      {/* Unit breakdown cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {unitData.map(u => (
-          <div key={u.name} className="card-clinical p-4 text-center hover:shadow-md transition-shadow">
-            <p className="text-xl mb-1">{u.emoji}</p>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data mb-1">{u.name}</p>
-            <p className="text-xl font-bold font-display" style={{ color: u.color }}>{u.value.toLocaleString()}</p>
-            <p className="text-[10px] text-muted-foreground">{((u.value / totK) * 100).toFixed(1)}% dari total</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Daily chart */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Total Kunjungan Harian — {month}</h3>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="total" name="Total" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.pct >= 100 ? 'rgba(10,158,135,0.7)' : 'rgba(59,130,246,0.55)'} />
-                ))}
-              </Bar>
-              <Line dataKey="target" name="Target" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Stacked + Pie */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Breakdown per Unit Harian</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="rj" name="RJ" stackId="a" fill="rgba(59,130,246,0.65)" />
-                <Bar dataKey="ri" name="RI" stackId="a" fill="rgba(139,92,246,0.65)" />
-                <Bar dataKey="igd" name="IGD" stackId="a" fill="rgba(225,29,72,0.6)" />
-                <Bar dataKey="mcu" name="MCU" stackId="a" fill="rgba(245,158,11,0.65)" radius={[4, 4, 0, 0]} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="card-clinical p-4">
-          <h3 className="text-sm font-bold mb-3">Komposisi Unit Layanan</h3>
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={unitData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="42%" outerRadius="72%">
-                  {unitData.map((u, i) => <Cell key={i} fill={u.color + '33'} stroke={u.color} strokeWidth={2} />)}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Detail Kunjungan Harian — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-2 py-2 text-left">Tgl</th>
-                <th className="px-2 py-2 text-right">RJ</th>
-                <th className="px-2 py-2 text-right">RI</th>
-                <th className="px-2 py-2 text-right">IGD</th>
-                <th className="px-2 py-2 text-right">MCU</th>
-                <th className="px-2 py-2 text-right font-bold">Total</th>
-                <th className="px-2 py-2 text-right">Target</th>
-                <th className="px-2 py-2 text-center">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
-                  <td className="px-2 py-1.5 text-right">{r.rjTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.riTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.igdTotal}</td>
-                  <td className="px-2 py-1.5 text-right">{r.mcuTotal}</td>
-                  <td className="px-2 py-1.5 text-right font-semibold">{r.total}</td>
-                  <td className="px-2 py-1.5 text-right text-muted-foreground">{r.target ? Math.round(r.target) : '—'}</td>
-                  <td className="px-2 py-1.5 text-center">{r.pct ? <PctBadge pct={r.pct} /> : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TAB: MCU ───
-function McuTab({ month, data }: { month: string; data: McuRow[] }) {
-  const rows = data.filter(r => r.omzet > 0);
-  if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} />;
-
-  const total = rows.reduce((s, r) => s + r.omzet, 0);
-  const avg = total / rows.length;
-  const maxRow = rows.reduce((a, b) => (b.omzet > a.omzet ? b : a));
-  const minRow = rows.reduce((a, b) => (b.omzet < a.omzet ? b : a));
-
-  const chartData = rows.map(r => ({ name: String(r.d), omzet: r.omzet, avg }));
-
-  return (
-    <div className="space-y-4 page-transition">
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-        <KpiCard label={`Total MCU ${month}`} value={fmtRp(total)} sub={`${rows.length} hari tercatat`} color="#0a9e87" />
-        <KpiCard label="Rata-rata / Hari" value={fmtRp(avg)} sub="per hari aktif" color="#3b82f6" />
-        <KpiCard label="Tertinggi" value={fmtRp(maxRow.omzet)} sub={`Tgl ${maxRow.d} ${month}`} color="#f59e0b" />
-        <KpiCard label="Terendah" value={fmtRp(minRow.omzet)} sub={`Tgl ${minRow.d} ${month}`} color="#e11d48" />
-      </div>
-
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Omzet MCU Harian — {month}</h3>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtRp(v)} />
-              <Tooltip formatter={(v: number) => fmtRpFull(v)} />
-              <Bar dataKey="omzet" name="Omzet MCU" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.omzet >= avg ? 'rgba(13,158,132,0.75)' : 'rgba(245,158,11,0.65)'} />
-                ))}
-              </Bar>
-              <Line dataKey="avg" name="Rata-rata" stroke="#e11d48" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="card-clinical p-4">
-        <h3 className="text-sm font-bold mb-3">Detail Harian MCU — {month}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono-data">
-            <thead>
-              <tr className="bg-muted">
-                <th className="px-3 py-2 text-left">Tgl</th>
-                <th className="px-3 py-2 text-right">Omzet MCU</th>
-                <th className="px-3 py-2 text-right">Kontribusi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.d} className="border-b border-border hover:bg-muted/50">
-                  <td className="px-3 py-1.5 font-semibold text-muted-foreground">{r.d}</td>
-                  <td className="px-3 py-1.5 text-right font-bold">{fmtRpFull(r.omzet)}</td>
-                  <td className="px-3 py-1.5 text-right">
-                    <div className="flex items-center gap-2 justify-end">
-                      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, (r.omzet / maxRow.omzet) * 100).toFixed(0)}%`,
-                            background: r.omzet >= avg ? 'hsl(var(--accent))' : 'hsl(var(--warning))',
-                          }}
-                        />
-                      </div>
-                      <span className="text-muted-foreground min-w-[36px] text-right">{((r.omzet / total) * 100).toFixed(1)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-border bg-muted">
-                <td className="px-3 py-2 font-bold">TOTAL</td>
-                <td className="px-3 py-2 text-right font-extrabold text-accent">{fmtRpFull(total)}</td>
-                <td className="px-3 py-2 text-right font-semibold text-muted-foreground">100%</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// LaporanTab moved to src/components/kunjungan/LaporanTab.tsx
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="card-clinical p-12 text-center text-muted-foreground">
-      <p className="text-3xl mb-3">📊</p>
-      <p className="font-semibold">{text}</p>
-    </div>
-  );
-}
-
-// ─── Connection Status Badge ───
-function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
-  status: ConnectionStatus; lastUpdated: string | null; onRefresh: () => void; refreshing: boolean;
-}) {
-  const isLive = status === 'live';
-  const isLoading = status === 'loading' || refreshing;
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={onRefresh}
-        disabled={isLoading}
-        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
-        title="Refresh data"
-      >
-        <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${isLoading ? 'animate-spin' : ''}`} />
-      </button>
-      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-        isLive ? 'bg-success/10 text-success border-success/20' :
-        status === 'error' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-        'bg-muted text-muted-foreground border-border'
-      }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${
-          isLive ? 'bg-success animate-pulse' :
-          status === 'error' ? 'bg-destructive' : 'bg-muted-foreground'
-        }`} />
-        {isLive ? 'REALTIME' : status === 'error' ? 'ERROR' : status === 'loading' ? 'LOADING...' : 'EMBEDDED'}
-      </span>
-    </div>
-  );
-}
-
-
-// ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
-  const navigate = useNavigate();
-  const { data, status, lastUpdated, error, refresh, availableMonths, kumulatif } = useKunjunganData();
+  const { data, status, lastUpdated, error, refresh, availableMonths } = useKunjunganData();
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
-
   const [month, setMonth] = useState(CURRENT_MONTH_NAME);
   const [mcuMonth, setMcuMonth] = useState(CURRENT_MONTH_NAME);
 
-  // Selalu sertakan bulan sekarang di daftar pilihan meski data belum ada
   const activeMonthsList = useMemo(() => {
     const months = availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
     if (!months.includes(CURRENT_MONTH_NAME)) {
@@ -488,10 +60,14 @@ export default function KunjunganDashboard() {
 
   return (
     <div className="space-y-0">
-      {/* Status bar */}
       <div className="flex items-center justify-between gap-2 pb-2">
         <div className="flex items-center gap-2">
-          <StatusBadge status={status} lastUpdated={lastUpdated} onRefresh={handleRefresh} refreshing={refreshing} />
+          <ConnectionStatusBadge
+            status={status}
+            lastUpdated={lastUpdated}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+          />
           {lastUpdated && (
             <span className="text-[9px] text-muted-foreground font-mono-data">
               {new Date(lastUpdated).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
@@ -501,7 +77,6 @@ export default function KunjunganDashboard() {
         </div>
       </div>
 
-      {/* Tab bar */}
       <div className="bg-card border-b border-border -mx-4 px-4 flex items-center gap-1 overflow-x-auto">
         {tabs.map(t => (
           <button
@@ -517,8 +92,7 @@ export default function KunjunganDashboard() {
           </button>
         ))}
 
-        {/* Month selector inline */}
-        {tab !== 'laporan' && activeMonthsList.length > 0 && (
+        {tab !== 'laporan' && tab !== 'input' && activeMonthsList.length > 0 && (
           <select
             value={activeMonth}
             onChange={e => setActiveMonth(e.target.value)}
@@ -531,7 +105,6 @@ export default function KunjunganDashboard() {
         )}
       </div>
 
-      {/* Content */}
       <div className="pt-4">
         {tab === 'laporan' && <LaporanTab />}
         {tab === 'input' && <InputHarianTab />}
