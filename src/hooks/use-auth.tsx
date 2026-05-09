@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const accessMap: Record<string, UserRole[]> = {
       'dashboard': ['admin', 'petugas', 'viewer'],
       'input-harian': ['admin', 'petugas'],
-      'suhu': ['admin', 'petugas', 'viewer'],
+      'suhu': ['admin'],
       'qc': ['admin', 'petugas', 'viewer'],
       'input-qc': ['admin', 'petugas'],
       'admin-users': ['admin'],
