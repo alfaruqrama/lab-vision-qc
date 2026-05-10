@@ -8,7 +8,7 @@ Migrasi dari Google Apps Script (GAS) ke Supabase untuk:
 - ✅ **Auth system** — custom username + bcrypt hash + UUID token sessions
 - ✅ **QC Records** — data QC harian dengan RLS policies
 - ✅ **Lot Config** — konfigurasi lot dengan audit trail
-- ⚠️ **AI Extraction** — tetap via GAS (Gemini Vision)
+- ✅ **AI Extraction** — Supabase Edge Functions + Gemini 2.5 Flash Lite (rate limited: 20 scans/user/day)
 - ⚠️ **Kunjungan module** — tidak dimigrasi (tetap GAS)
 
 ---
@@ -208,14 +208,82 @@ Worktree tetap ada di `/Users/rama/ramscl_workspace/lab-vision-qc-supabase` untu
 
 ---
 
+## AI Extraction Migration (May 10, 2026)
+
+### Before (GAS)
+```
+Frontend → Google Apps Script (external) → Gemini API
+              ↓
+         Supabase DB (separate)
+```
+
+**Problems:**
+- External dependency (GAS)
+- No rate limiting
+- No logging/monitoring
+- Harder to debug
+
+### After (Supabase Edge Functions)
+```
+Frontend → Supabase Edge Function → Gemini API
+              ↓
+         Supabase DB (same platform)
+              ↓
+         qc_ai_logs table
+```
+
+**Benefits:**
+- ✅ All backend in one platform
+- ✅ Rate limiting: 20 scans/user/day
+- ✅ Full logging & monitoring
+- ✅ TypeScript (type-safe)
+- ✅ Local development support
+- ✅ Better security (auth required)
+
+### Changes Made
+
+**Database:**
+- Migration: `002_qc_ai_logs.sql`
+- Table: `qc_ai_logs` (tracks all AI requests)
+- Functions: `check_ai_rate_limit()`, `get_remaining_ai_scans()`
+
+**Edge Function:**
+- Directory: `supabase/functions/extract-qc/`
+- Files: `index.ts`, `gemini.ts`, `parser.ts`, `preprocessor.ts`, `types.ts`
+- Model: Gemini 2.5 Flash Lite
+- Rate limit: 20 scans/user/day
+
+**Frontend:**
+- Updated: `src/lib/api.ts` (GAS → Supabase Function)
+- Removed: `VITE_GAS_AI_URL` from `.env`
+- Added: `getRemainingAIScans()` function
+
+**Documentation:**
+- `SUPABASE_AI_SETUP.md` - Complete setup guide
+- `AI_MIGRATION_SUMMARY.md` - Migration summary
+
+### Setup Required
+
+1. Get Gemini API key: https://aistudio.google.com/apikey
+2. Set as Supabase secret:
+   ```bash
+   echo "GEMINI_API_KEY=your_key" >> supabase/.env
+   ```
+3. Test locally via frontend (Input QC → Upload struk)
+
+See `SUPABASE_AI_SETUP.md` for detailed guide.
+
+---
+
 ## Next Steps
 
 1. ✅ Review PR ini
-2. ⬜ Setup Supabase project (local atau cloud)
-3. ⬜ Run migration SQL
-4. ⬜ Generate real admin password hash
-5. ⬜ Test semua fitur
-6. ⬜ Merge ke main setelah testing OK
+2. ✅ Setup Supabase project (local atau cloud)
+3. ✅ Run migration SQL (001_initial.sql, 002_qc_ai_logs.sql)
+4. ⬜ Set Gemini API key for AI extraction
+5. ⬜ Test AI extraction (upload struk image)
+6. ⬜ Test semua fitur
+7. ⬜ Merge ke main setelah testing OK
 
 ---
 

@@ -1,4 +1,4 @@
-import { isSupabaseConfigured } from './supabase';
+import { isSupabaseConfigured, createSupabaseClient } from './supabase';
 
 /**
  * Check if the app is connected to a backend.
@@ -8,7 +8,7 @@ export function isConnected(): boolean {
   return isSupabaseConfigured();
 }
 
-// ─── AI Extraction (still via Google Apps Script) ───────────────────────────
+// ─── AI Extraction (Supabase Edge Function + Gemini 2.5 Flash Lite) ─────────
 
 export interface ReadStrukResult {
   alat?: string;
@@ -30,9 +30,22 @@ export interface ReadStrukResult {
   parseError?: boolean;
 }
 
+interface AIExtractionResponse {
+  success: boolean;
+  data?: {
+    tanggal: string;
+    alat: string;
+    level: string;
+    lot: string;
+    params: Record<string, number>;
+  };
+  error?: string;
+  remaining_scans?: number;
+}
+
 /**
- * Read QC struk via AI (Google Apps Script + Gemini Vision).
- * This is the only GAS endpoint still in use after Supabase migration.
+ * Read QC struk via AI (Supabase Edge Function + Gemini 2.5 Flash Lite).
+ * Requires authentication. Rate limited to 20 scans/user/day.
  */
 export async function readStruk(image: string, mediaType: string, alat: string): Promise<{
   status: string;
@@ -40,23 +53,89 @@ export async function readStruk(image: string, mediaType: string, alat: string):
   raw?: string;
   message?: string;
 }> {
-  const gasAiUrl = import.meta.env.VITE_GAS_AI_URL;
+  const sessionToken = localStorage.getItem('session_token');
   
-  if (!gasAiUrl) {
-    throw new Error('VITE_GAS_AI_URL not configured');
+  if (!sessionToken) {
+    throw new Error('Not authenticated');
   }
 
-  const res = await fetch(gasAiUrl, {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL not configured');
+  }
+
+  const functionUrl = `${supabaseUrl}/functions/v1/extract-qc`;
+
+  // Remove data URL prefix if present
+  const imageBase64 = image.replace(/^data:image\/\w+;base64,/, '');
+
+  const res = await fetch(functionUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({
-      action: 'readStruk',
-      image,
-      mediaType,
-      alat,
-    }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${sessionToken}`
+    },
+    body: JSON.stringify({ imageBase64 })
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const aiResponse: AIExtractionResponse = await res.json();
+
+  if (!res.ok || !aiResponse.success) {
+    return {
+      status: 'error',
+      message: aiResponse.error || `HTTP ${res.status}`,
+      raw: JSON.stringify(aiResponse)
+    };
+  }
+
+  // Transform AI response to match existing ReadStrukResult format
+  const data = aiResponse.data;
+  if (!data) {
+    return {
+      status: 'error',
+      message: 'No data in AI response'
+    };
+  }
+
+  const result: ReadStrukResult = {
+    alat: data.alat,
+    tanggal: data.tanggal,
+    lot: data.lot,
+    level: data.level,
+    ...data.params
+  };
+
+  return {
+    status: 'success',
+    data: result,
+    raw: JSON.stringify(aiResponse)
+  };
+}
+
+/**
+ * Get remaining AI scans for current user today.
+ * Returns 0 if not authenticated or error.
+ */
+export async function getRemainingAIScans(): Promise<number> {
+  const sessionToken = localStorage.getItem('session_token');
+  if (!sessionToken) return 0;
+
+  try {
+    const supabase = createSupabaseClient(sessionToken);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data, error } = await supabase
+      .rpc('get_remaining_ai_scans', { p_user_id: user.id, p_limit: 20 });
+
+    if (error) {
+      console.error('Failed to get remaining scans:', error);
+      return 0;
+    }
+
+    return data ?? 0;
+  } catch (error) {
+    console.error('Error getting remaining scans:', error);
+    return 0;
+  }
 }

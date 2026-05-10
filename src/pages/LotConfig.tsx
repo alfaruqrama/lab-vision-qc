@@ -22,8 +22,6 @@ import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/featur
 import { Trash2, Plus, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
-type TabType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2';
-
 // ─── Reusable ParamRow ───────────────────────────────────────────────────────
 
 function ParamRow({
@@ -154,7 +152,7 @@ function ParamTable({ label, children }: { label: string; children: React.ReactN
 
 export default function LotConfigPage() {
   const { config, updateConfig } = useQCStore();
-  const [tab, setTab] = useState<TabType>('CA660');
+  const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('CA660');
   const [localConfig, setLocalConfig] = useState<LotConfig>(() => JSON.parse(JSON.stringify(config)));
   const [saving, setSaving] = useState(false);
 
@@ -222,11 +220,11 @@ export default function LotConfigPage() {
     }
   }
 
-  const tabs: { key: TabType; label: string }[] = [
-    { key: 'CA660', label: 'CA-660' },
-    { key: 'EASYLITE', label: 'Easylite' },
-    { key: 'ONCALL1', label: 'On Call 1' },
-    { key: 'ONCALL2', label: 'On Call 2' },
+  const instrumentOptions: { value: InstrumentType; label: string }[] = [
+    { value: 'CA660', label: 'Sysmex CA-660' },
+    { value: 'EASYLITE', label: 'Easylite' },
+    { value: 'ONCALL1', label: 'On Call Sure 1' },
+    { value: 'ONCALL2', label: 'On Call Sure 2' },
   ];
 
   return (
@@ -236,28 +234,26 @@ export default function LotConfigPage() {
         <p className="text-sm text-muted-foreground">Atur mean & SD untuk setiap lot kontrol</p>
       </div>
 
-      {/* Tab switch */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-all',
-              tab === t.key
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-muted text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Instrument selector */}
+      <div className="flex items-center gap-3">
+        <Label className="text-sm font-semibold">Instrumen:</Label>
+        <select
+          value={selectedInstrument}
+          onChange={(e) => setSelectedInstrument(e.target.value as InstrumentType)}
+          className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {instrumentOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Lot cards */}
       <div className="space-y-4">
         {/* CA660 */}
-        {tab === 'CA660' &&
+        {selectedInstrument === 'CA660' &&
           localConfig.CA660.map((lot, i) => (
             <LotCard
               key={i}
@@ -277,7 +273,7 @@ export default function LotConfigPage() {
           ))}
 
         {/* EASYLITE */}
-        {tab === 'EASYLITE' &&
+        {selectedInstrument === 'EASYLITE' &&
           localConfig.EASYLITE.map((lot, i) => (
             <LotCard
               key={i}
@@ -304,23 +300,23 @@ export default function LotConfigPage() {
           ))}
 
         {/* ONCALL1 / ONCALL2 */}
-        {(tab === 'ONCALL1' || tab === 'ONCALL2') &&
-          localConfig[tab].map((lot, i) => (
+        {(selectedInstrument === 'ONCALL1' || selectedInstrument === 'ONCALL2') &&
+          localConfig[selectedInstrument].map((lot, i) => (
             <LotCard
               key={i}
-              instrument={tab}
+              instrument={selectedInstrument}
               lotNumber={lot.lot}
               expDate={lot.exp}
-              onLotChange={(v) => updateLot(tab, i, { ...lot, lot: v })}
-              onExpChange={(v) => updateLot(tab, i, { ...lot, exp: v })}
-              onDelete={() => deleteLot(tab, i)}
+              onLotChange={(v) => updateLot(selectedInstrument, i, { ...lot, lot: v })}
+              onExpChange={(v) => updateLot(selectedInstrument, i, { ...lot, exp: v })}
+              onDelete={() => deleteLot(selectedInstrument, i)}
             >
               {(['CTRL0', 'CTRL1', 'CTRL2'] as const).map((ctrl) => (
                 <ParamTable key={ctrl} label={ctrl.replace('CTRL', 'CTRL ')}>
                   <ParamRow
                     label="GDA (mg/dL)"
                     config={lot[ctrl].GDA}
-                    onChange={(c) => updateLot(tab, i, { ...lot, [ctrl]: { GDA: c } })}
+                    onChange={(c) => updateLot(selectedInstrument, i, { ...lot, [ctrl]: { GDA: c } })}
                   />
                 </ParamTable>
               ))}
@@ -330,9 +326,9 @@ export default function LotConfigPage() {
         {/* Add lot button */}
         <button
           onClick={() => {
-            if (tab === 'CA660') addCA660Lot();
-            else if (tab === 'EASYLITE') addEasyliteLot();
-            else addOnCallLot(tab);
+            if (selectedInstrument === 'CA660') addCA660Lot();
+            else if (selectedInstrument === 'EASYLITE') addEasyliteLot();
+            else addOnCallLot(selectedInstrument);
           }}
           className={cn(
             'w-full py-4 rounded-xl border-2 border-dashed border-border',

@@ -56,6 +56,19 @@ export default function LeveyJennings() {
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   );
 
+  // Generate last 12 months for dropdown
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+      options.push({ value, label });
+    }
+    return options;
+  }, []);
+
   const selected = ALL_PARAMS[selectedIdx];
   const levelOptions = selected.levels;
 
@@ -121,12 +134,17 @@ export default function LeveyJennings() {
       {/* Month selector */}
       <div className="flex items-center gap-2">
         <Label className="text-xs whitespace-nowrap">Bulan:</Label>
-        <Input
-          type="month"
+        <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-36 h-8 text-sm font-mono-data"
-        />
+          className="w-40 h-8 text-sm rounded-md border border-input bg-background px-2 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {monthOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Parameter tabs — grouped by instrument */}
