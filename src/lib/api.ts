@@ -62,16 +62,37 @@ function mapRecordFromSheets(raw: any): QCRecord {
       if (v) mappedStatus[k] = statusFromSheets(v as string);
     }
   }
+  
+  // Convert tanggal from timestamp (ms) to ISO date string
+  let tanggal = '';
+  let timestamp = '';
+  
+  if (typeof raw.tanggal === 'number') {
+    // GAS stores as timestamp milliseconds
+    const date = new Date(raw.tanggal);
+    tanggal = date.toISOString().split('T')[0];  // "2026-05-10"
+    timestamp = date.toISOString();  // "2026-05-10T00:00:00.000Z"
+  } else if (typeof raw.tanggal === 'string') {
+    // Fallback: already a string
+    tanggal = raw.tanggal;
+    timestamp = raw.timestamp || new Date(raw.tanggal).toISOString();
+  } else {
+    // No valid date
+    const now = new Date();
+    tanggal = now.toISOString().split('T')[0];
+    timestamp = now.toISOString();
+  }
+  
   return {
     id: raw.id || `qc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    timestamp: raw.timestamp || '',
-    tanggal: raw.tanggal || '',
+    timestamp,
+    tanggal,
     alat: alatKey,
     level: raw.level || 'Kontrol',
     lot: raw.lot || '',
     params: raw.params || {},
     status: mappedStatus as QCRecord['status'],
-    analis: raw.analis || '',
+    analis: raw.petugas || raw.analis || '',  // Read petugas first, fallback to analis
     catatan: raw.catatan || '',
   };
 }
