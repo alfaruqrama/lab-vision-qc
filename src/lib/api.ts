@@ -32,10 +32,11 @@ function statusToSheets(s: WestgardStatus): string {
   return 'ok';
 }
 
-async function get(action: string, params: Record<string, string> = {}): Promise<any> {
+async function get(action: string, params: Record<string, string> = {}, token?: string): Promise<any> {
   if (!isConnected()) throw new Error('Demo mode');
   const url = new URL(APPS_SCRIPT_URL);
   url.searchParams.set('action', action);
+  if (token) url.searchParams.set('token', token);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -125,8 +126,8 @@ export async function fetchAllRecords(): Promise<QCRecord[]> {
   return [];
 }
 
-export async function fetchRecordsByMonth(month: string): Promise<QCRecord[]> {
-  const json = await get('getByMonth', { month });
+export async function fetchRecordsByMonth(month: string, token?: string): Promise<QCRecord[]> {
+  const json = await get('getByMonth', { month }, token);
   if (json.status === 'ok' && Array.isArray(json.data)) {
     return json.data.map(mapRecordFromSheets);
   }

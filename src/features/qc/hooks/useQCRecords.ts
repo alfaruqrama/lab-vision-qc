@@ -11,7 +11,17 @@ const STORAGE_KEY = 'labqc_records';
 async function fetchRecords(): Promise<QCRecord[]> {
   if (api.isConnected()) {
     const month = new Date().toLocaleString('id-ID', { month: 'long' }).toUpperCase();
-    return api.fetchRecordsByMonth(month);
+    const auth = getStoredAuth();
+    console.log('=== Fetching QC Records ===');
+    console.log('Month:', month);
+    console.log('Token:', auth?.token ? 'Present' : 'Missing');
+    console.log('GAS URL:', import.meta.env.VITE_GAS_QC_URL);
+    const records = await api.fetchRecordsByMonth(month, auth?.token);
+    console.log('Records fetched:', records.length);
+    if (records.length > 0) {
+      console.log('First record:', records[0]);
+    }
+    return records;
   }
   // Demo mode: read from localStorage or generate mock data
   const stored = localStorage.getItem(STORAGE_KEY);
