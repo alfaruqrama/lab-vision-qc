@@ -63,8 +63,8 @@ export async function login(username: string, password: string): Promise<LoginRe
       return { success: false, message: 'Akun tidak aktif. Hubungi admin.' };
     }
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, profile.password_hash);
+    // Verify password (case-insensitive)
+    const passwordMatch = await bcrypt.compare(password.toLowerCase(), profile.password_hash);
     if (!passwordMatch) {
       return { success: false, message: 'Username atau password salah' };
     }

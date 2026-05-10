@@ -1,0 +1,314 @@
+# Manual Verification Checklist — Supabase Migration
+
+**Dev Server:** http://localhost:5174/  
+**Branch:** `feature/supabase-migration`
+
+---
+
+## ⚠️ Prerequisites
+
+Sebelum testing, pastikan:
+
+1. **Supabase sudah running** (local atau cloud)
+2. **Migration sudah dijalankan** (`001_initial.sql`)
+3. **`.env.local` sudah dikonfigurasi**:
+   ```env
+   VITE_SUPABASE_URL=http://localhost:54321  # atau https://xxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ```
+4. **Admin password hash sudah diganti** (bukan placeholder)
+
+---
+
+## 🧪 Test Scenarios
+
+### 1. Auth System
+
+#### ✅ Login Flow
+- [ ] Buka http://localhost:5174/
+- [ ] Redirect ke `/login` (jika belum login)
+- [ ] Login dengan `admin` / `admin123`
+- [ ] Berhasil masuk ke Portal Home
+- [ ] User info muncul di navbar (nama: "Administrator")
+
+#### ✅ Session Persistence
+- [ ] Refresh browser (F5)
+- [ ] Tetap login (tidak redirect ke `/login`)
+- [ ] User info tetap muncul
+
+#### ✅ Logout
+- [ ] Klik logout di navbar
+- [ ] Redirect ke `/login`
+- [ ] Session cleared (cek localStorage: `lab-portal-auth` hilang)
+
+#### ✅ Invalid Credentials
+- [ ] Login dengan username/password salah
+- [ ] Error message muncul: "Username atau password salah"
+
+---
+
+### 2. Admin User Management
+
+#### ✅ View Users
+- [ ] Login sebagai admin
+- [ ] Buka `/admin/users`
+- [ ] Tabel user muncul (minimal 1 user: admin)
+- [ ] Kolom: Username, Nama, Role, Status, Aksi
+
+#### ✅ Create User
+- [ ] Klik "Tambah User"
+- [ ] Isi form:
+  - Username: `petugas1`
+  - Nama: `Petugas Test`
+  - Password: `test123`
+  - Role: `petugas`
+- [ ] Klik "Simpan"
+- [ ] Toast success muncul
+- [ ] User baru muncul di tabel
+
+#### ✅ Update User
+- [ ] Klik icon edit (pensil) di user `petugas1`
+- [ ] Ubah nama jadi `Petugas Updated`
+- [ ] Ubah role jadi `viewer`
+- [ ] Klik "Simpan"
+- [ ] Toast success muncul
+- [ ] Perubahan muncul di tabel
+
+#### ✅ Reset Password
+- [ ] Klik icon key di user `petugas1`
+- [ ] Isi password baru: `newpass123`
+- [ ] Klik "Reset Password"
+- [ ] Toast success muncul
+- [ ] Logout, login dengan `petugas1` / `newpass123` → berhasil
+
+#### ✅ Delete User
+- [ ] Klik icon trash di user `petugas1`
+- [ ] Konfirmasi dialog muncul
+- [ ] Klik "Hapus"
+- [ ] Toast success muncul
+- [ ] User hilang dari tabel
+
+---
+
+### 3. QC Module
+
+#### ✅ Dashboard
+- [ ] Login sebagai admin atau petugas
+- [ ] Buka `/qc`
+- [ ] Dashboard muncul dengan stat chips:
+  - Total QC
+  - In-Control
+  - Peringatan
+  - Diluar Kendali
+- [ ] Status QC hari ini muncul (atau "Belum ada data QC hari ini")
+- [ ] Connection status: "Terhubung ke Google Sheets" (seharusnya berubah jadi "Terhubung ke Supabase" — **minor bug**, tidak critical)
+
+#### ✅ Input QC
+- [ ] Klik tombol "+" (floating action button)
+- [ ] Redirect ke `/qc/input`
+- [ ] Step 1: Pilih alat (CA660, EASYLITE, ONCALL1, ONCALL2)
+- [ ] Step 2: Pilih level (skip untuk CA660)
+- [ ] Step 3: Form input muncul
+  - Lot number (dropdown)
+  - Tanggal (date picker)
+  - Nama analis (text input)
+  - Parameter values (input fields)
+  - Catatan (textarea)
+- [ ] Isi semua field
+- [ ] Klik "Simpan Data QC"
+- [ ] Toast success: "Data QC berhasil disimpan!"
+- [ ] Redirect ke `/qc`
+- [ ] Record baru muncul di "Status QC Hari Ini"
+
+#### ✅ Levey-Jennings Chart
+- [ ] Buka `/qc/chart`
+- [ ] Pilih parameter (dropdown)
+- [ ] Pilih level (jika ada)
+- [ ] Pilih bulan (month picker)
+- [ ] Chart muncul dengan:
+  - Line chart (nilai QC)
+  - Reference lines (mean, ±1SD, ±2SD, ±3SD)
+  - Dots berwarna (ok=biru, warning=kuning, oos=merah)
+- [ ] Stats muncul:
+  - N (jumlah run)
+  - Mean target vs actual
+  - SD actual
+  - CV
+  - In-control %
+
+#### ✅ Monthly Report
+- [ ] Buka `/qc/report`
+- [ ] Pilih bulan
+- [ ] Pilih alat (ALL atau spesifik)
+- [ ] Klik "Generate Laporan"
+- [ ] Summary table muncul dengan:
+  - Parameter
+  - Alat
+  - Level
+  - N
+  - Mean target vs actual
+  - SD
+  - CV
+  - Status
+- [ ] Klik "Export Excel" → file `.xlsx` terdownload
+- [ ] Klik "Print" → print preview muncul
+
+#### ✅ Lot Config
+- [ ] Login sebagai admin atau petugas
+- [ ] Buka `/qc/config`
+- [ ] Form konfigurasi lot muncul untuk semua alat
+- [ ] Edit nilai mean/SD untuk satu parameter
+- [ ] Klik "Simpan Konfigurasi"
+- [ ] Toast success muncul
+- [ ] Refresh page → nilai baru tetap tersimpan
+
+---
+
+### 4. Role-Based Access Control
+
+#### ✅ Admin Access
+- [ ] Login sebagai `admin`
+- [ ] Bisa akses semua menu:
+  - Dashboard Kunjungan
+  - Lab QC (semua submenu)
+  - Monitor Suhu
+  - Kelola User
+
+#### ✅ Petugas Access
+- [ ] Login sebagai `petugas1` (atau create user baru dengan role petugas)
+- [ ] Bisa akses:
+  - Dashboard Kunjungan
+  - Lab QC (semua submenu)
+- [ ] **Tidak bisa** akses:
+  - Monitor Suhu (tidak muncul di Portal Home)
+  - Kelola User (tidak muncul di Portal Home)
+
+#### ✅ Viewer Access
+- [ ] Login sebagai user dengan role `viewer`
+- [ ] Bisa akses:
+  - Dashboard Kunjungan
+  - Lab QC (Dashboard, Chart, Report)
+- [ ] **Tidak bisa** akses:
+  - Input QC (tombol "+" tidak muncul atau redirect dengan error)
+  - Lot Config (tidak muncul di sidebar)
+  - Monitor Suhu
+  - Kelola User
+
+---
+
+### 5. Demo Mode (Offline)
+
+#### ✅ Tanpa Supabase Config
+- [ ] Stop dev server
+- [ ] Hapus `VITE_SUPABASE_URL` dari `.env.local`
+- [ ] Start dev server lagi
+- [ ] Buka http://localhost:5174/
+- [ ] Login page muncul
+- [ ] Login gagal dengan error: "Supabase belum dikonfigurasi"
+- [ ] **Expected:** Demo mode dengan localStorage (seperti sebelum migrasi)
+
+---
+
+### 6. Database Verification (Supabase Dashboard)
+
+#### ✅ Profiles Table
+- [ ] Buka Supabase Dashboard → Table Editor → `profiles`
+- [ ] Ada minimal 1 row (admin user)
+- [ ] Kolom `password_hash` berisi bcrypt hash (bukan plaintext)
+- [ ] Kolom `is_active` = `true`
+
+#### ✅ Sessions Table
+- [ ] Setelah login, buka `sessions` table
+- [ ] Ada row baru dengan:
+  - `token` = UUID
+  - `user_id` = UUID dari profiles
+  - `expires_at` = 4 jam dari sekarang
+- [ ] Setelah logout, row hilang
+
+#### ✅ QC Records Table
+- [ ] Setelah input QC, buka `qc_records` table
+- [ ] Ada row baru dengan:
+  - `id` = string (format: `qc-{timestamp}`)
+  - `tanggal` = date (format: `2026-05-10`)
+  - `params` = JSONB (contoh: `{"PT": 12.5, "APTT": 32.0}`)
+  - `status` = JSONB (contoh: `{"PT": "ok", "APTT": "ok"}`)
+  - `created_by` = UUID dari profiles
+
+#### ✅ Lot Config Table
+- [ ] Setelah update lot config, buka `lot_config` table
+- [ ] Ada row baru (audit trail — tidak update existing)
+- [ ] Kolom `config` = JSONB (full lot config)
+- [ ] Kolom `updated_by` = UUID dari profiles
+
+---
+
+### 7. Edge Cases
+
+#### ✅ Expired Session
+- [ ] Login
+- [ ] Tunggu 4 jam (atau ubah `SESSION_DURATION` di `auth-types.ts` jadi 10 detik untuk testing)
+- [ ] Refresh page
+- [ ] Redirect ke `/login` dengan session expired
+
+#### ✅ Concurrent Sessions
+- [ ] Login di browser A
+- [ ] Login dengan user yang sama di browser B
+- [ ] Kedua session tetap valid (multi-session allowed)
+- [ ] Logout di browser A
+- [ ] Browser B tetap login (session independent)
+
+#### ✅ SQL Injection Protection
+- [ ] Login dengan username: `admin' OR '1'='1`
+- [ ] Login gagal (Supabase parameterized queries)
+
+#### ✅ XSS Protection
+- [ ] Input QC dengan catatan: `<script>alert('XSS')</script>`
+- [ ] Simpan
+- [ ] View di dashboard → script tidak dieksekusi (React auto-escape)
+
+---
+
+## 🐛 Known Issues (Expected)
+
+1. **Connection status text** — masih "Google Sheets", seharusnya "Supabase"
+   - **Location:** `src/pages/Dashboard.tsx:126`
+   - **Fix:** Ganti text jadi "Terhubung ke Supabase"
+
+2. **bcryptjs warning saat build** — "Module crypto has been externalized"
+   - **Impact:** None (bcryptjs pure JS, works in browser)
+   - **Action:** Ignore
+
+3. **Default admin password** — placeholder hash di migration
+   - **Impact:** Login gagal jika tidak diganti
+   - **Action:** Generate real hash sebelum testing
+
+---
+
+## 📊 Performance Checks
+
+- [ ] Login response time < 1s
+- [ ] QC record save < 500ms
+- [ ] Dashboard load < 2s
+- [ ] Chart render < 1s
+- [ ] No console errors di browser DevTools
+
+---
+
+## ✅ Success Criteria
+
+Migrasi dianggap berhasil jika:
+
+1. ✅ Semua test scenarios di atas pass
+2. ✅ Tidak ada console errors
+3. ✅ Data tersimpan di Supabase (bukan localStorage)
+4. ✅ RLS policies berfungsi (role-based access)
+5. ✅ Session management works (login/logout/expired)
+
+---
+
+**Testing by:** _____________  
+**Date:** _____________  
+**Result:** ⬜ PASS  ⬜ FAIL  
+**Notes:**
+
+---

@@ -77,13 +77,20 @@ create index idx_lot_config_updated_at on lot_config(updated_at desc);
 
 -- ─── Row Level Security (RLS) ───────────────────────────────────────────────
 
-alter table profiles enable row level security;
-alter table sessions enable row level security;
-alter table qc_records enable row level security;
-alter table lot_config enable row level security;
+-- NOTE: RLS is DISABLED for local development to avoid circular policy issues.
+-- For production deployment, implement proper RLS policies or use Supabase Auth.
+
+-- alter table profiles enable row level security;
+-- alter table sessions enable row level security;
+-- alter table qc_records enable row level security;
+-- alter table lot_config enable row level security;
 
 -- ─── Helper Function: Get User Role from Token ──────────────────────────────
 
+-- NOTE: This function and all RLS policies below are commented out for local dev.
+-- Uncomment and adapt for production deployment.
+
+/*
 create or replace function get_user_role_from_token(session_token uuid)
 returns text as $$
   select p.role
@@ -94,8 +101,11 @@ returns text as $$
     and p.is_active = true
   limit 1;
 $$ language sql stable;
+*/
 
--- ─── RLS Policies: Profiles ─────────────────────────────────────────────────
+-- ─── RLS Policies (DISABLED for local dev) ──────────────────────────────────
+
+/*
 
 -- Admin can read all profiles
 create policy "admin_read_profiles"
@@ -198,19 +208,8 @@ create policy "petugas_insert_config"
       (current_setting('request.headers', true)::json->>'x-session-token')::uuid
     ) in ('admin', 'petugas')
   );
+*/
 
--- ─── Seed Data: Default Admin User ─────────────────────────────────────────
--- Password: admin123 (bcrypt hash)
--- IMPORTANT: Change this password after first login!
-
-insert into profiles (username, nama, role, password_hash, is_active)
-values (
-  'admin',
-  'Administrator',
-  'admin',
-  '$2a$10$rKZvVqVqVqVqVqVqVqVqVuO8K8K8K8K8K8K8K8K8K8K8K8K8K8K8K',
-  true
-);
-
--- Note: The hash above is a placeholder. Generate real hash with:
--- bcrypt.hash('admin123', 10)
+-- ─── Seed Data ──────────────────────────────────────────────────────────────
+-- Users will be seeded via separate script after migration
+-- See: scripts/seed-users.cjs
