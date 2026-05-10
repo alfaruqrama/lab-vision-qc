@@ -6,6 +6,7 @@ import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { evaluateWestgard } from '@/lib/westgard';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { useAuth } from '@/hooks/use-auth';
 import { useAIExtraction } from '@/features/qc/hooks';
 import { ParamValueCard } from '@/features/qc/components';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
@@ -28,11 +29,11 @@ interface StepFormProps {
 export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const navigate = useNavigate();
   const { config, addRecord, connected } = useQCStore();
+  const { user } = useAuth();
 
   // Form state
   const [lotNumber, setLotNumber] = useState('');
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
-  const [analis, setAnalis] = useState('');
   const [values, setValues] = useState<Partial<Record<ParamName, string>>>({});
   const [catatan, setCatatan] = useState('');
   const [saving, setSaving] = useState(false);
@@ -93,8 +94,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
   }
 
   async function handleSave() {
-    if (!lotNumber || !analis.trim()) {
-      toast.error('Lengkapi semua field yang wajib');
+    if (!lotNumber) {
+      toast.error('Pilih nomor lot');
       return;
     }
     const hasValues = params.some((p) => values[p] && values[p]!.trim());
@@ -126,7 +127,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       lot: lotNumber,
       params: parsedParams,
       status: statuses as QCRecord['status'],
-      analis: analis.trim(),
+      analis: user?.nama || 'Unknown',
       catatan,
     };
 
@@ -198,15 +199,6 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             className="font-mono-data"
           />
         </div>
-        <div className="md:col-span-2 space-y-1.5">
-          <Label className="text-xs">Nama Analis</Label>
-          <Input
-            type="text"
-            value={analis}
-            onChange={(e) => setAnalis(e.target.value)}
-            placeholder="Masukkan nama analis"
-          />
-        </div>
       </div>
 
       {/* Parameter inputs */}
@@ -242,7 +234,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         {connected ? (
           <>
             <Wifi size={12} className="text-success" />
-            Data tersimpan ke Google Sheets
+            Data tersimpan ke Supabase
           </>
         ) : (
           <>

@@ -23,7 +23,13 @@ export default function Dashboard() {
   const todayKey = `${monthKey}-${String(now.getDate()).padStart(2, '0')}`;
 
   const monthRecords = useMemo(() => records.filter((r) => r.tanggal.startsWith(monthKey)), [records, monthKey]);
-  const todayRecords = useMemo(() => records.filter((r) => r.tanggal === todayKey), [records, todayKey]);
+  const todayRecords = useMemo(
+    () =>
+      records
+        .filter((r) => r.tanggal === todayKey)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [records, todayKey],
+  );
 
   const stats = useMemo(() => {
     let ok = 0,
@@ -62,7 +68,7 @@ export default function Dashboard() {
       bgClass: 'bg-warning/10',
     },
     {
-      label: 'Diluar Kendali',
+      label: 'Diluar Kontrol',
       value: stats.oos,
       icon: XCircle,
       colorClass: 'text-destructive',
@@ -123,7 +129,7 @@ export default function Dashboard() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center pt-2">
         {connected ? (
           <>
-            <Wifi size={12} className="text-success" /> Terhubung ke Google Sheets
+            <Wifi size={12} className="text-success" /> Terhubung ke Supabase
           </>
         ) : (
           <>
