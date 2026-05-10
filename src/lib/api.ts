@@ -1,6 +1,6 @@
 import type { LotConfig, QCRecord, InstrumentType, WestgardStatus } from './types';
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPlZSmSuwVZFwjS_qEPWrWlTMqcEo9b4ehiVIts3c-oUMcbJ6d_v9yy4s7Uw0iuy912w/exec';
+const APPS_SCRIPT_URL = import.meta.env.VITE_GAS_QC_URL || '';
 
 export function isConnected(): boolean {
   return APPS_SCRIPT_URL.length > 0;
@@ -43,12 +43,12 @@ async function get(action: string, params: Record<string, string> = {}): Promise
 }
 
 // Use text/plain to bypass CORS preflight with Google Apps Script
-async function post(action: string, payload: any): Promise<any> {
+async function post(action: string, payload: any, token?: string): Promise<any> {
   if (!isConnected()) throw new Error('Demo mode');
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action, ...payload }),
+    body: JSON.stringify({ action, ...(token ? { token } : {}), ...payload }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -120,13 +120,13 @@ export async function fetchConfig(): Promise<LotConfig> {
   throw new Error('No config found');
 }
 
-export async function saveRecord(record: QCRecord): Promise<any> {
+export async function saveRecord(record: QCRecord, token?: string): Promise<any> {
   const sheetsData = mapRecordToSheets(record);
-  return post('save', { data: sheetsData });
+  return post('save', { data: sheetsData }, token);
 }
 
-export async function saveConfig(config: LotConfig): Promise<any> {
-  return post('saveKonfig', { data: config });
+export async function saveConfig(config: LotConfig, token?: string): Promise<any> {
+  return post('saveKonfig', { data: config }, token);
 }
 
 export interface ReadStrukResult {

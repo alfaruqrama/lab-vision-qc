@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield, Users } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
@@ -41,16 +41,7 @@ export default function PortalHome() {
       badge: connected ? { label: 'LIVE · Google Sheets', live: true } : { label: 'OFFLINE', live: false },
       chips: ['Total Kunjungan', 'Omzet Harian', '% Target'],
       visible: canAccess('dashboard'),
-    },
-    {
-      title: 'Monitor Suhu Lab',
-      desc: 'Pantau suhu ruang lab, kulkas reagen, freezer, dan bank darah',
-      icon: Thermometer,
-      path: '/suhu',
-      colorClass: 'bg-accent2 text-accent2-foreground',
-      badge: { label: 'DUMMY DATA', live: false },
-      chips: ['6 Ruangan', '1 Alert'],
-      visible: canAccess('suhu'),
+      wip: false,
     },
     {
       title: 'Lab QC',
@@ -64,6 +55,18 @@ export default function PortalHome() {
         lastStatus ? (lastStatus === 'ok' ? '✓ Pass' : lastStatus === 'warning' ? '⚠ Warning' : '✕ Fail') : 'Belum ada data',
       ],
       visible: canAccess('qc'),
+      wip: false,
+    },
+    {
+      title: 'Monitor Suhu Lab',
+      desc: 'Pantau suhu ruang lab, kulkas reagen, freezer, dan bank darah',
+      icon: Thermometer,
+      path: '/suhu',
+      colorClass: 'bg-accent2 text-accent2-foreground',
+      badge: { label: 'ADMIN ONLY', live: false },
+      chips: ['6 Ruangan', '1 Alert'],
+      visible: canAccess('suhu'),
+      wip: true,
     },
     {
       title: 'Kelola User',
@@ -74,6 +77,7 @@ export default function PortalHome() {
       badge: { label: 'ADMIN ONLY', live: false },
       chips: ['User Management', 'Role & Access'],
       visible: canAccess('admin-users'),
+      wip: false,
     },
   ].filter(mod => mod.visible);
 
@@ -93,9 +97,15 @@ export default function PortalHome() {
             <button
               key={mod.path}
               onClick={() => navigate(mod.path)}
-              className="card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01]"
+              className="card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01] relative overflow-hidden"
             >
-              <div className="flex items-start gap-3 mb-3">
+              {mod.wip && (
+                <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
+                  <Construction size={11} className="text-amber-600 shrink-0" />
+                  <span className="text-[10px] font-semibold text-amber-700 tracking-wide">SEDANG DALAM PENGEMBANGAN</span>
+                </div>
+              )}
+              <div className={`flex items-start gap-3 mb-3 ${mod.wip ? 'mt-7' : ''}`}>
                 <div className={`w-10 h-10 rounded-xl ${mod.colorClass} flex items-center justify-center shrink-0`}>
                   <mod.icon size={20} />
                 </div>
