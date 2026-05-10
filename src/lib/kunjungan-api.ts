@@ -1,7 +1,7 @@
 // Kunjungan Google Sheets API integration
 import { type KunjunganData, normalizeMonthKeys } from './kunjungan-types';
 
-const GS_URL = 'https://script.google.com/macros/s/AKfycbw3obd6r4nhhXJDNu-anTwnYeG8Bzy7DQR5oWf4kyqm-Fpgzxj1CJNNEEeI-8LPKf0saQ/exec';
+const GS_URL = import.meta.env.VITE_GAS_KUNJUNGAN_URL || '';
 
 export function getGsUrl(): string {
   return GS_URL;

@@ -1,13 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line
 } from 'recharts';
-import { ChevronLeft, RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER
+  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER, getPayerValue
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { useAuth } from '@/hooks/use-auth';
@@ -53,7 +53,7 @@ function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
   const chartData = data.map(r => ({ name: String(r.d), total: r.total, target: r.target, pct: r.pct }));
   const payerTotals = PAYERS.map(p => ({
     name: p.l,
-    value: data.reduce((s, r) => s + ((r as any)[p.k] || 0), 0),
+    value: data.reduce((s, r) => s + getPayerValue(r, p.k), 0),
     color: p.c,
   }));
 
@@ -161,7 +161,7 @@ function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
                   <td className="px-2 py-1.5 font-bold text-accent">{r.d}</td>
                   {PAYERS.map(p => (
                     <td key={p.k} className="px-2 py-1.5 text-right text-muted-foreground">
-                      {(r as any)[p.k] ? fmtRp((r as any)[p.k]) : '—'}
+                      {getPayerValue(r, p.k) ? fmtRp(getPayerValue(r, p.k)) : '—'}
                     </td>
                   ))}
                   <td className="px-2 py-1.5 text-right font-semibold">{fmtRp(r.total)}</td>
@@ -408,6 +408,7 @@ function EmptyState({ text }: { text: string }) {
     <div className="card-clinical p-12 text-center text-muted-foreground">
       <p className="text-3xl mb-3">📊</p>
       <p className="font-semibold">{text}</p>
+      <p className="text-xs mt-1">Pastikan koneksi aktif dan refresh untuk memuat data terbaru.</p>
     </div>
   );
 }
@@ -488,6 +489,38 @@ export default function KunjunganDashboard() {
 
   return (
     <div className="space-y-0">
+      {/* Stale data banner — tampil saat error tapi data lama masih ada */}
+      {status === 'error' && lastUpdated && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-2 text-xs text-amber-700">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span>Menampilkan data terakhir — {new Date(lastUpdated).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}. Koneksi ke server gagal.</span>
+        </div>
+      )}
+
+      {/* Kumulatif YTD banner */}
+      {kumulatif && (kumulatif.kumOmzet > 0 || kumulatif.kumKunj > 0) && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="card-clinical px-4 py-3 flex items-center gap-3">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">Omzet YTD s/d Tgl {kumulatif.tglAkhir}</p>
+              <p className="text-base font-bold text-accent font-display">{fmtRp(kumulatif.kumOmzet)}</p>
+              {kumulatif.targetOmzetBulan > 0 && (
+                <p className="text-[10px] text-muted-foreground">Target bulan ini: {fmtRp(kumulatif.targetOmzetBulan)}</p>
+              )}
+            </div>
+          </div>
+          <div className="card-clinical px-4 py-3 flex items-center gap-3">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">Kunjungan YTD s/d Tgl {kumulatif.tglAkhir}</p>
+              <p className="text-base font-bold text-accent font-display">{kumulatif.kumKunj.toLocaleString('id-ID')}</p>
+              {kumulatif.targetKunjBulan > 0 && (
+                <p className="text-[10px] text-muted-foreground">Target bulan ini: {kumulatif.targetKunjBulan.toLocaleString('id-ID')}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status bar */}
       <div className="flex items-center justify-between gap-2 pb-2">
         <div className="flex items-center gap-2">
