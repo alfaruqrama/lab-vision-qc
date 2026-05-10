@@ -3,6 +3,7 @@ import type { LotConfig } from '@/lib/types';
 import * as api from '@/lib/api';
 import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
 import { toast } from 'sonner';
+import { getStoredAuth } from '@/lib/auth-api';
 
 const STORAGE_KEY = 'labqc_config';
 
@@ -30,7 +31,8 @@ async function fetchConfig(): Promise<LotConfig> {
 /** Save lot configuration — handles both online and demo mode */
 async function saveConfig(config: LotConfig): Promise<LotConfig> {
   if (api.isConnected()) {
-    await api.saveConfig(config);
+    const auth = getStoredAuth();
+    await api.saveConfig(config, auth?.token);
   } else {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   }
