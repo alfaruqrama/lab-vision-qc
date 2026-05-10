@@ -294,6 +294,108 @@ Sebelum testing, pastikan:
 
 ---
 
+### 7. QC Module Database Integration
+
+#### ✅ QC Dashboard (`/qc`)
+- [ ] Navigate to `/qc`
+- [ ] Stats cards show correct counts (Total QC, In-Control, Peringatan, Diluar Kendali)
+- [ ] "Status QC Hari Ini" section displays today's records
+- [ ] Connection indicator shows "Supabase" (not "Google Sheets")
+- [ ] No console errors
+
+**Verify Data Source:**
+- [ ] Open DevTools → Network tab
+- [ ] Refresh page
+- [ ] See Supabase API calls to `/rest/v1/qc_records`
+- [ ] No localStorage fallback
+
+#### ✅ Levey-Jennings Chart (`/qc/chart`)
+- [ ] Navigate to `/qc/chart`
+- [ ] Select CA660 → PT → Kontrol
+- [ ] Chart renders with data points
+- [ ] Mean line (blue) and SD lines (green/yellow/red) visible
+- [ ] Stats panel shows: n, Mean, SD, CV, In-Control %
+- [ ] Select EASYLITE → Na → NORMAL
+- [ ] Chart updates with new data
+- [ ] No console errors
+
+#### ✅ Monthly Report (`/qc/report`)
+- [ ] Navigate to `/qc/report`
+- [ ] Month selector shows current month
+- [ ] Summary table populates with all instruments
+- [ ] Rows show: Alat, Parameter, Level, n, Mean, SD, CV, Status
+- [ ] Export Excel button works (downloads file)
+- [ ] Export Word button works (downloads file)
+- [ ] Select future month → shows empty state
+- [ ] No console errors
+
+#### ✅ Lot Config Page (`/qc/config`)
+- [ ] Navigate to `/qc/config`
+- [ ] All 4 instruments display: CA660, EASYLITE, ONCALL1, ONCALL2
+- [ ] Each instrument shows: Lot number, Expiry, Levels, Parameters, Mean, SD
+- [ ] CA660: Kontrol level with PT, APTT, INR
+- [ ] EASYLITE: NORMAL and HIGH levels with Na, K, Cl
+- [ ] ONCALL1/2: CTRL0, CTRL1, CTRL2 levels with GDA
+- [ ] All values match DEFAULT_LOT_CONFIG
+- [ ] No empty fields
+- [ ] No console errors
+
+**Verify Data Source:**
+- [ ] Open DevTools → Network tab
+- [ ] Refresh page
+- [ ] See Supabase API call to `/rest/v1/lot_config`
+
+#### ✅ Input QC Record (`/qc/input`)
+- [ ] Navigate to `/qc/input`
+- [ ] Select CA660 → Kontrol
+- [ ] Lot number auto-populates
+- [ ] Enter values: PT=12.8, APTT=33.5, INR=1.02
+- [ ] Analis: rama
+- [ ] Click **Simpan**
+- [ ] Toast: "Data QC berhasil disimpan!"
+- [ ] Form resets
+- [ ] Navigate to `/qc` → new record appears in "Status QC Hari Ini"
+
+**Verify in Database:**
+```sql
+SELECT * FROM qc_records WHERE analis = 'rama' ORDER BY created_at DESC LIMIT 1;
+```
+- [ ] Record exists with correct values
+- [ ] `created_by` = rama UUID
+- [ ] `tanggal` = today's date
+- [ ] `status` JSONB has `ok` values
+
+#### ✅ Update Lot Config (`/qc/config`)
+- [ ] Navigate to `/qc/config`
+- [ ] Edit CA660 config (if edit button exists)
+- [ ] Update PT Mean: 12.8 (from 12.5)
+- [ ] Click **Simpan**
+- [ ] Toast: "Konfigurasi lot berhasil diperbarui!"
+- [ ] Page refreshes with new values
+
+**Verify in Database:**
+```sql
+SELECT config->'CA660'->0->'Kontrol'->'PT'->>'mean' as pt_mean
+FROM lot_config ORDER BY updated_at DESC LIMIT 1;
+```
+- [ ] `pt_mean` = 12.8
+- [ ] `updated_by` = rama UUID
+
+#### ✅ QC Data Integrity
+- [ ] Run verification script:
+  ```bash
+  node scripts/verify-qc-data.cjs
+  ```
+- [ ] All 6 checks pass:
+  - [ ] Count by instrument (CA660: 10, EASYLITE: 15, ONCALL1: 10, ONCALL2: 10)
+  - [ ] Count by month (current month: 45+ records)
+  - [ ] No orphan records
+  - [ ] Lot config structure valid
+  - [ ] Tanggal format (ISO YYYY-MM-DD)
+  - [ ] JSONB structure valid
+
+---
+
 ## ✅ Success Criteria
 
 Migrasi dianggap berhasil jika:
@@ -301,8 +403,20 @@ Migrasi dianggap berhasil jika:
 1. ✅ Semua test scenarios di atas pass
 2. ✅ Tidak ada console errors
 3. ✅ Data tersimpan di Supabase (bukan localStorage)
-4. ✅ RLS policies berfungsi (role-based access)
+4. ✅ RLS policies berfungsi (role-based access) — **DISABLED for local dev**
 5. ✅ Session management works (login/logout/expired)
+6. ✅ QC module reads/writes to Supabase correctly
+7. ✅ Lot config and QC records verified in database
+
+---
+
+## 📚 Additional Test Documents
+
+For comprehensive QC module testing, see:
+
+- **FASE3_UI_TESTING.md** - UI read operations (Dashboard, Chart, Report, Config)
+- **FASE4_WRITE_TESTING.md** - Write operations (Input QC, Update Config, Role-based access)
+- **FASE5_EDGE_CASES_TESTING.md** - Edge cases (Empty state, Invalid data, Network errors, Performance)
 
 ---
 
