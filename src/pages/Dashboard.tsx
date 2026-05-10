@@ -22,6 +22,16 @@ export default function Dashboard() {
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const todayKey = `${monthKey}-${String(now.getDate()).padStart(2, '0')}`;
 
+  // Debug logging
+  console.log('=== Dashboard Debug ===');
+  console.log('Total records:', records.length);
+  console.log('Month key:', monthKey);
+  console.log('Today key:', todayKey);
+  if (records.length > 0) {
+    console.log('First record tanggal:', records[0].tanggal);
+    console.log('First record:', records[0]);
+  }
+
   const monthRecords = useMemo(() => records.filter((r) => r.tanggal.startsWith(monthKey)), [records, monthKey]);
   const todayRecords = useMemo(() => records.filter((r) => r.tanggal === todayKey), [records, todayKey]);
 

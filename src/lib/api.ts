@@ -90,7 +90,7 @@ function mapRecordFromSheets(raw: any): QCRecord {
     alat: alatKey,
     level: raw.level || 'Kontrol',
     lot: raw.lot || '',
-    params: raw.params || {},
+    params: raw.nilai || raw.params || {},  // GAS returns 'nilai', map to 'params'
     status: mappedStatus as QCRecord['status'],
     analis: raw.petugas || raw.analis || '',  // Read petugas first, fallback to analis
     catatan: raw.catatan || '',
