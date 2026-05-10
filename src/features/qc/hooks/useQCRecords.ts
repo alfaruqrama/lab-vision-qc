@@ -3,13 +3,15 @@ import type { QCRecord } from '@/lib/types';
 import * as api from '@/lib/api';
 import { generateMockRecords } from '@/lib/mock-data';
 import { toast } from 'sonner';
+import { getStoredAuth } from '@/lib/auth-api';
 
 const STORAGE_KEY = 'labqc_records';
 
-/** Fetch all QC records — handles both online and demo mode */
+/** Fetch QC records — online: getByMonth for current month, offline: localStorage */
 async function fetchRecords(): Promise<QCRecord[]> {
   if (api.isConnected()) {
-    return api.fetchAllRecords();
+    const month = new Date().toLocaleString('id-ID', { month: 'long' }).toUpperCase();
+    return api.fetchRecordsByMonth(month);
   }
   // Demo mode: read from localStorage or generate mock data
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -24,7 +26,8 @@ async function fetchRecords(): Promise<QCRecord[]> {
 /** Save a QC record — handles both online and demo mode */
 async function saveRecord(record: QCRecord): Promise<QCRecord> {
   if (api.isConnected()) {
-    await api.saveRecord(record);
+    const auth = getStoredAuth();
+    await api.saveRecord(record, auth?.token);
   } else {
     const stored = localStorage.getItem(STORAGE_KEY);
     const records: QCRecord[] = stored ? JSON.parse(stored) : [];
