@@ -89,3 +89,9 @@ export const PAYERS = [
   { k: 'bpjsTK', l: 'BPJS TK', c: '#ea580c' },
   { k: 'umum', l: 'Umum', c: '#4f46e5' },
 ] as const;
+
+export type PayerKey = typeof PAYERS[number]['k'];
+
+export function getPayerValue(row: OmzetRow, key: PayerKey): number {
+  return (row as Record<string, number>)[key] ?? 0;
+}

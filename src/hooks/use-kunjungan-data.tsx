@@ -44,10 +44,16 @@ export function useKunjunganData() {
         fetchSummary(),
         fetchKumulatif().catch(() => null),
       ]);
+
+      if (!result.omzet || typeof result.omzet !== 'object' ||
+          !result.kunjungan || typeof result.kunjungan !== 'object') {
+        throw new Error('Response GAS tidak valid — struktur data tidak sesuai');
+      }
+
       setData({
         omzet: result.omzet,
         kunjungan: result.kunjungan,
-        mcu: result.mcu,
+        mcu: result.mcu ?? {},
       });
       setLastUpdated(result.lastUpdated);
       setStatus('live');

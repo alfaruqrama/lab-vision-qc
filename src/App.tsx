@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PortalHome from "@/pages/PortalHome";
 import KunjunganDashboard from "@/pages/KunjunganDashboard";
 import MonitorSuhu from "@/pages/MonitorSuhu";
@@ -41,7 +42,7 @@ const App = () => (
 
                 {/* Protected routes - Portal pages with top navbar */}
                 <Route path="/" element={<ProtectedRoute><PortalLayout><PortalHome /></PortalLayout></ProtectedRoute>} />
-                <Route path="/kunjungan" element={<ProtectedRoute><PortalLayout><KunjunganDashboard /></PortalLayout></ProtectedRoute>} />
+                <Route path="/kunjungan" element={<ProtectedRoute><PortalLayout><ErrorBoundary><KunjunganDashboard /></ErrorBoundary></PortalLayout></ProtectedRoute>} />
                 <Route path="/suhu" element={<ProtectedRoute><PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout></ProtectedRoute>} />
 
                 {/* Protected routes - QC module with sidebar/bottom nav */}
