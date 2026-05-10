@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import {
   AuthUser,
   LoginResponse,
@@ -7,55 +8,10 @@ import {
   ResetPasswordRequest,
   SESSION_DURATION,
   AUTH_STORAGE_KEY,
-  AUTH_URL_KEY,
 } from './auth-types';
+import { supabase, createSupabaseClient, isSupabaseConfigured } from './supabase';
 
-// Get GAS URL with hybrid approach (localStorage override > environment variable > null)
-function getAuthUrl(): string | null {
-  return localStorage.getItem(AUTH_URL_KEY) || 
-         import.meta.env.VITE_GAS_AUTH_URL || 
-         null;
-}
-
-// ─── Transport Layer ───
-
-// Detect Safari — Safari ITP memblokir POST cross-origin ke google.com
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-// Unified request — pilih POST atau GET berdasarkan browser
-async function gasRequest(url: string, payload: Record<string, unknown>): Promise<any> {
-  let res: Response;
-
-  if (isSafari) {
-    // Safari: GET — workaround ITP blocking POST to google.com
-    const fullUrl = `${url}?payload=${encodeURIComponent(JSON.stringify(payload))}`;
-    res = await fetch(fullUrl);
-  } else {
-    // Chrome/Firefox: POST text/plain — password aman di body
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload),
-    });
-  }
-
-  const text = await res.text();
-
-  // Detect GAS error page (HTML instead of JSON)
-  if (text.includes('<!DOCTYPE html>') || text.includes('Halaman Tidak Ditemukan')) {
-    console.error('GAS URL tidak valid atau deployment expired');
-    throw new Error('URL server tidak valid. Hubungi admin untuk update URL GAS.');
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    console.error('GAS response bukan JSON:', text.slice(0, 300));
-    throw new Error('Response dari server tidak valid');
-  }
-}
-
-// ─── Storage ───
+// ─── Storage ─────────────────────────────────────────────────────────────────
 
 export function storeAuth(user: AuthUser): void {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
@@ -81,119 +37,277 @@ export function isSessionTimeValid(): boolean {
   return (Date.now() - auth.loginAt) < SESSION_DURATION;
 }
 
-// ─── Auth Actions ───
+// ─── Auth Actions ────────────────────────────────────────────────────────────
 
-// Login
+/**
+ * Login: verify username + password, create session token.
+ */
 export async function login(username: string, password: string): Promise<LoginResponse> {
-  const url = getAuthUrl();
-  if (!url) {
-    return { success: false, message: 'URL server belum dikonfigurasi. Hubungi admin.' };
+  if (!isSupabaseConfigured()) {
+    return { success: false, message: 'Supabase belum dikonfigurasi. Hubungi admin.' };
   }
 
   try {
-    const data = await gasRequest(url, { action: 'login', username, password });
-    
-    if (data.success && data.user) {
-      const authUser: AuthUser = { ...data.user, loginAt: Date.now() };
-      storeAuth(authUser);
-      return { success: true, user: authUser };
+    // Query user by username
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, nama, role, password_hash, is_active')
+      .eq('username', username)
+      .single();
+
+    if (profileError || !profile) {
+      return { success: false, message: 'Username atau password salah' };
     }
-    
-    return { success: false, message: data.message || 'Login gagal' };
+
+    if (!profile.is_active) {
+      return { success: false, message: 'Akun tidak aktif. Hubungi admin.' };
+    }
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, profile.password_hash);
+    if (!passwordMatch) {
+      return { success: false, message: 'Username atau password salah' };
+    }
+
+    // Create session token
+    const expiresAt = new Date(Date.now() + SESSION_DURATION).toISOString();
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .insert({ user_id: profile.id, expires_at: expiresAt })
+      .select('token')
+      .single();
+
+    if (sessionError || !session) {
+      return { success: false, message: 'Gagal membuat session' };
+    }
+
+    const authUser: AuthUser = {
+      id: profile.id,
+      username: profile.username,
+      nama: profile.nama,
+      role: profile.role,
+      token: session.token,
+      loginAt: Date.now(),
+    };
+
+    storeAuth(authUser);
+    return { success: true, user: authUser };
   } catch (error) {
     console.error('Login error:', error);
-    const msg = error instanceof Error ? error.message : 'Gagal terhubung ke server';
-    return { success: false, message: msg };
+    return { success: false, message: 'Gagal terhubung ke server' };
   }
 }
 
-// Logout
+/**
+ * Logout: delete session token from database.
+ */
 export async function logout(token: string): Promise<void> {
-  const url = getAuthUrl();
-  if (url) {
-    try {
-      await gasRequest(url, { action: 'logout', token });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  if (!isSupabaseConfigured()) {
+    clearAuth();
+    return;
+  }
+
+  try {
+    const client = createSupabaseClient(token);
+    await client.from('sessions').delete().eq('token', token);
+  } catch (error) {
+    console.error('Logout error:', error);
   }
   clearAuth();
 }
 
-// Validate token
+/**
+ * Validate token: check if session exists and not expired.
+ */
 export async function validateToken(token: string): Promise<AuthUser | null> {
-  const url = getAuthUrl();
-  if (!url) return null;
+  if (!isSupabaseConfigured()) return null;
 
   try {
-    const data = await gasRequest(url, { action: 'validateToken', token });
-    if (data.success && data.user) {
-      return data.user;
+    const client = createSupabaseClient(token);
+    const { data: session, error } = await client
+      .from('sessions')
+      .select(`
+        token,
+        expires_at,
+        profiles:user_id (
+          id,
+          username,
+          nama,
+          role,
+          is_active
+        )
+      `)
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error || !session || !session.profiles) {
+      return null;
     }
-    return null;
+
+    const profile = Array.isArray(session.profiles) ? session.profiles[0] : session.profiles;
+
+    if (!profile.is_active) {
+      return null;
+    }
+
+    return {
+      id: profile.id,
+      username: profile.username,
+      nama: profile.nama,
+      role: profile.role,
+      token: session.token,
+      loginAt: Date.now(), // Refresh loginAt on validation
+    };
   } catch (error) {
     console.error('Validate token error:', error);
     return null;
   }
 }
 
-// ─── User Management (Admin) ───
+// ─── User Management (Admin) ─────────────────────────────────────────────────
 
+/**
+ * Get all users (admin only).
+ */
 export async function getUsers(token: string): Promise<User[]> {
-  const url = getAuthUrl();
-  if (!url) return [];
+  if (!isSupabaseConfigured()) return [];
 
   try {
-    const data = await gasRequest(url, { action: 'getUsers', token });
-    return data.success && data.users ? data.users : [];
+    const client = createSupabaseClient(token);
+    const { data, error } = await client
+      .from('profiles')
+      .select('username, nama, role, is_active')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Get users error:', error);
+      return [];
+    }
+
+    return data || [];
   } catch (error) {
     console.error('Get users error:', error);
     return [];
   }
 }
 
+/**
+ * Create new user (admin only).
+ */
 export async function createUser(token: string, userData: CreateUserRequest): Promise<LoginResponse> {
-  const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
+  if (!isSupabaseConfigured()) {
+    return { success: false, message: 'Supabase belum dikonfigurasi' };
+  }
 
   try {
-    return await gasRequest(url, { action: 'createUser', token, ...userData });
+    // Hash password
+    const passwordHash = await bcrypt.hash(userData.password, 10);
+
+    const client = createSupabaseClient(token);
+    const { error } = await client.from('profiles').insert({
+      username: userData.username,
+      nama: userData.nama,
+      role: userData.role,
+      password_hash: passwordHash,
+      is_active: true,
+    });
+
+    if (error) {
+      if (error.code === '23505') {
+        return { success: false, message: 'Username sudah digunakan' };
+      }
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Create user error:', error);
     return { success: false, message: 'Gagal membuat user' };
   }
 }
 
+/**
+ * Update user (admin only).
+ */
 export async function updateUser(token: string, userData: UpdateUserRequest): Promise<LoginResponse> {
-  const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
+  if (!isSupabaseConfigured()) {
+    return { success: false, message: 'Supabase belum dikonfigurasi' };
+  }
 
   try {
-    return await gasRequest(url, { action: 'updateUser', token, ...userData });
+    const client = createSupabaseClient(token);
+    const updateData: Record<string, unknown> = {};
+
+    if (userData.nama !== undefined) updateData.nama = userData.nama;
+    if (userData.role !== undefined) updateData.role = userData.role;
+    if (userData.isActive !== undefined) updateData.is_active = userData.isActive;
+
+    const { error } = await client
+      .from('profiles')
+      .update(updateData)
+      .eq('username', userData.username);
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Update user error:', error);
     return { success: false, message: 'Gagal mengupdate user' };
   }
 }
 
+/**
+ * Reset password (admin only).
+ */
 export async function resetPassword(token: string, resetData: ResetPasswordRequest): Promise<LoginResponse> {
-  const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
+  if (!isSupabaseConfigured()) {
+    return { success: false, message: 'Supabase belum dikonfigurasi' };
+  }
 
   try {
-    return await gasRequest(url, { action: 'resetPassword', token, ...resetData });
+    // Hash new password
+    const passwordHash = await bcrypt.hash(resetData.newPassword, 10);
+
+    const client = createSupabaseClient(token);
+    const { error } = await client
+      .from('profiles')
+      .update({ password_hash: passwordHash })
+      .eq('username', resetData.username);
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Reset password error:', error);
     return { success: false, message: 'Gagal reset password' };
   }
 }
 
+/**
+ * Delete user (admin only).
+ */
 export async function deleteUser(token: string, username: string): Promise<LoginResponse> {
-  const url = getAuthUrl();
-  if (!url) return { success: false, message: 'URL server belum dikonfigurasi' };
+  if (!isSupabaseConfigured()) {
+    return { success: false, message: 'Supabase belum dikonfigurasi' };
+  }
 
   try {
-    return await gasRequest(url, { action: 'deleteUser', token, username });
+    const client = createSupabaseClient(token);
+    const { error } = await client
+      .from('profiles')
+      .delete()
+      .eq('username', username);
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
   } catch (error) {
     console.error('Delete user error:', error);
     return { success: false, message: 'Gagal menghapus user' };
