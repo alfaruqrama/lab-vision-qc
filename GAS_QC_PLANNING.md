@@ -142,57 +142,65 @@ GAS_QC_SETUP.md      ← Step-by-step deployment guide
 
 **1.1 Sheet Names**
 - What are the exact sheet names inside "database QC"?
+qc record & lot config
 - If multiple sheets, which ones should GAS use?
+one spreadsheet "database QC"
 
 **1.2 QC Records Sheet Columns**
 - Does it already have column headers?
+yes
 - If yes, what are they (A to Z in order)?
+id | tanggal | alat | lot	 | level | nilai | mean | sd |	cv |	status | rules |	petugas | catatan
 - Does the expected structure above match, or different?
+check
 
 **1.3 Lot Config Sheet**
 - Does a Lot Config sheet exist?
+yes
 - If yes, what are the column headers?
+not yet configured
 - If no, should GAS create it or you create manually first?
+create manual
 
 **1.4 Existing Data**
-- Any existing data to preserve?
-- Any rows to skip (summary rows, formulas)?
+- Any existing data to preserve? start new
+- Any rows to skip (summary rows, formulas)? no
 
 ---
 
 ### Section 2: Authentication & Authorization
 
 **2.1 Auth System**
-- Confirm: use same auth system from `GAS_AUTH_DOCUMENTATION.md`?
-- Auth spreadsheet: same sheet (`1hB6rqKbV1WLE4CpN94T3kEYF_eDG0OCt4nmFhODzCzk`) or different?
-- Users sheet name: "Users" (as documented)?
-- Token column: G, expiry column: H (as documented)?
+- Confirm: use same auth system from `GAS_AUTH_DOCUMENTATION.md`? yes
+- Auth spreadsheet: same sheet (`1hB6rqKbV1WLE4CpN94T3kEYF_eDG0OCt4nmFhODzCzk`) or different? 1PvfQButVEc7ChDCHEnn8IOpPabFXzUWxYh6BWCNmkWg
+- Users sheet name: "Users" (as documented)? yes
+- Token column: G, expiry column: H (as documented)? yes
 
 **2.2 Token Storage (Frontend)**
-- Where does frontend store token?
-  - localStorage key name?
-  - Auth context variable name?
+- Where does frontend store token? local storage
+  - localStorage key name? lab-portal-auth
+  - Auth context variable name? {"username":"rama","nama":"RAMA AL FARUQ MUKHLIS, AMD.KES.","role":"admin","token":"c80e5608-a0a2-474c-b7cc-d71f9062d345-178e2455-754d-4d48-8e81-ec0698dd7045","loginAt":1778377715477}
 
 **2.3 Role-Based Access**
 
 For **saving QC records** (`action: save`):
 - [ ] admin only
 - [ ] admin + petugas
-- [ ] all authenticated users
+- [x] all authenticated users
 
 For **editing lot config** (`action: saveKonfig`):
 - [ ] admin only
 - [ ] admin + petugas
-- [ ] all authenticated users
+- [x] all authenticated users
 
 For **reading data** (`getAll`, `getByMonth`, `getKonfig`):
 - [ ] admin only
 - [ ] admin + petugas
-- [ ] all authenticated users (including viewer)
+- [x] all authenticated users (including viewer)
 - [ ] public (no auth required)
 
 **2.4 Petugas Field**
-- Auto-populate from authenticated user (recommended)?
+- Auto-populate from authenticated user (recommended)? yes
 - Or frontend sends it?
 
 ---
@@ -200,37 +208,37 @@ For **reading data** (`getAll`, `getByMonth`, `getKonfig`):
 ### Section 3: Frontend Integration
 
 **3.1 Auth Hook**
-- Does `useAuth()` expose a `token` property?
-- Exact property name? (`token`, `sessionToken`, `authToken`?)
-- Example: `const { user, token } = useAuth();` — is this correct?
+- Does `useAuth()` expose a `token` property? check
+- Exact property name? (`token`, `sessionToken`, `authToken`?) check
+- Example: `const { user, token } = useAuth();` — is this correct? check
 
 **3.2 API Layer**
-- Does `post()` in `api.ts` currently accept token?
-- Should frontend changes be included in same deliverable?
+- Does `post()` in `api.ts` currently accept token? check
+- Should frontend changes be included in same deliverable? gimme recomend
 
 ---
 
 ### Section 4: Data Mapping Confirmation
 
-**4.1 Instrument Names** — confirm table above is correct?
+**4.1 Instrument Names** — confirm table above is correct? whats table
 
-**4.2 Status Mapping** — confirm table above is correct?
+**4.2 Status Mapping** — confirm table above is correct?whats table
 
 **4.3 Rules Array Serialization**
 How to store Westgard rules array in Sheet?
 - [ ] Comma-separated: `"1-2s,1-3s,R-4s"`
-- [ ] Semicolon-separated: `"1-2s;1-3s;R-4s"`
+- [x] Semicolon-separated: `"1-2s;1-3s;R-4s"`
 - [ ] JSON string: `"[\"1-2s\",\"1-3s\"]"`
 
 **4.4 Date Format in Sheet**
 - [ ] Text string `"2026-05-09"`
 - [ ] Google Sheets Date object
-- [ ] Timestamp (ms)
+- [x] Timestamp (ms)
 
 **4.5 Empty Optional Fields**
 For empty `catatan`:
 - [ ] Empty string `""`
-- [ ] Dash `"-"`
+- [x] Dash `"-"`
 - [ ] Leave blank
 
 ---
@@ -241,18 +249,18 @@ For empty `catatan`:
 - [ ] Return error JSON only
 - [ ] Log to Apps Script Logger
 - [ ] Write to "Error Log" sheet
-- [ ] Email notification to admin
+- [x] write log Email notification to admin
 
 **5.2 Validation Errors**
 If invalid data received:
-- [ ] Reject with detailed error
+- [x] Reject with detailed error
 - [ ] Accept with defaults
 - [ ] Log warning but save anyway
 
 **5.3 Duplicate ID**
 If duplicate record `id` received:
 - [ ] Reject
-- [ ] Overwrite existing
+- [x] Overwrite existing
 - [ ] Append anyway
 
 ---
@@ -261,31 +269,31 @@ If duplicate record `id` received:
 
 **6.1 Deployment URL**
 Current `.env` URL — is it:
-- [ ] Already deployed but empty (no code yet)
+- [x] Already deployed but empty (no code yet)
 - [ ] Placeholder to be replaced after deployment
 
 **6.2 Testing Strategy**
 - [ ] Manual testing only
 - [ ] cURL commands provided
 - [ ] JavaScript test script
-- [ ] All of above
+- [x] All of above
 
 ---
 
 ### Section 7: Additional Features
 
 **7.1 Data Export**
-- [ ] Yes — add `action: export`
+- [x] Yes — add `action: export`
 - [ ] No — use Sheet's built-in export
 - [ ] Future enhancement
 
 **7.2 Record Deletion**
-- [ ] Yes — add `action: delete` (by ID)
+- [x] Yes — add `action: delete` (by ID)
 - [ ] No — manual deletion in Sheet
 - [ ] Future enhancement
 
 **7.3 Bulk Save**
-- [ ] Yes — `action: saveBulk`
+- [x] Yes — `action: saveBulk`
 - [ ] No — one at a time
 - [ ] Future enhancement
 
@@ -293,37 +301,38 @@ Current `.env` URL — is it:
 - [ ] `nilai` within `mean ± 3*sd`
 - [ ] `tanggal` not future date
 - [ ] `lot` must exist in Lot Config
-- [ ] No validation (frontend handles it)
+- [x] No validation (frontend handles it)
 
 ---
 
 ### Section 8: Performance
 
 **8.1 Expected Volume**
-- QC records per day: ___
-- QC records per month: ___
-- Expected total after 1 year: ___
+- QC records per day: +- 15
+- QC records per month: calculate
+- Expected total after 1 year: calculate
 
 **8.2 `getAll` Behavior**
 - Return ALL records?
 - Limit to recent N months?
 - Require date range parameter?
+explain the purpose of this section first, im newbie
 
 ---
 
 ### Section 9: Maintenance
 
 **9.1 Version Tracking**
-- [ ] Version number in code comments
+- [x] Version number in code comments
 - [ ] Version in response JSON
 - [ ] Not needed
 
 **9.2 Changelog**
-- [ ] Yes — `GAS_QC_CHANGELOG.md`
+- [x] Yes — `GAS_QC_CHANGELOG.md`
 - [ ] No
 
 **9.3 Troubleshooting Guide**
-- [ ] Yes — include common errors + fixes
+- [x] Yes — include common errors + fixes
 - [ ] No
 
 ---
