@@ -4,15 +4,45 @@ import * as api from '@/lib/api';
 import { generateMockRecords } from '@/lib/mock-data';
 import { toast } from 'sonner';
 import { getStoredAuth } from '@/lib/auth-api';
+import { createSupabaseClient } from '@/lib/supabase';
 
 const STORAGE_KEY = 'labqc_records';
 
-/** Fetch QC records — online: getByMonth for current month, offline: localStorage */
+/** Fetch QC records — online: Supabase current month, offline: localStorage */
 async function fetchRecords(): Promise<QCRecord[]> {
   if (api.isConnected()) {
-    const month = new Date().toLocaleString('id-ID', { month: 'long' }).toUpperCase();
-    return api.fetchRecordsByMonth(month);
+    const auth = getStoredAuth();
+    if (!auth) return [];
+
+    const client = createSupabaseClient(auth.token);
+    
+    // Fetch current month records
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    
+    // Calculate next month for upper bound
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+
+    const { data, error } = await client
+      .from('qc_records')
+      .select('*')
+      .gte('tanggal', startDate)
+      .lt('tanggal', endDate)
+      .order('tanggal', { ascending: true })
+      .order('timestamp', { ascending: true });
+
+    if (error) {
+      console.error('Fetch QC records error:', error);
+      return [];
+    }
+
+    return data || [];
   }
+
   // Demo mode: read from localStorage or generate mock data
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
@@ -27,14 +57,38 @@ async function fetchRecords(): Promise<QCRecord[]> {
 async function saveRecord(record: QCRecord): Promise<QCRecord> {
   if (api.isConnected()) {
     const auth = getStoredAuth();
-    await api.saveRecord(record, auth?.token);
+    if (!auth) throw new Error('Not authenticated');
+
+    const client = createSupabaseClient(auth.token);
+    
+    const { error } = await client.from('qc_records').insert({
+      id: record.id,
+      timestamp: record.timestamp,
+      tanggal: record.tanggal,
+      alat: record.alat,
+      level: record.level,
+      lot: record.lot,
+      params: record.params,
+      status: record.status,
+      analis: record.analis,
+      catatan: record.catatan,
+      created_by: auth.id,
+    });
+
+    if (error) {
+      console.error('Save QC record error:', error);
+      throw new Error(error.message);
+    }
+
+    return record;
   } else {
+    // Demo mode: save to localStorage
     const stored = localStorage.getItem(STORAGE_KEY);
     const records: QCRecord[] = stored ? JSON.parse(stored) : [];
     records.push(record);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return record;
   }
-  return record;
 }
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────

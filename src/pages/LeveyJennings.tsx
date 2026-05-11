@@ -34,16 +34,28 @@ function CustomDot(props: any) {
   const { cx, cy, payload } = props;
   if (!cx || !cy) return null;
   const st = payload.status;
+  const hasCatatan = payload.catatan && payload.catatan.trim() !== '';
   const color = st === 'oos' ? 'hsl(0,72%,51%)' : st === 'warning' ? 'hsl(38,92%,44%)' : 'hsl(220,79%,48%)';
+
   if (st === 'oos') {
     return (
       <g>
         <line x1={cx - 5} y1={cy - 5} x2={cx + 5} y2={cy + 5} stroke={color} strokeWidth={2} />
         <line x1={cx + 5} y1={cy - 5} x2={cx - 5} y2={cy + 5} stroke={color} strokeWidth={2} />
+        {hasCatatan && (
+          <circle cx={cx + 8} cy={cy - 8} r={3} fill="hsl(var(--foreground))" stroke="white" strokeWidth={1.5} />
+        )}
       </g>
     );
   }
-  return <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
+  return (
+    <g>
+      <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />
+      {hasCatatan && (
+        <circle cx={cx + 6} cy={cy - 6} r={2.5} fill="hsl(var(--foreground))" stroke="white" strokeWidth={1.5} />
+      )}
+    </g>
+  );
 }
 
 export default function LeveyJennings() {
@@ -55,6 +67,19 @@ export default function LeveyJennings() {
   const [selectedMonth, setSelectedMonth] = useState(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   );
+
+  // Generate last 12 months for dropdown
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+      options.push({ value, label });
+    }
+    return options;
+  }, []);
 
   const selected = ALL_PARAMS[selectedIdx];
   const levelOptions = selected.levels;
@@ -87,15 +112,16 @@ export default function LeveyJennings() {
     }
   }, [config, selected, selectedLevel]);
 
-  const chartData = useMemo(() => {
-    return filteredRecords.map((r, i) => ({
-      run: i + 1,
-      value: r.params[selected.name],
-      status: r.status[selected.name] || 'ok',
-      date: r.tanggal,
-      analis: r.analis,
-    }));
-  }, [filteredRecords, selected]);
+   const chartData = useMemo(() => {
+     return filteredRecords.map((r, i) => ({
+       run: i + 1,
+       value: r.params[selected.name],
+       status: r.status[selected.name] || 'ok',
+       date: r.tanggal,
+       analis: r.analis,
+       catatan: r.catatan || '',
+     }));
+   }, [filteredRecords, selected]);
 
   const mean = lotConfig?.mean || 0;
   const sd = lotConfig?.sd || 1;
@@ -121,12 +147,17 @@ export default function LeveyJennings() {
       {/* Month selector */}
       <div className="flex items-center gap-2">
         <Label className="text-xs whitespace-nowrap">Bulan:</Label>
-        <Input
-          type="month"
+        <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-36 h-8 text-sm font-mono-data"
-        />
+          className="w-40 h-8 text-sm rounded-md border border-input bg-background px-2 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {monthOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Parameter tabs — grouped by instrument */}
@@ -217,11 +248,38 @@ export default function LeveyJennings() {
                   border: '1px solid hsl(var(--border))',
                   backgroundColor: 'hsl(var(--card))',
                   color: 'hsl(var(--foreground))',
+                  maxWidth: 280,
+                  padding: 0,
                 }}
-                formatter={(value: number) => [value, selected.name]}
-                labelFormatter={(label, payload) => {
-                  const item = payload?.[0]?.payload;
-                  return item ? `Run #${label} — ${item.date} (${item.analis})` : `Run #${label}`;
+                content={({ payload }) => {
+                  if (!payload || payload.length === 0) return null;
+                  const item = payload[0].payload;
+                  const isOoc = item.status === 'oos';
+                  const isWarning = item.status === 'warning';
+                  return (
+                    <div className="p-2.5 space-y-1 text-xs">
+                      <p className="font-semibold">
+                        Run #{item.run} — {item.date}
+                      </p>
+                      <p className="text-muted-foreground">Analis: {item.analis}</p>
+                      <p className={cn(
+                        'font-mono-data font-bold text-sm',
+                        isOoc ? 'text-destructive' : isWarning ? 'text-warning' : '',
+                      )}>
+                        {selected.name}: {item.value}
+                      </p>
+                      {item.catatan && item.catatan.trim() !== '' && (
+                        <div className="pt-1.5 mt-1 border-t border-border/50">
+                          <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wide">
+                            Tindakan Korektif
+                          </p>
+                          <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
+                            {item.catatan}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
                 }}
               />
               <Line

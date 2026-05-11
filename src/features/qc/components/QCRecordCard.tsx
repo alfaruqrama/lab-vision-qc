@@ -2,6 +2,8 @@ import { cn } from '@/lib/utils';
 import type { QCRecord, ParamName, WestgardStatus } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { Card } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { XCircle, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { ParamValueDisplay } from './ParamValueCard';
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '../lib/constants';
@@ -82,6 +84,24 @@ export function QCRecordCard({ record, compact = false, onClick, className }: QC
             ))}
           </div>
         )}
+
+        {/* Catatan / Tindakan Korektif — hanya untuk Warning & OOC */}
+        {record.catatan && record.catatan.trim() !== '' &&
+          (overallStatus === 'warning' || overallStatus === 'oos') && (
+            <Alert
+              variant={overallStatus === 'oos' ? 'destructive' : 'warning'}
+              className="py-2 animate-in slide-in-from-top-1 duration-200 [&>svg]:top-[50%] [&>svg]:translate-y-[-50%]"
+            >
+              {overallStatus === 'oos' ? (
+                <XCircle className="h-3.5 w-3.5" />
+              ) : (
+                <AlertTriangle className="h-3.5 w-3.5" />
+              )}
+              <AlertDescription className="text-[11px] leading-relaxed whitespace-pre-wrap text-foreground">
+                {record.catatan}
+              </AlertDescription>
+            </Alert>
+          )}
 
         {/* Footer: analyst name + time */}
         <div className="flex items-center justify-between pt-1 border-t border-border/50">
