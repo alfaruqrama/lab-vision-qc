@@ -76,7 +76,14 @@ export function useAIExtraction({ instrument, getParamConfig, onExtracted }: Use
         }
       } catch (err) {
         console.error('AI extraction error:', err);
-        toast.error('Koneksi ke Apps Script gagal');
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        if (errorMessage.includes('Not authenticated')) {
+          toast.error('Sesi login habis, silakan login ulang');
+        } else if (errorMessage.includes('Rate limit')) {
+          toast.error('Limit AI scan habis (20/hari), coba lagi besok');
+        } else {
+          toast.error('AI extraction gagal, coba lagi atau isi manual');
+        }
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     },
