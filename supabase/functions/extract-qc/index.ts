@@ -39,25 +39,19 @@ serve(async (req) => {
     // Extract session token from Authorization header
     const sessionToken = authHeader.replace('Bearer ', '');
 
+    console.log('[Edge Function] Validating session token:', sessionToken.substring(0, 8) + '...');
+
     // Verify custom session token
     const { data: session, error: sessionError } = await supabaseClient
       .from('sessions')
-      .select(`
-        token,
-        user_id,
-        expires_at,
-        profiles:user_id (
-          id,
-          username,
-          nama,
-          role,
-          is_active
-        )
-      `)
+      .select('token, user_id, expires_at')
       .eq('token', sessionToken)
       .single();
 
+    console.log('[Edge Function] Session query result:', session ? 'found' : 'not found', sessionError);
+
     if (sessionError || !session) {
+      console.error('[Edge Function] Session error:', sessionError);
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid or expired session' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -67,15 +61,24 @@ serve(async (req) => {
     // Check if session is expired
     const expiresAt = new Date(session.expires_at);
     if (expiresAt < new Date()) {
+      console.log('[Edge Function] Session expired');
       return new Response(
         JSON.stringify({ success: false, error: 'Session expired' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if user is active
-    const profile = session.profiles as any;
-    if (!profile || !profile.is_active) {
+    // Get user profile
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('id, username, nama, role, is_active')
+      .eq('id', session.user_id)
+      .single();
+
+    console.log('[Edge Function] Profile query result:', profile ? 'found' : 'not found', profileError);
+
+    if (profileError || !profile || !profile.is_active) {
+      console.error('[Edge Function] Profile error:', profileError);
       return new Response(
         JSON.stringify({ success: false, error: 'User account is inactive' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -83,6 +86,7 @@ serve(async (req) => {
     }
 
     const user = { id: profile.id, username: profile.username, nama: profile.nama, role: profile.role };
+    console.log('[Edge Function] User authenticated:', user.username);
 
     // Check rate limit
     const { data: rateLimitCheck, error: rateLimitError } = await supabaseClient
