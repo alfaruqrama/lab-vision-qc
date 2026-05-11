@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, createSupabaseClient } from './supabase';
+import { AUTH_STORAGE_KEY, type AuthUser } from './auth-types';
 
 /**
  * Check if the app is connected to a backend.
@@ -53,7 +54,20 @@ export async function readStruk(image: string, mediaType: string, alat: string):
   raw?: string;
   message?: string;
 }> {
-  const sessionToken = localStorage.getItem('session_token');
+  // Get auth user from localStorage
+  const authJson = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!authJson) {
+    throw new Error('Not authenticated');
+  }
+
+  let authUser: AuthUser;
+  try {
+    authUser = JSON.parse(authJson);
+  } catch {
+    throw new Error('Not authenticated');
+  }
+
+  const sessionToken = authUser.token;
   
   console.log('[AI] Session token:', sessionToken ? `${sessionToken.substring(0, 8)}...` : 'null');
   
@@ -128,7 +142,17 @@ export async function readStruk(image: string, mediaType: string, alat: string):
  * Returns 0 if not authenticated or error.
  */
 export async function getRemainingAIScans(): Promise<number> {
-  const sessionToken = localStorage.getItem('session_token');
+  const authJson = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!authJson) return 0;
+
+  let authUser: AuthUser;
+  try {
+    authUser = JSON.parse(authJson);
+  } catch {
+    return 0;
+  }
+
+  const sessionToken = authUser.token;
   if (!sessionToken) return 0;
 
   try {
