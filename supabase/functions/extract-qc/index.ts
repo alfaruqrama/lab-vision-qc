@@ -30,25 +30,59 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client with user's token
+    // Create Supabase client (service role for custom auth)
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
+    // Extract session token from Authorization header
+    const sessionToken = authHeader.replace('Bearer ', '');
+
+    // Verify custom session token
+    const { data: session, error: sessionError } = await supabaseClient
+      .from('sessions')
+      .select(`
+        token,
+        user_id,
+        expires_at,
+        profiles:user_id (
+          id,
+          username,
+          nama,
+          role,
+          is_active
+        )
+      `)
+      .eq('token', sessionToken)
+      .single();
+
+    if (sessionError || !session) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        JSON.stringify({ success: false, error: 'Invalid or expired session' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Check if session is expired
+    const expiresAt = new Date(session.expires_at);
+    if (expiresAt < new Date()) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Session expired' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user is active
+    const profile = session.profiles as any;
+    if (!profile || !profile.is_active) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User account is inactive' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const user = { id: profile.id, username: profile.username, nama: profile.nama, role: profile.role };
 
     // Check rate limit
     const { data: rateLimitCheck, error: rateLimitError } = await supabaseClient
