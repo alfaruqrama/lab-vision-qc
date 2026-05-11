@@ -7,7 +7,7 @@ import { ExtractQCRequest, ExtractQCResponse } from './types.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-token',
 };
 
 const RATE_LIMIT_PER_DAY = 20;
@@ -21,23 +21,23 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    // Get auth token from header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    // Parse request body first to get session token
+    const body: ExtractQCRequest & { sessionToken?: string } = await req.json();
+    
+    if (!body.sessionToken) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing authorization header' }),
+        JSON.stringify({ success: false, error: 'Missing sessionToken in request body' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const sessionToken = body.sessionToken;
 
     // Create Supabase client WITHOUT auth (we'll validate manually)
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-    // Extract session token from Authorization header
-    const sessionToken = authHeader.replace('Bearer ', '');
 
     console.log('[Edge Function] Validating session token:', sessionToken.substring(0, 8) + '...');
 
@@ -120,7 +120,6 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const body: ExtractQCRequest = await req.json();
     if (!body.imageBase64) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing imageBase64 in request body' }),
@@ -133,6 +132,10 @@ serve(async (req) => {
 
     // Call Gemini API
     const geminiResponse = await analyzeImage(processedBase64);
+
+    // Log raw Gemini text for debugging
+    const rawText = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log('[Edge Function] Gemini raw response:', rawText?.substring(0, 500));
 
     // Parse and validate response
     const parseResult = parseGeminiResponse(geminiResponse);

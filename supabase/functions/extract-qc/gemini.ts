@@ -9,34 +9,27 @@ Ekstrak data QC dari gambar struk laboratorium ini.
 
 INSTRUKSI:
 1. Cari tanggal (format: YYYY-MM-DD atau DD/MM/YYYY, konversi ke ISO YYYY-MM-DD)
-2. Identifikasi alat: CA660, EASYLITE, ONCALL1, atau ONCALL2
-3. Identifikasi level kontrol: Kontrol, NORMAL, HIGH, CTRL0, CTRL1, atau CTRL2
-4. Cari nomor LOT
-5. Ekstrak parameter yang terdeteksi (PT, APTT, INR, Na, K, Cl, GDA)
+2. Identifikasi alat berdasarkan parameter yang ada:
+   - CA660: jika ada PT, APTT, INR (alat koagulasi Sysmex CA-660)
+   - EASYLITE: jika ada Na, K, Cl (alat elektrolit)
+   - ONCALL1 atau ONCALL2: jika ada GDA (alat glukosa)
+3. Identifikasi level kontrol:
+   - "Kontrol" jika ada tulisan QC, Control, atau nomor QC seperti QC01/QC02/QC04
+   - "NORMAL" jika ada tulisan Normal atau Level 1
+   - "HIGH" jika ada tulisan High atau Level 2
+   - "CTRL0", "CTRL1", "CTRL2" untuk level glukosa
+4. Cari nomor LOT (biasanya format seperti CA-2024-001 atau angka saja)
+5. Ekstrak nilai parameter numerik (PT dalam detik, APTT dalam detik, INR tanpa satuan)
 
-OUTPUT FORMAT (JSON only, no markdown):
-{
-  "tanggal": "YYYY-MM-DD",
-  "alat": "CA660|EASYLITE|ONCALL1|ONCALL2",
-  "level": "Kontrol|NORMAL|HIGH|CTRL0|CTRL1|CTRL2",
-  "lot": "string",
-  "params": {
-    "PT": number,
-    "APTT": number,
-    "INR": number,
-    "Na": number,
-    "K": number,
-    "Cl": number,
-    "GDA": number
-  }
-}
+OUTPUT FORMAT (JSON only, no explanation, no markdown):
+{"tanggal":"YYYY-MM-DD","alat":"CA660|EASYLITE|ONCALL1|ONCALL2","level":"Kontrol|NORMAL|HIGH|CTRL0|CTRL1|CTRL2","lot":"string","params":{"PT":number,"APTT":number,"INR":number}}
 
-ATURAN:
-- Return ONLY valid JSON, no markdown code blocks
-- Jika field tidak ditemukan, return null untuk field tersebut
-- Params: hanya include yang terdeteksi dengan confidence tinggi
-- Tanggal harus valid ISO format (YYYY-MM-DD)
-- Alat dan level harus exact match dengan enum values
+ATURAN PENTING:
+- Return ONLY the JSON object, nothing else, no markdown, no code blocks
+- Untuk alat: jika ada PT/APTT/INR maka alat = "CA660"
+- Untuk level: jika ada QC atau Control maka level = "Kontrol"
+- Params: hanya include parameter yang terdeteksi, nilai harus angka
+- Tanggal harus format YYYY-MM-DD
 `;
 
 export async function analyzeImage(base64Image: string): Promise<GeminiResponse> {

@@ -21,6 +21,7 @@ import {
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/features/qc/lib/constants';
 import { Trash2, Plus, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
 // ─── Reusable ParamRow ───────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ interface LotCardProps {
 function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onDelete, children }: LotCardProps) {
   const Icon = INSTRUMENT_ICONS[instrument];
   const colors = INSTRUMENT_COLORS[instrument];
+  const { status, daysRemaining } = checkLotExpiry(expDate);
 
   return (
     <Card className="overflow-hidden">
@@ -83,7 +85,24 @@ function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onD
             <Icon size={14} className={colors.text} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-navy-foreground">{lotNumber || 'Lot Baru'}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-navy-foreground">{lotNumber || 'Lot Baru'}</p>
+              {status === 'expired' && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground rounded uppercase tracking-wide">
+                  EXPIRED
+                </span>
+              )}
+              {status === 'expiring-soon' && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-warning text-warning-foreground rounded tracking-wide">
+                  {formatExpiryMessage(daysRemaining)}
+                </span>
+              )}
+              {status === 'unknown' && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground rounded">
+                  NO EXP
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-navy-foreground/60">{INSTRUMENT_LABELS[instrument]}</p>
           </div>
         </div>

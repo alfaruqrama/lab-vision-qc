@@ -12,12 +12,14 @@ import { ParamValueCard } from '@/features/qc/components';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { PhotoCapture } from './PhotoCapture';
 import { AIResultPanel } from './AIResultPanel';
+import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Loader2, Wifi, WifiOff, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface StepFormProps {
@@ -58,6 +60,11 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const selectedLot = useMemo(() => {
     return lots.find((l) => l.lot === lotNumber) || null;
   }, [lots, lotNumber]);
+
+  const lotExpiry = useMemo(() => {
+    if (!selectedLot) return null;
+    return checkLotExpiry((selectedLot as { exp: string }).exp);
+  }, [selectedLot]);
 
   // Get param config for a specific parameter
   const getParamConfig = useCallback(
@@ -200,6 +207,51 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
           />
         </div>
       </div>
+
+      {/* Lot expiry warning */}
+      {lotExpiry && lotExpiry.status === 'expired' && (
+        <Alert variant="destructive" className="animate-in slide-in-from-top-1 duration-200">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot ini sudah expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Sebaiknya gunakan lot baru atau update
+            tanggal expiry di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'expiring-soon' && (
+        <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot akan expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Siapkan lot baru segera.
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'unknown' && (
+        <Alert className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Tanggal expiry lot ini belum diset. Update di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Parameter inputs */}
       <div>

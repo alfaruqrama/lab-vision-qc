@@ -76,6 +76,7 @@ export async function readStruk(image: string, mediaType: string, alat: string):
   }
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  
   if (!supabaseUrl) {
     throw new Error('VITE_SUPABASE_URL not configured');
   }
@@ -91,10 +92,12 @@ export async function readStruk(image: string, mediaType: string, alat: string):
   const res = await fetch(functionUrl, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${sessionToken}`
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ imageBase64 })
+    body: JSON.stringify({ 
+      imageBase64,
+      sessionToken 
+    })
   });
 
   console.log('[AI] Response status:', res.status);

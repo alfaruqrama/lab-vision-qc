@@ -4,8 +4,9 @@ import { getOverallStatus } from '@/lib/westgard';
 import type { WestgardStatus } from '@/lib/types';
 import { Activity, CheckCircle, AlertTriangle, XCircle, Wifi, WifiOff, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { QCRecordCard, DashboardSkeleton } from '@/features/qc/components';
+import { QCRecordCard, DashboardSkeleton, LotExpiryBanner } from '@/features/qc/components';
 import { cn } from '@/lib/utils';
+import { getAllLotExpiryInfo, getLotConfigHash, LOT_EXPIRY_BANNER_KEY } from '@/lib/lot-expiry';
 
 interface StatChip {
   label: string;
@@ -16,9 +17,30 @@ interface StatChip {
 }
 
 export default function Dashboard() {
-  const { records, loading, connected } = useQCStore();
+  const { records, loading, connected, config } = useQCStore();
   const [statusFilter, setStatusFilter] = useState<'all' | 'ok' | 'warning' | 'oos'>('all');
   const [showFiltered, setShowFiltered] = useState(false);
+
+  // Lot expiry banner
+  const configHash = useMemo(() => getLotConfigHash(config), [config]);
+  const [dismissedHash, setDismissedHash] = useState<string | null>(
+    () => localStorage.getItem(LOT_EXPIRY_BANNER_KEY),
+  );
+  const lotExpiryInfo = useMemo(() => {
+    const all = getAllLotExpiryInfo(config);
+    return {
+      expired: all.filter((l) => l.status === 'expired'),
+      expiringSoon: all.filter((l) => l.status === 'expiring-soon'),
+    };
+  }, [config]);
+  const showBanner =
+    (lotExpiryInfo.expired.length > 0 || lotExpiryInfo.expiringSoon.length > 0) &&
+    dismissedHash !== configHash;
+
+  function handleDismissBanner() {
+    localStorage.setItem(LOT_EXPIRY_BANNER_KEY, configHash);
+    setDismissedHash(configHash);
+  }
 
   const now = new Date();
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -109,6 +131,15 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Ringkasan QC bulan ini</p>
       </div>
+
+      {/* Lot expiry banner */}
+      {showBanner && (
+        <LotExpiryBanner
+          expiredLots={lotExpiryInfo.expired}
+          expiringSoonLots={lotExpiryInfo.expiringSoon}
+          onDismiss={handleDismissBanner}
+        />
+      )}
 
       {/* Stat chips */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

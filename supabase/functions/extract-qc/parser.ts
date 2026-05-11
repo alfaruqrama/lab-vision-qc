@@ -17,11 +17,20 @@ export function parseGeminiResponse(geminiResponse: GeminiResponse): {
       throw new Error('No text content in Gemini response');
     }
 
-    // Extract JSON (handle markdown code blocks)
+    // Extract JSON (handle markdown code blocks and extra text)
     let jsonText = text.trim();
-    const jsonMatch = text.match(/```json\s*\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[1] || jsonMatch[0];
+    
+    // Try to extract from markdown code block first
+    const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      jsonText = codeBlockMatch[1].trim();
+    } else {
+      // Find the first { and last } to extract JSON object
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonText = text.substring(firstBrace, lastBrace + 1);
+      }
     }
 
     // Parse JSON
