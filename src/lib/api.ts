@@ -55,6 +55,8 @@ export async function readStruk(image: string, mediaType: string, alat: string):
 }> {
   const sessionToken = localStorage.getItem('session_token');
   
+  console.log('[AI] Session token:', sessionToken ? `${sessionToken.substring(0, 8)}...` : 'null');
+  
   if (!sessionToken) {
     throw new Error('Not authenticated');
   }
@@ -69,6 +71,9 @@ export async function readStruk(image: string, mediaType: string, alat: string):
   // Remove data URL prefix if present
   const imageBase64 = image.replace(/^data:image\/\w+;base64,/, '');
 
+  console.log('[AI] Calling Edge Function:', functionUrl);
+  console.log('[AI] Image size:', imageBase64.length, 'chars');
+
   const res = await fetch(functionUrl, {
     method: 'POST',
     headers: {
@@ -78,12 +83,18 @@ export async function readStruk(image: string, mediaType: string, alat: string):
     body: JSON.stringify({ imageBase64 })
   });
 
+  console.log('[AI] Response status:', res.status);
+
   const aiResponse: AIExtractionResponse = await res.json();
+  
+  console.log('[AI] Response:', aiResponse);
 
   if (!res.ok || !aiResponse.success) {
+    const errorMsg = aiResponse.error || `HTTP ${res.status}`;
+    console.error('[AI] Error:', errorMsg);
     return {
       status: 'error',
-      message: aiResponse.error || `HTTP ${res.status}`,
+      message: errorMsg,
       raw: JSON.stringify(aiResponse)
     };
   }
