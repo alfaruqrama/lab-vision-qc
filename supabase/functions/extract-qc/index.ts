@@ -30,33 +30,36 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client (service role for custom auth)
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
+    // Create Supabase client WITHOUT auth (we'll validate manually)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
     // Extract session token from Authorization header
     const sessionToken = authHeader.replace('Bearer ', '');
 
     console.log('[Edge Function] Validating session token:', sessionToken.substring(0, 8) + '...');
 
-    // Verify custom session token
-    const { data: session, error: sessionError } = await supabaseClient
+    // Verify custom session token using direct database query
+    // We use a raw query to avoid JWT validation
+    const { data: sessions, error: sessionError } = await supabaseClient
       .from('sessions')
       .select('token, user_id, expires_at')
       .eq('token', sessionToken)
-      .single();
+      .limit(1);
 
-    console.log('[Edge Function] Session query result:', session ? 'found' : 'not found', sessionError);
+    console.log('[Edge Function] Session query result:', sessions ? `found ${sessions.length}` : 'not found', sessionError);
 
-    if (sessionError || !session) {
+    if (sessionError || !sessions || sessions.length === 0) {
       console.error('[Edge Function] Session error:', sessionError);
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid or expired session' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const session = sessions[0];
 
     // Check if session is expired
     const expiresAt = new Date(session.expires_at);
@@ -69,15 +72,15 @@ serve(async (req) => {
     }
 
     // Get user profile
-    const { data: profile, error: profileError } = await supabaseClient
+    const { data: profiles, error: profileError } = await supabaseClient
       .from('profiles')
       .select('id, username, nama, role, is_active')
       .eq('id', session.user_id)
-      .single();
+      .limit(1);
 
-    console.log('[Edge Function] Profile query result:', profile ? 'found' : 'not found', profileError);
+    console.log('[Edge Function] Profile query result:', profiles ? `found ${profiles.length}` : 'not found', profileError);
 
-    if (profileError || !profile || !profile.is_active) {
+    if (profileError || !profiles || profiles.length === 0 || !profiles[0].is_active) {
       console.error('[Edge Function] Profile error:', profileError);
       return new Response(
         JSON.stringify({ success: false, error: 'User account is inactive' }),
@@ -85,6 +88,7 @@ serve(async (req) => {
       );
     }
 
+    const profile = profiles[0];
     const user = { id: profile.id, username: profile.username, nama: profile.nama, role: profile.role };
     console.log('[Edge Function] User authenticated:', user.username);
 
