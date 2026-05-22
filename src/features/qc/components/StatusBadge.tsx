@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<
     Icon: AlertTriangle,
   },
   oos: {
-    label: 'Diluar Kendali',
+    label: 'Diluar Kontrol',
     dotClass: 'bg-destructive',
     badgeClass: 'bg-destructive/10 text-destructive border-destructive/20',
     Icon: XCircle,

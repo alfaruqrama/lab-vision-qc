@@ -34,6 +34,19 @@ export default function MonthlyReport() {
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // Generate last 12 months for dropdown
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+      options.push({ value, label });
+    }
+    return options;
+  }, []);
+
   const filtered = useMemo(() => {
     let recs = records.filter((r) => r.tanggal.startsWith(month));
     if (instrument !== 'ALL') recs = recs.filter((r) => r.alat === instrument);
@@ -122,19 +135,24 @@ export default function MonthlyReport() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">Laporan Bulanan</h1>
-        <p className="text-sm text-muted-foreground">Laporan Pemantapan Mutu Internal (PMI)</p>
+        <p className="text-sm text-muted-foreground">Laporan QC</p>
       </div>
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Bulan</Label>
-          <Input
-            type="month"
+          <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="font-mono-data"
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {monthOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Instrumen</Label>
@@ -204,7 +222,7 @@ export default function MonthlyReport() {
 
             <div className="p-5 space-y-4">
               <div className="text-center">
-                <h3 className="text-base font-bold">LAPORAN PEMANTAPAN MUTU INTERNAL (PMI)</h3>
+                <h3 className="text-base font-bold">LAPORAN QC</h3>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
