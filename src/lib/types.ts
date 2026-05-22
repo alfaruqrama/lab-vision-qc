@@ -22,6 +22,16 @@ export interface CA660LotConfig {
 export interface EasyliteLotConfig {
   lot: string;
   exp: string;
+  params: {
+    Na: ParamConfig;
+    K: ParamConfig;
+    Cl: ParamConfig;
+  };
+}
+
+export interface LegacyEasyliteLotConfig {
+  lot: string;
+  exp: string;
   NORMAL: {
     Na: ParamConfig;
     K: ParamConfig;
@@ -44,7 +54,10 @@ export interface OnCallLotConfig {
 
 export interface LotConfig {
   CA660: CA660LotConfig[];
-  EASYLITE: EasyliteLotConfig[];
+  EASYLITE: {
+    NORMAL: EasyliteLotConfig[];
+    HIGH: EasyliteLotConfig[];
+  };
   ONCALL1: OnCallLotConfig[];
   ONCALL2: OnCallLotConfig[];
 }
@@ -84,4 +97,12 @@ export function getParamsForInstrument(alat: InstrumentType): ParamName[] {
   if (alat === 'ONCALL1') return ONCALL1_PARAMS;
   if (alat === 'ONCALL2') return ONCALL2_PARAMS;
   return EASYLITE_PARAMS;
+}
+
+export function getEasyliteLots(
+  config: LotConfig,
+  level: ControlLevel,
+): EasyliteLotConfig[] {
+  if (level === 'HIGH') return config.EASYLITE.HIGH;
+  return config.EASYLITE.NORMAL;
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, WestgardStatus } from '@/lib/types';
-import { getParamsForInstrument } from '@/lib/types';
+import { getEasyliteLots, getParamsForInstrument } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -63,8 +63,8 @@ export default function MonthlyReport() {
             const lot = config.ONCALL2.find((l) => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
           } else {
-            const lot = config.EASYLITE.find((l) => l.lot === r.lot);
-            meanTarget = (lot as any)?.[r.level]?.[p]?.mean || 0;
+            const lot = getEasyliteLots(config, r.level).find((l) => l.lot === r.lot);
+            meanTarget = lot?.params?.[p as 'Na' | 'K' | 'Cl']?.mean || 0;
           }
           const alatLabel = INSTRUMENT_LABELS[r.alat] || r.alat;
           groups[key] = { param: p, alat: alatLabel, level: r.level, values: [], statuses: [], meanTarget };

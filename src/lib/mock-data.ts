@@ -13,22 +13,30 @@ export const DEFAULT_LOT_CONFIG: LotConfig = {
       },
     },
   ],
-  EASYLITE: [
-    {
-      lot: 'EL-2024-001',
-      exp: '2026-09-30',
-      NORMAL: {
-        Na: { mean: 140, sd: 2 },
-        K: { mean: 4.0, sd: 0.2 },
-        Cl: { mean: 100, sd: 2 },
+  EASYLITE: {
+    NORMAL: [
+      {
+        lot: 'EL-N-2024-001',
+        exp: '2026-09-30',
+        params: {
+          Na: { mean: 140, sd: 2 },
+          K: { mean: 4.0, sd: 0.2 },
+          Cl: { mean: 100, sd: 2 },
+        },
       },
-      HIGH: {
-        Na: { mean: 155, sd: 2 },
-        K: { mean: 6.5, sd: 0.3 },
-        Cl: { mean: 115, sd: 2 },
+    ],
+    HIGH: [
+      {
+        lot: 'EL-H-2024-001',
+        exp: '2026-09-30',
+        params: {
+          Na: { mean: 155, sd: 2 },
+          K: { mean: 6.5, sd: 0.3 },
+          Cl: { mean: 115, sd: 2 },
+        },
       },
-    },
-  ],
+    ],
+  },
   ONCALL1: [
     {
       lot: '1790338',
@@ -63,7 +71,8 @@ export function generateMockRecords(): QCRecord[] {
   const month = now.getMonth();
   const analysts = ['Dewi S.', 'Rina A.', 'Budi P.', 'Sari K.'];
   const ca660Lot = DEFAULT_LOT_CONFIG.CA660[0];
-  const elLot = DEFAULT_LOT_CONFIG.EASYLITE[0];
+  const elNormalLot = DEFAULT_LOT_CONFIG.EASYLITE.NORMAL[0];
+  const elHighLot = DEFAULT_LOT_CONFIG.EASYLITE.HIGH[0];
   const oc1Lot = DEFAULT_LOT_CONFIG.ONCALL1[0];
   const oc2Lot = DEFAULT_LOT_CONFIG.ONCALL2[0];
 
@@ -96,13 +105,13 @@ export function generateMockRecords(): QCRecord[] {
 
     // Easylite Normal
     const elNParams: Partial<Record<ParamName, number>> = {
-      Na: generateValue(elLot.NORMAL.Na.mean, elLot.NORMAL.Na.sd, day === 8 ? 3.5 : 0),
-      K: generateValue(elLot.NORMAL.K.mean, elLot.NORMAL.K.sd),
-      Cl: generateValue(elLot.NORMAL.Cl.mean, elLot.NORMAL.Cl.sd),
+      Na: generateValue(elNormalLot.params.Na.mean, elNormalLot.params.Na.sd, day === 8 ? 3.5 : 0),
+      K: generateValue(elNormalLot.params.K.mean, elNormalLot.params.K.sd),
+      Cl: generateValue(elNormalLot.params.Cl.mean, elNormalLot.params.Cl.sd),
     };
     const elNStatus: Partial<Record<ParamName, any>> = {};
     for (const p of ['Na', 'K', 'Cl'] as ParamName[]) {
-      elNStatus[p] = evaluateWestgard(elNParams[p]!, elLot.NORMAL[p as 'Na' | 'K' | 'Cl']).status;
+      elNStatus[p] = evaluateWestgard(elNParams[p]!, elNormalLot.params[p as 'Na' | 'K' | 'Cl']).status;
     }
     records.push({
       id: `mock-eln-${day}`,
@@ -110,7 +119,7 @@ export function generateMockRecords(): QCRecord[] {
       tanggal: dateStr,
       alat: 'EASYLITE',
       level: 'NORMAL',
-      lot: elLot.lot,
+      lot: elNormalLot.lot,
       params: elNParams,
       status: elNStatus,
       analis,
@@ -120,13 +129,13 @@ export function generateMockRecords(): QCRecord[] {
     // Easylite High (every other day)
     if (day % 2 === 0) {
       const elHParams: Partial<Record<ParamName, number>> = {
-        Na: generateValue(elLot.HIGH.Na.mean, elLot.HIGH.Na.sd),
-        K: generateValue(elLot.HIGH.K.mean, elLot.HIGH.K.sd, day === 10 ? -3 : 0),
-        Cl: generateValue(elLot.HIGH.Cl.mean, elLot.HIGH.Cl.sd),
+        Na: generateValue(elHighLot.params.Na.mean, elHighLot.params.Na.sd),
+        K: generateValue(elHighLot.params.K.mean, elHighLot.params.K.sd, day === 10 ? -3 : 0),
+        Cl: generateValue(elHighLot.params.Cl.mean, elHighLot.params.Cl.sd),
       };
       const elHStatus: Partial<Record<ParamName, any>> = {};
       for (const p of ['Na', 'K', 'Cl'] as ParamName[]) {
-        elHStatus[p] = evaluateWestgard(elHParams[p]!, elLot.HIGH[p as 'Na' | 'K' | 'Cl']).status;
+        elHStatus[p] = evaluateWestgard(elHParams[p]!, elHighLot.params[p as 'Na' | 'K' | 'Cl']).status;
       }
       records.push({
         id: `mock-elh-${day}`,
@@ -134,7 +143,7 @@ export function generateMockRecords(): QCRecord[] {
         tanggal: dateStr,
         alat: 'EASYLITE',
         level: 'HIGH',
-        lot: elLot.lot,
+        lot: elHighLot.lot,
         params: elHParams,
         status: elHStatus,
         analis,

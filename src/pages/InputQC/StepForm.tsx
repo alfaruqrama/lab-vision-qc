@@ -1,22 +1,25 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
-import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { evaluateWestgard } from '@/lib/westgard';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { useAuth } from '@/hooks/use-auth';
 import { useAIExtraction } from '@/features/qc/hooks';
 import { ParamValueCard } from '@/features/qc/components';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { PhotoCapture } from './PhotoCapture';
 import { AIResultPanel } from './AIResultPanel';
+import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Loader2, Wifi, WifiOff, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface StepFormProps {
@@ -28,11 +31,11 @@ interface StepFormProps {
 export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const navigate = useNavigate();
   const { config, addRecord, connected } = useQCStore();
+  const { user } = useAuth();
 
   // Form state
   const [lotNumber, setLotNumber] = useState('');
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
-  const [analis, setAnalis] = useState('');
   const [values, setValues] = useState<Partial<Record<ParamName, string>>>({});
   const [catatan, setCatatan] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,19 +47,24 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     if (instrument === 'CA660') return config.CA660;
     if (instrument === 'ONCALL1') return config.ONCALL1;
     if (instrument === 'ONCALL2') return config.ONCALL2;
-    return config.EASYLITE;
-  }, [instrument, config]);
+    return getEasyliteLots(config, level);
+  }, [instrument, config, level]);
 
   // Auto-select first lot
-  useMemo(() => {
-    if (lots.length > 0 && !lotNumber) {
+  useEffect(() => {
+    if (lots.length > 0 && (!lotNumber || !lots.some((lot) => lot.lot === lotNumber))) {
       setLotNumber(lots[0].lot);
     }
-  }, [lots]);
+  }, [lots, lotNumber]);
 
   const selectedLot = useMemo(() => {
     return lots.find((l) => l.lot === lotNumber) || null;
   }, [lots, lotNumber]);
+
+  const lotExpiry = useMemo(() => {
+    if (!selectedLot) return null;
+    return checkLotExpiry((selectedLot as { exp: string }).exp);
+  }, [selectedLot]);
 
   // Get param config for a specific parameter
   const getParamConfig = useCallback(
@@ -71,8 +79,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         return lot[level]?.[param] || null;
       }
       // EASYLITE
-      const lot = selectedLot as Record<string, Record<string, ParamConfig>>;
-      return lot[level]?.[param] || null;
+      const lot = selectedLot as { params: Record<string, ParamConfig> };
+      return lot.params?.[param] || null;
     },
     [selectedLot, level, instrument],
   );
@@ -93,8 +101,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
   }
 
   async function handleSave() {
-    if (!lotNumber || !analis.trim()) {
-      toast.error('Lengkapi semua field yang wajib');
+    if (!lotNumber) {
+      toast.error('Pilih nomor lot');
       return;
     }
     const hasValues = params.some((p) => values[p] && values[p]!.trim());
@@ -126,7 +134,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       lot: lotNumber,
       params: parsedParams,
       status: statuses as QCRecord['status'],
-      analis: analis.trim(),
+      analis: user?.nama || 'Unknown',
       catatan,
     };
 
@@ -198,16 +206,52 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             className="font-mono-data"
           />
         </div>
-        <div className="md:col-span-2 space-y-1.5">
-          <Label className="text-xs">Nama Analis</Label>
-          <Input
-            type="text"
-            value={analis}
-            onChange={(e) => setAnalis(e.target.value)}
-            placeholder="Masukkan nama analis"
-          />
-        </div>
       </div>
+
+      {/* Lot expiry warning */}
+      {lotExpiry && lotExpiry.status === 'expired' && (
+        <Alert variant="destructive" className="animate-in slide-in-from-top-1 duration-200">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot ini sudah expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Sebaiknya gunakan lot baru atau update
+            tanggal expiry di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'expiring-soon' && (
+        <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot akan expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Siapkan lot baru segera.
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'unknown' && (
+        <Alert className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Tanggal expiry lot ini belum diset. Update di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Parameter inputs */}
       <div>
@@ -242,7 +286,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         {connected ? (
           <>
             <Wifi size={12} className="text-success" />
-            Data tersimpan ke Google Sheets
+            Data tersimpan ke Supabase
           </>
         ) : (
           <>
