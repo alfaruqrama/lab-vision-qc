@@ -48,11 +48,11 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 
   try {
-    // Query user by username
+    // Query user by username (case-insensitive via ilike)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, nama, role, password_hash, is_active')
-      .eq('username', username)
+      .ilike('username', username)
       .single();
 
     if (profileError || !profile) {

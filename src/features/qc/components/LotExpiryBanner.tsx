@@ -89,13 +89,13 @@ export function LotExpiryBanner({ expiredLots, expiringSoonLots, onDismiss }: Lo
             const isExpired = lot.status === 'expired';
             return (
               <div
-                key={`${lot.instrument}-${lot.lotNumber}`}
+                key={`${lot.instrument}-${lot.level || 'lot'}-${lot.lotNumber}`}
                 className="flex items-center justify-between bg-background/70 rounded-md px-3 py-2"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs font-semibold truncate">{lot.lotNumber}</span>
                   <span className="text-[10px] text-muted-foreground shrink-0">
-                    {INSTRUMENT_LABELS[lot.instrument]}
+                    {INSTRUMENT_LABELS[lot.instrument]}{lot.level ? ` ${lot.level}` : ''}
                   </span>
                 </div>
                 <span

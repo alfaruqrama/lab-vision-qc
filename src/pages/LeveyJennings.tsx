@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
+import { getEasyliteLots } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,13 @@ const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[
   { name: 'GDA', alat: 'ONCALL1', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
   { name: 'GDA', alat: 'ONCALL2', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
 ];
+
+const CHART_INSTRUMENT_LABELS: Record<InstrumentType, string> = {
+  CA660: 'CA-660',
+  EASYLITE: 'Easylite',
+  ONCALL1: 'OnCall 1',
+  ONCALL2: 'OnCall 2',
+};
 
 function CustomDot(props: any) {
   const { cx, cy, payload } = props;
@@ -106,9 +114,9 @@ export default function LeveyJennings() {
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
       return (lot as any)?.[lvl]?.GDA || null;
     } else {
-      const lot = config.EASYLITE[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      return (lot as any)?.[lvl]?.[selected.name] || null;
+      const lot = getEasyliteLots(config, lvl)[0];
+      return lot?.params?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
     }
   }, [config, selected, selectedLevel]);
 
@@ -166,8 +174,8 @@ export default function LeveyJennings() {
           const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter((p) => p.alat === alat);
           return (
             <div key={alat} className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-muted-foreground w-20 shrink-0 truncate">
-                {INSTRUMENT_LABELS[alat].split(' ').slice(-1)[0]}
+              <span className="text-[10px] font-semibold text-muted-foreground w-24 shrink-0 truncate">
+                {CHART_INSTRUMENT_LABELS[alat]}
               </span>
               <div className="flex gap-1.5 flex-wrap">
                 {params.map((p) => (

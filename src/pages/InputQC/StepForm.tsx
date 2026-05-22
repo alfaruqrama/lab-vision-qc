@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
-import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { evaluateWestgard } from '@/lib/westgard';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/hooks/use-qc-store';
@@ -47,15 +47,15 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     if (instrument === 'CA660') return config.CA660;
     if (instrument === 'ONCALL1') return config.ONCALL1;
     if (instrument === 'ONCALL2') return config.ONCALL2;
-    return config.EASYLITE;
-  }, [instrument, config]);
+    return getEasyliteLots(config, level);
+  }, [instrument, config, level]);
 
   // Auto-select first lot
-  useMemo(() => {
-    if (lots.length > 0 && !lotNumber) {
+  useEffect(() => {
+    if (lots.length > 0 && (!lotNumber || !lots.some((lot) => lot.lot === lotNumber))) {
       setLotNumber(lots[0].lot);
     }
-  }, [lots]);
+  }, [lots, lotNumber]);
 
   const selectedLot = useMemo(() => {
     return lots.find((l) => l.lot === lotNumber) || null;
@@ -79,8 +79,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         return lot[level]?.[param] || null;
       }
       // EASYLITE
-      const lot = selectedLot as Record<string, Record<string, ParamConfig>>;
-      return lot[level]?.[param] || null;
+      const lot = selectedLot as { params: Record<string, ParamConfig> };
+      return lot.params?.[param] || null;
     },
     [selectedLot, level, instrument],
   );

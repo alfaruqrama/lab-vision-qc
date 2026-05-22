@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { LotConfig } from '@/lib/types';
+import type { EasyliteLotConfig, LegacyEasyliteLotConfig, LotConfig } from '@/lib/types';
 import * as api from '@/lib/api';
 import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
 import { toast } from 'sonner';
@@ -7,6 +7,40 @@ import { getStoredAuth } from '@/lib/auth-api';
 import { createSupabaseClient } from '@/lib/supabase';
 
 const STORAGE_KEY = 'labqc_config';
+
+type StoredLotConfig = Omit<LotConfig, 'EASYLITE'> & {
+  EASYLITE?: LotConfig['EASYLITE'] | LegacyEasyliteLotConfig[];
+};
+
+function normalizeEasyliteConfig(easylite: StoredLotConfig['EASYLITE']): LotConfig['EASYLITE'] {
+  if (!easylite) return DEFAULT_LOT_CONFIG.EASYLITE;
+  if (!Array.isArray(easylite)) return easylite;
+
+  const toLevelLot = (
+    lot: LegacyEasyliteLotConfig,
+    level: 'NORMAL' | 'HIGH',
+  ): EasyliteLotConfig => ({
+    lot: lot.lot,
+    exp: lot.exp,
+    params: lot[level],
+  });
+
+  return {
+    NORMAL: easylite.map((lot) => toLevelLot(lot, 'NORMAL')),
+    HIGH: easylite.map((lot) => toLevelLot(lot, 'HIGH')),
+  };
+}
+
+function normalizeLotConfig(config: StoredLotConfig | null | undefined): LotConfig {
+  if (!config) return DEFAULT_LOT_CONFIG;
+
+  return {
+    CA660: config.CA660 || DEFAULT_LOT_CONFIG.CA660,
+    EASYLITE: normalizeEasyliteConfig(config.EASYLITE),
+    ONCALL1: config.ONCALL1 || DEFAULT_LOT_CONFIG.ONCALL1,
+    ONCALL2: config.ONCALL2 || DEFAULT_LOT_CONFIG.ONCALL2,
+  };
+}
 
 /** Fetch lot configuration — handles both online and demo mode */
 async function fetchConfig(): Promise<LotConfig> {
@@ -30,18 +64,12 @@ async function fetchConfig(): Promise<LotConfig> {
     }
 
     // Merge with defaults so new instruments always have config
-    const cfg = data.config as LotConfig;
-    return {
-      CA660: cfg.CA660 || DEFAULT_LOT_CONFIG.CA660,
-      EASYLITE: cfg.EASYLITE || DEFAULT_LOT_CONFIG.EASYLITE,
-      ONCALL1: cfg.ONCALL1 || DEFAULT_LOT_CONFIG.ONCALL1,
-      ONCALL2: cfg.ONCALL2 || DEFAULT_LOT_CONFIG.ONCALL2,
-    };
+    return normalizeLotConfig(data.config as StoredLotConfig);
   }
 
   // Demo mode: read from localStorage or use defaults
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : DEFAULT_LOT_CONFIG;
+  return stored ? normalizeLotConfig(JSON.parse(stored) as StoredLotConfig) : DEFAULT_LOT_CONFIG;
 }
 
 /** Save lot configuration — handles both online and demo mode */

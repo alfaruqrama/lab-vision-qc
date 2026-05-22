@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
-import type { LotConfig, CA660LotConfig, EasyliteLotConfig, OnCallLotConfig, ParamConfig, InstrumentType } from '@/lib/types';
+import type { LotConfig, ParamConfig, InstrumentType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,9 @@ import { Trash2, Plus, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
+type TabType = keyof LotConfig;
+type EasyliteLevel = 'NORMAL' | 'HIGH';
+
 // ─── Reusable ParamRow ───────────────────────────────────────────────────────
 
 function ParamRow({
@@ -41,8 +44,8 @@ function ParamRow({
         <Input
           type="number"
           step="any"
-          value={config.mean}
-          onChange={(e) => onChange({ ...config, mean: parseFloat(e.target.value) || 0 })}
+          value={config.mean === 0 ? '' : config.mean}
+          onChange={(e) => onChange({ ...config, mean: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
           className="h-7 text-xs font-mono-data text-center"
         />
       </TableCell>
@@ -50,8 +53,8 @@ function ParamRow({
         <Input
           type="number"
           step="any"
-          value={config.sd}
-          onChange={(e) => onChange({ ...config, sd: parseFloat(e.target.value) || 0 })}
+          value={config.sd === 0 ? '' : config.sd}
+          onChange={(e) => onChange({ ...config, sd: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
           className="h-7 text-xs font-mono-data text-center"
         />
       </TableCell>
@@ -182,21 +185,6 @@ export default function LotConfigPage() {
     }));
   }
 
-  function addEasyliteLot() {
-    setLocalConfig((prev) => ({
-      ...prev,
-      EASYLITE: [
-        ...prev.EASYLITE,
-        {
-          lot: '',
-          exp: '',
-          NORMAL: { Na: { mean: 0, sd: 0 }, K: { mean: 0, sd: 0 }, Cl: { mean: 0, sd: 0 } },
-          HIGH: { Na: { mean: 0, sd: 0 }, K: { mean: 0, sd: 0 }, Cl: { mean: 0, sd: 0 } },
-        },
-      ],
-    }));
-  }
-
   function addOnCallLot(key: 'ONCALL1' | 'ONCALL2') {
     setLocalConfig((prev) => ({
       ...prev,
@@ -225,6 +213,37 @@ export default function LotConfigPage() {
     setLocalConfig((prev) => ({
       ...prev,
       [key]: (prev[key] as any[]).filter((_, j) => j !== index),
+    }));
+  }
+
+  function addEasyliteLevelLot(level: EasyliteLevel) {
+    setLocalConfig((prev) => ({
+      ...prev,
+      EASYLITE: {
+        ...prev.EASYLITE,
+        [level]: [
+          ...prev.EASYLITE[level],
+          { lot: '', exp: '', params: { Na: { mean: 0, sd: 0 }, K: { mean: 0, sd: 0 }, Cl: { mean: 0, sd: 0 } } },
+        ],
+      },
+    }));
+  }
+
+  function updateEasyliteLot(level: EasyliteLevel, index: number, updated: LotConfig['EASYLITE'][EasyliteLevel][number]) {
+    setLocalConfig((prev) => {
+      const lots = [...prev.EASYLITE[level]];
+      lots[index] = updated;
+      return { ...prev, EASYLITE: { ...prev.EASYLITE, [level]: lots } };
+    });
+  }
+
+  function deleteEasyliteLot(level: EasyliteLevel, index: number) {
+    setLocalConfig((prev) => ({
+      ...prev,
+      EASYLITE: {
+        ...prev.EASYLITE,
+        [level]: prev.EASYLITE[level].filter((_, j) => j !== index),
+      },
     }));
   }
 
@@ -293,29 +312,37 @@ export default function LotConfigPage() {
 
         {/* EASYLITE */}
         {selectedInstrument === 'EASYLITE' &&
-          localConfig.EASYLITE.map((lot, i) => (
-            <LotCard
-              key={i}
-              instrument="EASYLITE"
-              lotNumber={lot.lot}
-              expDate={lot.exp}
-              onLotChange={(v) => updateLot('EASYLITE', i, { ...lot, lot: v })}
-              onExpChange={(v) => updateLot('EASYLITE', i, { ...lot, exp: v })}
-              onDelete={() => deleteLot('EASYLITE', i)}
-            >
-              {(['NORMAL', 'HIGH'] as const).map((level) => (
-                <ParamTable key={level} label={level}>
-                  {(['Na', 'K', 'Cl'] as const).map((p) => (
-                    <ParamRow
-                      key={p}
-                      label={p}
-                      config={lot[level][p]}
-                      onChange={(c) => updateLot('EASYLITE', i, { ...lot, [level]: { ...lot[level], [p]: c } })}
-                    />
-                  ))}
-                </ParamTable>
+          (['NORMAL', 'HIGH'] as const).map((level) => (
+            <div key={level} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">EasyLite {level === 'NORMAL' ? 'Normal' : 'High'}</h2>
+                <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => addEasyliteLevelLot(level)}>
+                  <Plus size={14} /> Tambah {level === 'NORMAL' ? 'Normal' : 'High'}
+                </Button>
+              </div>
+              {localConfig.EASYLITE[level].map((lot, i) => (
+                <LotCard
+                  key={`${level}-${i}`}
+                  instrument="EASYLITE"
+                  lotNumber={lot.lot}
+                  expDate={lot.exp}
+                  onLotChange={(v) => updateEasyliteLot(level, i, { ...lot, lot: v })}
+                  onExpChange={(v) => updateEasyliteLot(level, i, { ...lot, exp: v })}
+                  onDelete={() => deleteEasyliteLot(level, i)}
+                >
+                  <ParamTable label={level}>
+                    {(['Na', 'K', 'Cl'] as const).map((p) => (
+                      <ParamRow
+                        key={p}
+                        label={p}
+                        config={lot.params[p]}
+                        onChange={(c) => updateEasyliteLot(level, i, { ...lot, params: { ...lot.params, [p]: c } })}
+                      />
+                    ))}
+                  </ParamTable>
+                </LotCard>
               ))}
-            </LotCard>
+            </div>
           ))}
 
         {/* ONCALL1 / ONCALL2 */}
@@ -343,10 +370,10 @@ export default function LotConfigPage() {
           ))}
 
         {/* Add lot button */}
+        {selectedInstrument !== 'EASYLITE' && (
         <button
           onClick={() => {
             if (selectedInstrument === 'CA660') addCA660Lot();
-            else if (selectedInstrument === 'EASYLITE') addEasyliteLot();
             else addOnCallLot(selectedInstrument);
           }}
           className={cn(
@@ -358,6 +385,7 @@ export default function LotConfigPage() {
         >
           <Plus size={16} /> Tambah Lot Baru
         </button>
+        )}
       </div>
 
       {/* Save */}

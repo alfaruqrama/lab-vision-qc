@@ -1,4 +1,4 @@
-import type { LotConfig, InstrumentType } from './types';
+import type { ControlLevel, LotConfig, InstrumentType } from './types';
 
 export type ExpiryStatus = 'expired' | 'expiring-soon' | 'ok' | 'unknown';
 
@@ -8,6 +8,7 @@ export interface LotExpiryInfo {
   expDate: string;
   status: ExpiryStatus;
   daysRemaining: number;
+  level?: ControlLevel;
 }
 
 const EXPIRY_WARNING_DAYS = 7;
@@ -56,6 +57,23 @@ export function getAllLotExpiryInfo(config: LotConfig): LotExpiryInfo[] {
   const results: LotExpiryInfo[] = [];
 
   INSTRUMENTS.forEach((instrument) => {
+    if (instrument === 'EASYLITE') {
+      (['NORMAL', 'HIGH'] as const).forEach((level) => {
+        config.EASYLITE[level].forEach((lot) => {
+          const { status, daysRemaining } = checkLotExpiry(lot.exp);
+          results.push({
+            instrument,
+            lotNumber: lot.lot,
+            expDate: lot.exp,
+            status,
+            daysRemaining,
+            level,
+          });
+        });
+      });
+      return;
+    }
+
     const lots = config[instrument] as Array<{ lot: string; exp: string }>;
     if (!Array.isArray(lots)) return;
 
@@ -84,6 +102,11 @@ export const LOT_EXPIRY_BANNER_KEY = 'qc:lot-expiry-dismissed';
 export function getLotConfigHash(config: LotConfig): string {
   return JSON.stringify(
     INSTRUMENTS.map((inst) => {
+      if (inst === 'EASYLITE') {
+        return (['NORMAL', 'HIGH'] as const)
+          .map((level) => config.EASYLITE[level].map((l) => `${level}|${l.lot}|${l.exp}`).join(','))
+          .join(',');
+      }
       const lots = config[inst] as Array<{ lot: string; exp: string }>;
       return lots.map((l) => `${l.lot}|${l.exp}`).join(',');
     }),
