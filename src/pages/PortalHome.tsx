@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
 import { getOverallStatus } from '@/lib/westgard';
 import type { WestgardStatus } from '@/lib/types';
+import { isB3Connected } from '@/lib/b3-api';
 
 const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -56,6 +57,17 @@ export default function PortalHome() {
       ],
       visible: canAccess('qc'),
       wip: false,
+    },
+    {
+      title: 'Manajemen B3',
+      desc: 'Inventaris B3, log pemakaian harian, tracking limbah, dan laporan neraca B3',
+      icon: Biohazard,
+      path: '/b3',
+      colorClass: 'bg-purple-50 text-purple-700',
+      badge: isB3Connected() ? { label: 'LIVE · Google Sheets', live: true } : { label: 'BELUM KONFIGURASI', live: false },
+      chips: ['Inventaris', 'Pemakaian', 'Limbah', 'Neraca B3'],
+      visible: canAccess('b3'),
+      wip: true,
     },
     {
       title: 'Monitor Suhu Lab',
