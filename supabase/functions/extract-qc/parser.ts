@@ -21,17 +21,36 @@ export function parseGeminiResponse(geminiResponse: GeminiResponse): {
     let jsonText = text.trim();
     
     // Try to extract from markdown code block first
-    const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    const codeBlockMatch = text.match(/```(?:json|\w*)?\s*\n?([\s\S]*?)\n?```/);
     if (codeBlockMatch) {
       jsonText = codeBlockMatch[1].trim();
-    } else {
-      // Find the first { and last } to extract JSON object
-      const firstBrace = text.indexOf('{');
-      const lastBrace = text.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        jsonText = text.substring(firstBrace, lastBrace + 1);
+    }
+    
+    // Use balanced brace counter to find the real JSON object boundary.
+    // Solves: nested params {}, trailing text, markdown fragments on extra lines
+    const firstBrace = jsonText.indexOf('{');
+    if (firstBrace === -1) {
+      throw new Error('No JSON object found in Gemini response');
+    }
+    
+    let braceCount = 0;
+    let endPos = -1;
+    for (let i = firstBrace; i < jsonText.length; i++) {
+      if (jsonText[i] === '{') braceCount++;
+      else if (jsonText[i] === '}') {
+        braceCount--;
+        if (braceCount === 0) {
+          endPos = i + 1;
+          break;
+        }
       }
     }
+    
+    if (endPos === -1) {
+      throw new Error('Unbalanced braces in Gemini response');
+    }
+    
+    jsonText = jsonText.substring(firstBrace, endPos);
 
     // Parse JSON
     const data = JSON.parse(jsonText) as QCData;
