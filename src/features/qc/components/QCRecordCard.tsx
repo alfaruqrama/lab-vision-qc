@@ -3,10 +3,11 @@ import type { QCRecord, ParamName, WestgardStatus } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { XCircle, AlertTriangle } from 'lucide-react';
+import { XCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { ParamValueDisplay } from './ParamValueCard';
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '../lib/constants';
+import { useAuth } from '@/hooks/use-auth';
 
 interface QCRecordCardProps {
   record: QCRecord;
@@ -14,13 +15,14 @@ interface QCRecordCardProps {
   compact?: boolean;
   onClick?: () => void;
   className?: string;
+  onDelete?: () => void;
 }
 
 /**
  * Displays a single QC record with instrument info, parameter values, and overall status.
  * Used in Dashboard (today's records) and potentially in a record list view.
  */
-export function QCRecordCard({ record, compact = false, onClick, className }: QCRecordCardProps) {
+export function QCRecordCard({ record, compact = false, onClick, className, onDelete }: QCRecordCardProps) {
   const params = Object.entries(record.params).filter(([, v]) => v != null) as [ParamName, number][];
   const statuses = Object.values(record.status).filter(Boolean) as WestgardStatus[];
   const overallStatus = getOverallStatus(statuses);
@@ -28,6 +30,16 @@ export function QCRecordCard({ record, compact = false, onClick, className }: QC
   const Icon = INSTRUMENT_ICONS[record.alat];
   const colors = INSTRUMENT_COLORS[record.alat];
   const label = INSTRUMENT_LABELS[record.alat];
+
+  const auth = useAuth();
+  const isAdmin = auth.user?.role === 'admin';
+
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (confirm(`Hapus data QC ${record.alat} — ${record.tanggal}?`)) {
+      onDelete?.();
+    }
+  }
 
   return (
     <Card
@@ -68,7 +80,19 @@ export function QCRecordCard({ record, compact = false, onClick, className }: QC
               <p className="text-[11px] text-muted-foreground">{record.level}</p>
             </div>
           </div>
-          <StatusBadge status={overallStatus} showIcon />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={overallStatus} showIcon />
+            {isAdmin && onDelete && (
+              <button
+                onClick={handleDelete}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                title="Hapus data QC"
+                aria-label="Hapus data QC"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Parameter values grid */}

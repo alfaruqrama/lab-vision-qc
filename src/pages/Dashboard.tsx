@@ -17,9 +17,29 @@ interface StatChip {
 }
 
 export default function Dashboard() {
-  const { records, loading, connected, config } = useQCStore();
+  const { records, loading, connected, config, deleteRecord } = useQCStore();
   const [statusFilter, setStatusFilter] = useState<'all' | 'ok' | 'warning' | 'oos'>('all');
   const [showFiltered, setShowFiltered] = useState(false);
+
+  // Month selector
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+  );
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const isCurrentMonth = selectedMonth === currentMonth;
+  const todayKey = `${currentMonth}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+      options.push({ value, label });
+    }
+    return options;
+  }, [now.getFullYear(), now.getMonth()]);
 
   // Lot expiry banner
   const configHash = useMemo(() => getLotConfigHash(config), [config]);
@@ -42,11 +62,7 @@ export default function Dashboard() {
     setDismissedHash(configHash);
   }
 
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const todayKey = `${monthKey}-${String(now.getDate()).padStart(2, '0')}`;
-
-  const monthRecords = useMemo(() => records.filter((r) => r.tanggal.startsWith(monthKey)), [records, monthKey]);
+  const monthRecords = useMemo(() => records.filter((r) => r.tanggal.startsWith(selectedMonth)), [records, selectedMonth]);
   const todayRecords = useMemo(
     () =>
       records
@@ -55,14 +71,27 @@ export default function Dashboard() {
     [records, todayKey],
   );
 
-  // Filtered today's records based on status filter
-  const filteredTodayRecords = useMemo(() => {
-    if (statusFilter === 'all') return todayRecords;
-    return todayRecords.filter((r) => {
+  // For past months: show all records sorted desc
+  const pastMonthRecords = useMemo(
+    () =>
+      [...monthRecords].sort((a, b) => {
+        // Sort by date desc, then by timestamp desc
+        const dateCmp = b.tanggal.localeCompare(a.tanggal);
+        if (dateCmp !== 0) return dateCmp;
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      }),
+    [monthRecords],
+  );
+
+  // Filtered records based on status filter
+  const filteredRecords = useMemo(() => {
+    const source = isCurrentMonth ? todayRecords : pastMonthRecords;
+    if (statusFilter === 'all') return source;
+    return source.filter((r) => {
       const statuses = Object.values(r.status).filter(Boolean) as WestgardStatus[];
       return getOverallStatus(statuses) === statusFilter;
     });
-  }, [todayRecords, statusFilter]);
+  }, [isCurrentMonth ? todayRecords : pastMonthRecords, statusFilter, isCurrentMonth]);
 
   const stats = useMemo(() => {
     let ok = 0,
@@ -111,7 +140,6 @@ export default function Dashboard() {
 
   function handleStatClick(filter: 'all' | 'ok' | 'warning' | 'oos') {
     if (statusFilter === filter) {
-      // Toggle off if clicking same filter
       setStatusFilter('all');
       setShowFiltered(false);
     } else {
@@ -127,9 +155,28 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Ringkasan QC bulan ini</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {isCurrentMonth ? 'Ringkasan QC bulan ini' : 'Data QC historis'}
+          </p>
+        </div>
+        <select
+          value={selectedMonth}
+          onChange={(e) => {
+            setSelectedMonth(e.target.value);
+            setStatusFilter('all');
+            setShowFiltered(false);
+          }}
+          className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {monthOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Lot expiry banner */}
@@ -190,9 +237,9 @@ export default function Dashboard() {
                 {statusFilter === 'oos' && <XCircle size={16} className="text-destructive" />}
                 {statusFilter === 'ok' && <CheckCircle size={16} className="text-success" />}
                 <h3 className="text-sm font-semibold">
-                  {statusFilter === 'warning' && `Peringatan Hari Ini (${filteredTodayRecords.length})`}
-                  {statusFilter === 'oos' && `Diluar Kontrol Hari Ini (${filteredTodayRecords.length})`}
-                  {statusFilter === 'ok' && `In-Control Hari Ini (${filteredTodayRecords.length})`}
+                  {statusFilter === 'warning' && `Peringatan (${filteredRecords.length})`}
+                  {statusFilter === 'oos' && `Diluar Kontrol (${filteredRecords.length})`}
+                  {statusFilter === 'ok' && `In-Control (${filteredRecords.length})`}
                 </h3>
               </div>
               <button
@@ -202,14 +249,14 @@ export default function Dashboard() {
                 <ChevronUp size={16} />
               </button>
             </div>
-            {filteredTodayRecords.length === 0 ? (
+            {filteredRecords.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Tidak ada data dengan status ini hari ini
+                Tidak ada data dengan status ini
               </p>
             ) : (
               <div className="space-y-2">
-                {filteredTodayRecords.map((record) => (
-                  <QCRecordCard key={record.id} record={record} />
+                {filteredRecords.map((record) => (
+                  <QCRecordCard key={record.id} record={record} onDelete={() => deleteRecord(record.id)} />
                 ))}
               </div>
             )}
@@ -217,10 +264,12 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Today's QC */}
+      {/* Records list */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">Status QC Hari Ini</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            {isCurrentMonth ? 'Status QC Hari Ini' : 'Semua QC Bulan Ini'}
+          </h2>
           {statusFilter !== 'all' && (
             <button
               onClick={() => {
@@ -233,7 +282,7 @@ export default function Dashboard() {
             </button>
           )}
         </div>
-        {todayRecords.length === 0 ? (
+        {isCurrentMonth && todayRecords.length === 0 ? (
           <Card className="p-8 text-center">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -243,10 +292,19 @@ export default function Dashboard() {
               <p className="text-xs">Tap tombol + untuk mulai input QC harian</p>
             </div>
           </Card>
+        ) : !isCurrentMonth && pastMonthRecords.length === 0 ? (
+          <Card className="p-8 text-center">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <FlaskConical size={20} />
+              </div>
+              <p className="text-sm font-medium">Tidak ada data QC di bulan ini</p>
+            </div>
+          </Card>
         ) : (
           <div className="space-y-2.5">
-            {todayRecords.map((record) => (
-              <QCRecordCard key={record.id} record={record} />
+            {(isCurrentMonth ? todayRecords : pastMonthRecords).map((record) => (
+              <QCRecordCard key={record.id} record={record} onDelete={() => deleteRecord(record.id)} />
             ))}
           </div>
         )}

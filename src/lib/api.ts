@@ -75,13 +75,12 @@ export async function readStruk(image: string, mediaType: string, alat: string):
     throw new Error('Not authenticated');
   }
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  
-  if (!supabaseUrl) {
-    throw new Error('VITE_SUPABASE_URL not configured');
-  }
+  const functionUrl = import.meta.env.VITE_EDGE_FUNCTION_URL
+    || `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-qc`;
 
-  const functionUrl = `${supabaseUrl}/functions/v1/extract-qc`;
+  if (!functionUrl) {
+    throw new Error('VITE_SUPABASE_URL or VITE_EDGE_FUNCTION_URL not configured');
+  }
 
   // Remove data URL prefix if present
   const imageBase64 = image.replace(/^data:image\/\w+;base64,/, '');

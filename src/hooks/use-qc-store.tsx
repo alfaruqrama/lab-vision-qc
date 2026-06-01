@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { LotConfig, QCRecord } from '@/lib/types';
 import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
 import * as api from '@/lib/api';
-import { useQCRecords, useAddQCRecord, qcRecordKeys } from '@/features/qc/hooks/useQCRecords';
+import { useQCRecords, useAddQCRecord, useDeleteQCRecord, qcRecordKeys } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig, useUpdateQCConfig, qcConfigKeys } from '@/features/qc/hooks/useQCConfig';
 
 interface QCStore {
@@ -12,6 +12,7 @@ interface QCStore {
   loading: boolean;
   connected: boolean;
   addRecord: (record: QCRecord) => Promise<void>;
+  deleteRecord: (id: string) => Promise<void>;
   updateConfig: (config: LotConfig) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -30,12 +31,17 @@ export function QCProvider({ children }: { children: React.ReactNode }) {
   const { data: config = DEFAULT_LOT_CONFIG, isLoading: configLoading } = useQCConfig();
 
   const addRecordMutation = useAddQCRecord();
+  const deleteRecordMutation = useDeleteQCRecord();
   const updateConfigMutation = useUpdateQCConfig();
 
   const loading = recordsLoading || configLoading;
 
   const addRecord = async (record: QCRecord) => {
     await addRecordMutation.mutateAsync(record);
+  };
+
+  const deleteRecord = async (id: string) => {
+    await deleteRecordMutation.mutateAsync(id);
   };
 
   const updateConfig = async (newConfig: LotConfig) => {
@@ -50,7 +56,7 @@ export function QCProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <QCContext.Provider value={{ records, config, loading, connected, addRecord, updateConfig, refresh }}>
+    <QCContext.Provider value={{ records, config, loading, connected, addRecord, deleteRecord, updateConfig, refresh }}>
       {children}
     </QCContext.Provider>
   );

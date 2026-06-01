@@ -16,16 +16,11 @@ async function fetchRecords(): Promise<QCRecord[]> {
 
     const client = createSupabaseClient(auth.token);
     
-    // Fetch current month records
+    // Fetch last 12 months of records
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    
-    // Calculate next month for upper bound
-    const nextMonth = month === 12 ? 1 : month + 1;
-    const nextYear = month === 12 ? year + 1 : year;
-    const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+    const endDate = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`;
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
 
     const { data, error } = await client
       .from('qc_records')
@@ -149,6 +144,58 @@ export function useAddQCRecord() {
     },
     onSettled: () => {
       // Always refetch after mutation settles
+      queryClient.invalidateQueries({ queryKey: qcRecordKeys.all });
+    },
+  });
+}
+
+/** Delete a QC record by ID — online: Supabase DELETE, offline: localStorage */
+async function deleteRecordById(recordId: string): Promise<void> {
+  if (api.isConnected()) {
+    const auth = getStoredAuth();
+    if (!auth) throw new Error('Not authenticated');
+
+    const client = createSupabaseClient(auth.token);
+    const { error } = await client.from('qc_records').delete().eq('id', recordId);
+    if (error) {
+      console.error('Delete QC record error:', error);
+      throw new Error(error.message);
+    }
+  } else {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const records: QCRecord[] = stored ? JSON.parse(stored) : [];
+    const filtered = records.filter((r) => r.id !== recordId);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  }
+}
+
+/**
+ * Mutation hook for deleting a QC record.
+ * Optimistically removes the record from cache.
+ */
+export function useDeleteQCRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteRecordById,
+    onMutate: async (recordId) => {
+      await queryClient.cancelQueries({ queryKey: qcRecordKeys.all });
+      const previousRecords = queryClient.getQueryData<QCRecord[]>(qcRecordKeys.all);
+      queryClient.setQueryData<QCRecord[]>(qcRecordKeys.all, (old) => {
+        return old ? old.filter((r) => r.id !== recordId) : [];
+      });
+      return { previousRecords };
+    },
+    onError: (_err, _recordId, context) => {
+      if (context?.previousRecords) {
+        queryClient.setQueryData(qcRecordKeys.all, context.previousRecords);
+      }
+      toast.error('Gagal menghapus data QC');
+    },
+    onSuccess: () => {
+      toast.success('Data QC berhasil dihapus');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: qcRecordKeys.all });
     },
   });
