@@ -111,6 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'admin-users': ['admin'],
       'b3': ['admin', 'petugas', 'viewer'],
       'b3-input': ['admin', 'petugas'],
+      'maintenance': ['admin', 'petugas', 'viewer'],
+      'maintenance-input': ['admin', 'petugas'],
     };
 
     const allowedRoles = accessMap[feature];
