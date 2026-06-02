@@ -3,10 +3,12 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QCProvider } from "@/hooks/use-qc-store";
+import { MaintenanceProvider } from "@/hooks/use-maintenance-store";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/hooks/use-auth";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
+import MaintenanceLayout from "@/components/layout/MaintenanceLayout";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import PortalHome from "@/pages/PortalHome";
@@ -28,6 +30,11 @@ import NotFound from "@/pages/NotFound";
 import LoginPage from "@/pages/LoginPage";
 import AdminUserPanel from "@/pages/AdminUserPanel";
 import TCMForm from "@/pages/TCMForm";
+import MaintenanceDashboard from "@/pages/MaintenanceDashboard";
+import MaintenanceChecklistHarian from "@/pages/MaintenanceChecklistHarian";
+import MaintenanceChecklistBerkala from "@/pages/MaintenanceChecklistBerkala";
+import MaintenanceHistory from "@/pages/MaintenanceHistory";
+import MaintenanceSchedule from "@/pages/MaintenanceSchedule";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +74,13 @@ const App = () => (
 
                 {/* Admin only routes */}
                 <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
+
+                {/* Maintenance module with sidebar/bottom nav */}
+                <Route path="/maintenance" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceDashboard /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/harian" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistHarian /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/berkala" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistBerkala /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/history" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceHistory /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/schedule" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceSchedule /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
 
                 <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />
               </Routes>

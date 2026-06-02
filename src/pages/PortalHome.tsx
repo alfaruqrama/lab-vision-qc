@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard, Wrench } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
@@ -89,6 +89,17 @@ export default function PortalHome() {
       badge: { label: 'ADMIN ONLY', live: false },
       chips: ['User Management', 'Role & Access'],
       visible: canAccess('admin-users'),
+      wip: false,
+    },
+    {
+      title: 'Maintenance Alat',
+      desc: 'Checklist & riwayat maintenance harian, mingguan, bulanan',
+      icon: Wrench,
+      path: '/maintenance',
+      colorClass: 'bg-amber-100 text-amber-700',
+      badge: { label: 'PETUGAS', live: false },
+      chips: ['Checklist Harian', 'Checklist Berkala', 'Riwayat'],
+      visible: canAccess('maintenance'),
       wip: false,
     },
   ].filter(mod => mod.visible);
