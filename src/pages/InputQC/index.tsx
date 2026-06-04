@@ -13,7 +13,7 @@ import { StepForm } from './StepForm';
  * InputQC page — Multi-step wizard for entering daily QC data.
  * 
  * Step 1: Select instrument
- * Step 2: Select control level (skipped for CA660 which has only 1 level)
+ * Step 2: Select control level (skipped for CA660 & EASYLITE)
  * Step 3: Enter parameter values + optional AI photo extraction
  */
 export default function InputQC() {
@@ -40,6 +40,10 @@ export default function InputQC() {
       // CA660 only has 1 level, skip step 2
       setLevel('Kontrol');
       setStep(3);
+    } else if (selected === 'EASYLITE') {
+      // EasyLite: combined NORMAL + HIGH input, skip level select
+      setLevel('NORMAL');
+      setStep(3);
     } else {
       setLevel(null);
       setStep(2);
@@ -58,7 +62,7 @@ export default function InputQC() {
   }
 
   function handleBackToLevel() {
-    if (instrument === 'CA660') {
+    if (instrument === 'CA660' || instrument === 'EASYLITE') {
       handleBackToInstrument();
     } else {
       setStep(2);
@@ -67,7 +71,7 @@ export default function InputQC() {
   }
 
   // Determine total steps for indicator
-  const totalSteps: 2 | 3 = instrument === 'CA660' ? 2 : 3;
+  const totalSteps: 2 | 3 = (instrument === 'CA660' || instrument === 'EASYLITE') ? 2 : 3;
 
   return (
     <div className="space-y-5">

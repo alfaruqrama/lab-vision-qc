@@ -265,20 +265,42 @@ export default function LeveyJennings() {
       .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }, [records, selected, selectedLevel, selectedMonth, supportsMultiLevel]);
 
+  // Match lot config to records by lot number — use most frequent lot
   const lotConfig = useMemo(() => {
-    if (selected.alat === 'CA660') {
-      const lot = config.CA660[0];
-      return lot?.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
-    } else if (selected.alat === 'ONCALL1' || selected.alat === 'ONCALL2') {
-      const lot = (selected.alat === 'ONCALL1' ? config.ONCALL1 : config.ONCALL2)[0];
-      const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      return (lot as any)?.[lvl]?.GDA || null;
-    } else {
-      const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      const lot = getEasyliteLots(config, lvl)[0];
-      return lot?.params?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
+    // Count lot numbers from filtered records
+    const lotCounts = new Map<string, number>();
+    for (const r of filteredRecords) {
+      if (r.lot) lotCounts.set(r.lot, (lotCounts.get(r.lot) || 0) + 1);
     }
-  }, [config, selected, selectedLevel]);
+    // Find the most-used lot that has a matching config
+    const sortedLots = [...lotCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+    if (selected.alat === 'CA660') {
+      for (const [lotNum] of sortedLots) {
+        const lot = config.CA660.find((l) => l.lot === lotNum);
+        if (lot) return lot.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
+      }
+      return config.CA660[0]?.Kontrol?.[selected.name as 'PT' | 'APTT' | 'INR'] || null;
+    }
+
+    if (selected.alat === 'ONCALL1' || selected.alat === 'ONCALL2') {
+      const onCallLots = selected.alat === 'ONCALL1' ? config.ONCALL1 : config.ONCALL2;
+      const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
+      for (const [lotNum] of sortedLots) {
+        const lot = onCallLots.find((l) => l.lot === lotNum);
+        if (lot && (lot as any)?.[lvl]?.GDA) return (lot as any)[lvl].GDA;
+      }
+      return (onCallLots[0] as any)?.[lvl]?.GDA || null;
+    }
+
+    // EASYLITE
+    const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
+    for (const [lotNum] of sortedLots) {
+      const lot = getEasyliteLots(config, lvl).find((l) => l.lot === lotNum);
+      if (lot) return lot.params?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
+    }
+    return getEasyliteLots(config, lvl)[0]?.params?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
+  }, [config, selected, selectedLevel, filteredRecords]);
 
   const chartData = useMemo(() => {
     return filteredRecords.map((r, i) => ({

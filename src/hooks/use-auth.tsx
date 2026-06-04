@@ -22,8 +22,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // DEV bypass: auto-login as admin in development mode
-// Set to false in production or when testing real auth
-const DEV_BYPASS_AUTH = import.meta.env.DEV && false; // Change to true to enable bypass
+// Can be disabled by setting VITE_DISABLE_AUTH_BYPASS=true in .env.local
+const DEV_BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH_BYPASS !== 'true';
 const DEV_USER: AuthUser = {
   id: 'dev-bypass-id',
   username: 'dev-admin',

@@ -68,8 +68,14 @@ export function parseGeminiResponse(geminiResponse: GeminiResponse): {
     if (!data.lot) {
       throw new Error('Missing required field: lot');
     }
+    // For EASYLITE dual-level: params may be sparse; NORMAL/HIGH carry the real data
+    const hasDualLevel = data.alat === 'EASYLITE' && data.NORMAL && data.HIGH;
     if (!data.params || Object.keys(data.params).length === 0) {
-      throw new Error('Missing required field: params (must have at least 1 parameter)');
+      if (!hasDualLevel) {
+        throw new Error('Missing required field: params (must have at least 1 parameter)');
+      }
+      // Fill params from NORMAL level for backward compatibility
+      data.params = { ...data.NORMAL };
     }
 
     // Validate date format (YYYY-MM-DD)
@@ -102,6 +108,23 @@ export function parseGeminiResponse(geminiResponse: GeminiResponse): {
       const value = data.params[key as keyof typeof data.params];
       if (typeof value !== 'number' || isNaN(value)) {
         throw new Error(`Invalid parameter value for ${key}: ${value} (must be a number)`);
+      }
+    }
+
+    // Validate NORMAL/HIGH params for EASYLITE dual-level
+    if (hasDualLevel) {
+      for (const level of ['NORMAL', 'HIGH'] as const) {
+        const levelParams = data[level];
+        if (!levelParams) continue;
+        for (const key of Object.keys(levelParams)) {
+          if (!VALID_PARAMS.includes(key)) {
+            throw new Error(`Invalid parameter in ${level}: ${key}`);
+          }
+          const value = levelParams[key as keyof QCParams];
+          if (value !== undefined && value !== null && (typeof value !== 'number' || isNaN(value))) {
+            throw new Error(`Invalid parameter value for ${level}.${key}: ${value} (must be a number)`);
+          }
+        }
       }
     }
 

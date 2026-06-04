@@ -15,7 +15,7 @@ async function fetchRecords(): Promise<QCRecord[]> {
     if (!auth) return [];
 
     const client = createSupabaseClient(auth.token);
-    
+
     // Fetch last 12 months of records
     const now = new Date();
     const endDate = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`;

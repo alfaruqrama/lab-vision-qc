@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
-import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord, EasyliteLotConfig } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { evaluateWestgard } from '@/lib/westgard';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/hooks/use-qc-store';
@@ -41,14 +41,25 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const [saving, setSaving] = useState(false);
 
   const params = getParamsForInstrument(instrument);
+  const isEasylite = instrument === 'EASYLITE';
 
-  // Lot options
+  // EASYLITE: separate state for HIGH level values & lot
+  const [highValues, setHighValues] = useState<Partial<Record<ParamName, string>>>({});
+  const [highLotNumber, setHighLotNumber] = useState('');
+
+  // Lot options (non-EasyLite: single list; EasyLite: separate NORMAL/HIGH lists)
   const lots = useMemo(() => {
     if (instrument === 'CA660') return config.CA660;
     if (instrument === 'ONCALL1') return config.ONCALL1;
     if (instrument === 'ONCALL2') return config.ONCALL2;
-    return getEasyliteLots(config, level);
-  }, [instrument, config, level]);
+    // EASYLITE: return NORMAL lots for the main selector
+    return config.EASYLITE.NORMAL || [];
+  }, [instrument, config]);
+
+  const highLots = useMemo(() => {
+    if (!isEasylite) return [];
+    return config.EASYLITE.HIGH || [];
+  }, [isEasylite, config]);
 
   // Auto-select first lot
   useEffect(() => {
@@ -57,32 +68,54 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     }
   }, [lots, lotNumber]);
 
+  useEffect(() => {
+    if (highLots.length > 0 && (!highLotNumber || !highLots.some((lot) => lot.lot === highLotNumber))) {
+      setHighLotNumber(highLots[0].lot);
+    }
+  }, [highLots, highLotNumber]);
+
   const selectedLot = useMemo(() => {
     return lots.find((l) => l.lot === lotNumber) || null;
   }, [lots, lotNumber]);
+
+  const selectedHighLot = useMemo(() => {
+    if (!isEasylite) return null;
+    return highLots.find((l) => l.lot === highLotNumber) || null;
+  }, [isEasylite, highLots, highLotNumber]);
 
   const lotExpiry = useMemo(() => {
     if (!selectedLot) return null;
     return checkLotExpiry((selectedLot as { exp: string }).exp);
   }, [selectedLot]);
 
+  const highLotExpiry = useMemo(() => {
+    if (!selectedHighLot) return null;
+    return checkLotExpiry((selectedHighLot as { exp: string }).exp);
+  }, [selectedHighLot]);
+
   // Get param config for a specific parameter
   const getParamConfig = useCallback(
-    (param: ParamName): ParamConfig | null => {
-      if (!selectedLot || !level) return null;
+    (param: ParamName, overrideLevel?: ControlLevel): ParamConfig | null => {
+      const effectiveLevel = overrideLevel || level;
+      if (!selectedLot || !effectiveLevel) return null;
       if (instrument === 'CA660') {
         const lot = selectedLot as { Kontrol: Record<string, ParamConfig> };
         return lot.Kontrol?.[param] || null;
       }
       if (instrument === 'ONCALL1' || instrument === 'ONCALL2') {
         const lot = selectedLot as Record<string, Record<string, ParamConfig>>;
-        return lot[level]?.[param] || null;
+        return lot[effectiveLevel]?.[param] || null;
       }
-      // EASYLITE
-      const lot = selectedLot as { params: Record<string, ParamConfig> };
-      return lot.params?.[param] || null;
+      // EASYLITE: look up from config by level array, using correct lot per level
+      if (effectiveLevel === 'NORMAL' || effectiveLevel === 'HIGH') {
+        const levelLots = config.EASYLITE[effectiveLevel] || [];
+        const searchLot = effectiveLevel === 'HIGH' ? highLotNumber : lotNumber;
+        const match = levelLots.find((l) => l.lot === searchLot);
+        return match?.params?.[param] || null;
+      }
+      return null;
     },
-    [selectedLot, level, instrument],
+    [selectedLot, level, instrument, config, lotNumber, highLotNumber],
   );
 
   // AI Extraction hook
@@ -96,8 +129,22 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     },
   });
 
+  // When AI extracts EASYLITE data, also fill HIGH level values
+  useEffect(() => {
+    if (isEasylite && ai.easyliteData) {
+      const highVals = ai.getEasyliteLevelValues('HIGH');
+      if (highVals) {
+        setHighValues(highVals);
+      }
+    }
+  }, [isEasylite, ai.easyliteData]);
+
   function handleValueChange(param: ParamName, val: string) {
     setValues((prev) => ({ ...prev, [param]: val }));
+  }
+
+  function handleHighValueChange(param: ParamName, val: string) {
+    setHighValues((prev) => ({ ...prev, [param]: val }));
   }
 
   async function handleSave() {
@@ -105,41 +152,67 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       toast.error('Pilih nomor lot');
       return;
     }
-    const hasValues = params.some((p) => values[p] && values[p]!.trim());
-    if (!hasValues) {
-      toast.error('Isi minimal satu nilai parameter');
-      return;
+
+    if (isEasylite) {
+      const hasNormal = params.some((p) => values[p] && values[p]!.trim());
+      const hasHigh = params.some((p) => highValues[p] && highValues[p]!.trim());
+      if (!hasNormal && !hasHigh) {
+        toast.error('Isi minimal satu nilai parameter');
+        return;
+      }
+    } else {
+      const hasValues = params.some((p) => values[p] && values[p]!.trim());
+      if (!hasValues) {
+        toast.error('Isi minimal satu nilai parameter');
+        return;
+      }
     }
 
     setSaving(true);
-    const parsedParams: Partial<Record<ParamName, number>> = {};
-    const statuses: Partial<Record<ParamName, string>> = {};
-    params.forEach((p) => {
-      if (values[p]) {
-        const num = parseFloat(values[p]!);
-        if (!isNaN(num)) {
-          parsedParams[p] = num;
-          const cfg = getParamConfig(p);
-          statuses[p] = cfg ? evaluateWestgard(num, cfg).status : 'ok';
-        }
-      }
-    });
 
-    const record: QCRecord = {
-      id: `qc-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      tanggal,
-      alat: instrument,
-      level,
-      lot: lotNumber,
-      params: parsedParams,
-      status: statuses as QCRecord['status'],
-      analis: user?.nama || 'Unknown',
-      catatan,
-    };
+    function parseParams(
+      vals: Partial<Record<ParamName, string>>,
+      lvl?: ControlLevel,
+    ): { params: Partial<Record<ParamName, number>>; statuses: Partial<Record<ParamName, string>> } {
+      const parsedParams: Partial<Record<ParamName, number>> = {};
+      const statuses: Partial<Record<ParamName, string>> = {};
+      params.forEach((p) => {
+        if (vals[p]) {
+          const num = parseFloat(vals[p]!);
+          if (!isNaN(num)) {
+            parsedParams[p] = num;
+            const cfg = lvl ? getParamConfig(p, lvl) : getParamConfig(p);
+            statuses[p] = cfg ? evaluateWestgard(num, cfg).status : 'ok';
+          }
+        }
+      });
+      return { params: parsedParams, statuses };
+    }
+
+    function makeRecord(lvl: ControlLevel, p: ReturnType<typeof parseParams>): QCRecord {
+      return {
+        id: `qc-${Date.now()}-${lvl.toLowerCase()}`,
+        timestamp: new Date().toISOString(),
+        tanggal,
+        alat: instrument,
+        level: lvl,
+        lot: lvl === 'HIGH' ? highLotNumber : lotNumber,
+        params: p.params,
+        status: p.statuses as QCRecord['status'],
+        analis: user?.nama || 'Unknown',
+        catatan,
+      };
+    }
 
     try {
-      await addRecord(record);
+      if (isEasylite) {
+        const normal = parseParams(values, 'NORMAL');
+        const high = parseParams(highValues, 'HIGH');
+        await Promise.all([addRecord(makeRecord('NORMAL', normal)), addRecord(makeRecord('HIGH', high))]);
+      } else {
+        const single = parseParams(values);
+        await addRecord(makeRecord(level, single));
+      }
       navigate('/qc');
     } catch {
       toast.error('Gagal menyimpan data');
@@ -158,7 +231,9 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
 
       <div>
         <h1 className="text-xl font-bold">Input QC — {INSTRUMENT_LABELS[instrument]}</h1>
-        <p className="text-sm text-muted-foreground">Level: {level}</p>
+        <p className="text-sm text-muted-foreground">
+          Level: {isEasylite ? 'Normal & High' : level}
+        </p>
       </div>
 
       {/* Photo capture (CA660 & Easylite only) */}
@@ -182,9 +257,9 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       )}
 
       {/* Meta fields */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className={cn('grid gap-3', isEasylite ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-2')}>
         <div className="space-y-1.5">
-          <Label className="text-xs">No. Lot</Label>
+          <Label className="text-xs">{isEasylite ? 'No. Lot (Normal)' : 'No. Lot'}</Label>
           <select
             value={lotNumber}
             onChange={(e) => setLotNumber(e.target.value)}
@@ -197,6 +272,22 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             ))}
           </select>
         </div>
+        {isEasylite && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">No. Lot (High)</Label>
+            <select
+              value={highLotNumber}
+              onChange={(e) => setHighLotNumber(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {highLots.map((l) => (
+                <option key={l.lot} value={l.lot}>
+                  {l.lot}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label className="text-xs">Tanggal</Label>
           <Input
@@ -209,65 +300,89 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       </div>
 
       {/* Lot expiry warning */}
-      {lotExpiry && lotExpiry.status === 'expired' && (
-        <Alert variant="destructive" className="animate-in slide-in-from-top-1 duration-200">
-          <XCircle className="h-4 w-4" />
-          <AlertDescription>
-            <span className="font-semibold">Lot ini sudah expired</span> —{' '}
-            {formatExpiryMessage(lotExpiry.daysRemaining)}. Sebaiknya gunakan lot baru atau update
-            tanggal expiry di{' '}
-            <button
-              type="button"
-              onClick={() => navigate('/qc/config')}
-              className="underline font-semibold hover:no-underline"
-            >
-              Konfigurasi Lot
-            </button>
-            .
-          </AlertDescription>
-        </Alert>
-      )}
-      {lotExpiry && lotExpiry.status === 'expiring-soon' && (
-        <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <span className="font-semibold">Lot akan expired</span> —{' '}
-            {formatExpiryMessage(lotExpiry.daysRemaining)}. Siapkan lot baru segera.
-          </AlertDescription>
-        </Alert>
-      )}
-      {lotExpiry && lotExpiry.status === 'unknown' && (
-        <Alert className="animate-in slide-in-from-top-1 duration-200">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Tanggal expiry lot ini belum diset. Update di{' '}
-            <button
-              type="button"
-              onClick={() => navigate('/qc/config')}
-              className="underline font-semibold hover:no-underline"
-            >
-              Konfigurasi Lot
-            </button>
-            .
-          </AlertDescription>
-        </Alert>
-      )}
+      {[lotExpiry && { ...lotExpiry, label: isEasylite ? 'Lot Normal' : 'Lot' },
+        isEasylite && highLotExpiry && { ...highLotExpiry, label: 'Lot High' }]
+        .filter(Boolean)
+        .map((exp, idx) => (
+          <React.Fragment key={idx}>
+            {exp!.status === 'expired' && (
+              <Alert variant="destructive" className="animate-in slide-in-from-top-1 duration-200">
+                <XCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="font-semibold">{exp!.label} sudah expired</span> —{' '}
+                  {formatExpiryMessage(exp!.daysRemaining)}. Sebaiknya gunakan lot baru atau update
+                  tanggal expiry di{' '}
+                  <button type="button" onClick={() => navigate('/qc/config')} className="underline font-semibold hover:no-underline">
+                    Konfigurasi Lot
+                  </button>.
+                </AlertDescription>
+              </Alert>
+            )}
+            {exp!.status === 'expiring-soon' && (
+              <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="font-semibold">{exp!.label} akan expired</span> —{' '}
+                  {formatExpiryMessage(exp!.daysRemaining)}. Siapkan lot baru segera.
+                </AlertDescription>
+              </Alert>
+            )}
+            {exp!.status === 'unknown' && (
+              <Alert className="animate-in slide-in-from-top-1 duration-200">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Tanggal expiry {exp!.label.toLowerCase()} belum diset. Update di{' '}
+                  <button type="button" onClick={() => navigate('/qc/config')} className="underline font-semibold hover:no-underline">
+                    Konfigurasi Lot
+                  </button>.
+                </AlertDescription>
+              </Alert>
+            )}
+          </React.Fragment>
+        ))}
 
       {/* Parameter inputs */}
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Nilai Parameter</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {isEasylite ? (
+        <div className="space-y-3">
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_1fr] gap-3">
+            <h3 className="text-sm font-semibold">NORMAL</h3>
+            <h3 className="text-sm font-semibold">HIGH</h3>
+          </div>
+          {/* One row per parameter — keeps NORMAL & HIGH cards aligned */}
           {params.map((param) => (
-            <ParamValueCard
-              key={param}
-              param={param}
-              value={values[param] || ''}
-              onChange={(val) => handleValueChange(param, val)}
-              config={getParamConfig(param)}
-            />
+            <div key={param} className="grid grid-cols-[1fr_1fr] gap-3">
+              <ParamValueCard
+                param={param}
+                value={values[param] || ''}
+                onChange={(val) => handleValueChange(param, val)}
+                config={getParamConfig(param, 'NORMAL')}
+              />
+              <ParamValueCard
+                param={param}
+                value={highValues[param] || ''}
+                onChange={(val) => handleHighValueChange(param, val)}
+                config={getParamConfig(param, 'HIGH')}
+              />
+            </div>
           ))}
         </div>
-      </div>
+      ) : (
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Nilai Parameter</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {params.map((param) => (
+              <ParamValueCard
+                key={param}
+                param={param}
+                value={values[param] || ''}
+                onChange={(val) => handleValueChange(param, val)}
+                config={getParamConfig(param)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       <div className="space-y-1.5">

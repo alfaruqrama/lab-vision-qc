@@ -81,6 +81,17 @@ export default function PortalHome() {
       wip: true,
     },
     {
+      title: 'Maintenance Alat',
+      desc: 'Checklist & riwayat maintenance harian, mingguan, bulanan',
+      icon: Wrench,
+      path: '/maintenance',
+      colorClass: 'bg-amber-100 text-amber-700',
+      badge: { label: 'PETUGAS', live: false },
+      chips: ['Checklist Harian', 'Checklist Berkala', 'Riwayat'],
+      visible: canAccess('maintenance'),
+      wip: true,
+    },
+    {
       title: 'Kelola User',
       desc: 'Manajemen user dan hak akses sistem',
       icon: Users,
@@ -90,19 +101,47 @@ export default function PortalHome() {
       chips: ['User Management', 'Role & Access'],
       visible: canAccess('admin-users'),
       wip: false,
-    },
-    {
-      title: 'Maintenance Alat',
-      desc: 'Checklist & riwayat maintenance harian, mingguan, bulanan',
-      icon: Wrench,
-      path: '/maintenance',
-      colorClass: 'bg-amber-100 text-amber-700',
-      badge: { label: 'PETUGAS', live: false },
-      chips: ['Checklist Harian', 'Checklist Berkala', 'Riwayat'],
-      visible: canAccess('maintenance'),
-      wip: false,
+      lastRow: true,
     },
   ].filter(mod => mod.visible);
+
+  // Separate "Kelola User" to its own row at the bottom
+  const lastRowMod = modules.find(m => (m as any).lastRow);
+  const mainMods = modules.filter(m => !(m as any).lastRow);
+
+  function ModCard({ mod, onClick }: { mod: typeof modules[number]; onClick: () => void }) {
+    return (
+      <button
+        onClick={onClick}
+        className="card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01] relative overflow-hidden"
+      >
+        {mod.wip && (
+          <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
+            <Construction size={11} className="text-amber-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-amber-700 tracking-wide">WIP — DALAM PENGEMBANGAN</span>
+          </div>
+        )}
+        <div className={`flex items-start gap-3 mb-3 ${mod.wip ? 'mt-7' : ''}`}>
+          <div className={`w-10 h-10 rounded-xl ${mod.colorClass} flex items-center justify-center shrink-0`}>
+            <mod.icon size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-sm">{mod.title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{mod.desc}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`w-1.5 h-1.5 rounded-full ${mod.badge.live ? 'bg-success animate-pulse-dot' : 'bg-muted-foreground/40'}`} />
+          <span className="text-[10px] font-medium text-muted-foreground">{mod.badge.label}</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {mod.chips.map((chip) => (
+            <span key={chip} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{chip}</span>
+          ))}
+        </div>
+      </button>
+    );
+  }
 
   return (
     <div className="grid-bg min-h-[calc(100vh-3.5rem)]">
@@ -116,39 +155,17 @@ export default function PortalHome() {
 
         {/* Module cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {modules.map((mod) => (
-            <button
-              key={mod.path}
-              onClick={() => navigate(mod.path)}
-              className="card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01] relative overflow-hidden"
-            >
-              {mod.wip && (
-                <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
-                  <Construction size={11} className="text-amber-600 shrink-0" />
-                  <span className="text-[10px] font-semibold text-amber-700 tracking-wide">SEDANG DALAM PENGEMBANGAN</span>
-                </div>
-              )}
-              <div className={`flex items-start gap-3 mb-3 ${mod.wip ? 'mt-7' : ''}`}>
-                <div className={`w-10 h-10 rounded-xl ${mod.colorClass} flex items-center justify-center shrink-0`}>
-                  <mod.icon size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm">{mod.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{mod.desc}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`w-1.5 h-1.5 rounded-full ${mod.badge.live ? 'bg-success animate-pulse-dot' : 'bg-muted-foreground/40'}`} />
-                <span className="text-[10px] font-medium text-muted-foreground">{mod.badge.label}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {mod.chips.map((chip) => (
-                  <span key={chip} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{chip}</span>
-                ))}
-              </div>
-            </button>
+          {mainMods.map((mod) => (
+            <ModCard key={mod.path} mod={mod} onClick={() => navigate(mod.path)} />
           ))}
         </div>
+
+        {/* Kelola User — selalu di baris terakhir, sendiri */}
+        {lastRowMod && (
+          <div className="max-w-sm">
+            <ModCard mod={lastRowMod} onClick={() => navigate(lastRowMod.path)} />
+          </div>
+        )}
 
         {/* Footer */}
         <div className="card-clinical p-4 flex items-center gap-3 text-xs text-muted-foreground">

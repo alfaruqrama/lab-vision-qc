@@ -17,6 +17,9 @@ export interface QCData {
   level: LevelType;
   lot: string;
   params: QCParams;
+  // EasyLite dual-level: both NORMAL and HIGH extracted from one photo
+  NORMAL?: QCParams;
+  HIGH?: QCParams;
 }
 
 export type InstrumentType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2';
