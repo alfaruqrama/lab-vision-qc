@@ -1,155 +1,15 @@
-import type { LotConfig, QCRecord, InstrumentType, WestgardStatus } from './types';
+import { isSupabaseConfigured, createSupabaseClient } from './supabase';
+import { AUTH_STORAGE_KEY, type AuthUser } from './auth-types';
 
-const APPS_SCRIPT_URL = import.meta.env.VITE_GAS_QC_URL || '';
-
+/**
+ * Check if the app is connected to a backend.
+ * After Supabase migration, this checks Supabase config instead of GAS URL.
+ */
 export function isConnected(): boolean {
-  return APPS_SCRIPT_URL.length > 0;
+  return isSupabaseConfigured();
 }
 
-// Mapping alat names between React types and Sheets format
-const ALAT_TO_SHEETS: Record<InstrumentType, string> = {
-  CA660: 'Sysmex CA-660',
-  EASYLITE: 'Easylite',
-  ONCALL: 'On Call Sure',
-};
-
-const SHEETS_TO_ALAT: Record<string, InstrumentType> = {
-  'Sysmex CA-660': 'CA660',
-  'Easylite': 'EASYLITE',
-  'On Call Sure': 'ONCALL',
-};
-
-// Status mapping: Sheets uses 'ooc', React uses 'oos'
-function statusFromSheets(s: string): WestgardStatus {
-  if (s === 'ooc') return 'oos';
-  if (s === 'warn' || s === 'warning') return 'warning';
-  return 'ok';
-}
-
-function statusToSheets(s: WestgardStatus): string {
-  if (s === 'oos') return 'ooc';
-  if (s === 'warning') return 'warn';
-  return 'ok';
-}
-
-async function get(action: string, params: Record<string, string> = {}, token?: string): Promise<any> {
-  if (!isConnected()) throw new Error('Demo mode');
-  const url = new URL(APPS_SCRIPT_URL);
-  url.searchParams.set('action', action);
-  if (token) url.searchParams.set('token', token);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-// Use text/plain to bypass CORS preflight with Google Apps Script
-async function post(action: string, payload: any, token?: string): Promise<any> {
-  if (!isConnected()) throw new Error('Demo mode');
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action, ...(token ? { token } : {}), ...payload }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-function mapRecordFromSheets(raw: any): QCRecord {
-  const alatKey = SHEETS_TO_ALAT[raw.alat] || 'CA660';
-  const mappedStatus: Partial<Record<string, WestgardStatus>> = {};
-  if (raw.status) {
-    for (const [k, v] of Object.entries(raw.status)) {
-      if (v) mappedStatus[k] = statusFromSheets(v as string);
-    }
-  }
-  
-  // Convert tanggal from timestamp (ms) to ISO date string
-  let tanggal = '';
-  let timestamp = '';
-  
-  if (typeof raw.tanggal === 'number') {
-    // GAS stores as timestamp milliseconds
-    const date = new Date(raw.tanggal);
-    tanggal = date.toISOString().split('T')[0];  // "2026-05-10"
-    timestamp = date.toISOString();  // "2026-05-10T00:00:00.000Z"
-  } else if (typeof raw.tanggal === 'string') {
-    // Fallback: already a string
-    tanggal = raw.tanggal;
-    timestamp = raw.timestamp || new Date(raw.tanggal).toISOString();
-  } else {
-    // No valid date
-    const now = new Date();
-    tanggal = now.toISOString().split('T')[0];
-    timestamp = now.toISOString();
-  }
-  
-  return {
-    id: raw.id || `qc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    timestamp,
-    tanggal,
-    alat: alatKey,
-    level: raw.level || 'Kontrol',
-    lot: raw.lot || '',
-    params: raw.nilai || raw.params || {},  // GAS returns 'nilai', map to 'params'
-    status: mappedStatus as QCRecord['status'],
-    analis: raw.petugas || raw.analis || '',  // Read petugas first, fallback to analis
-    catatan: raw.catatan || '',
-  };
-}
-
-function mapRecordToSheets(record: QCRecord): any {
-  const mappedStatus: Record<string, string> = {};
-  if (record.status) {
-    for (const [k, v] of Object.entries(record.status)) {
-      if (v) mappedStatus[k] = statusToSheets(v);
-    }
-  }
-  return {
-    timestamp: record.timestamp,
-    tanggal: record.tanggal,
-    alat: ALAT_TO_SHEETS[record.alat] || record.alat,
-    level: record.level,
-    lot: record.lot,
-    params: record.params,
-    status: mappedStatus,
-    analis: record.analis,
-    catatan: record.catatan,
-  };
-}
-
-export async function fetchAllRecords(): Promise<QCRecord[]> {
-  const json = await get('getAll');
-  if (json.status === 'ok' && Array.isArray(json.data)) {
-    return json.data.map(mapRecordFromSheets);
-  }
-  return [];
-}
-
-export async function fetchRecordsByMonth(month: string, token?: string): Promise<QCRecord[]> {
-  const json = await get('getByMonth', { month }, token);
-  if (json.status === 'ok' && Array.isArray(json.data)) {
-    return json.data.map(mapRecordFromSheets);
-  }
-  return [];
-}
-
-export async function fetchConfig(): Promise<LotConfig> {
-  const json = await get('getKonfig');
-  if (json.status === 'ok' && json.data) {
-    return json.data;
-  }
-  throw new Error('No config found');
-}
-
-export async function saveRecord(record: QCRecord, token?: string): Promise<any> {
-  const sheetsData = mapRecordToSheets(record);
-  return post('save', { data: sheetsData }, token);
-}
-
-export async function saveConfig(config: LotConfig, token?: string): Promise<any> {
-  return post('saveKonfig', { data: config }, token);
-}
+// ─── AI Extraction (Supabase Edge Function + Gemini 2.5 Flash Lite) ─────────
 
 export interface ReadStrukResult {
   alat?: string;
@@ -171,23 +31,148 @@ export interface ReadStrukResult {
   parseError?: boolean;
 }
 
+interface AIExtractionResponse {
+  success: boolean;
+  data?: {
+    tanggal: string;
+    alat: string;
+    level: string;
+    lot: string;
+    params: Record<string, number>;
+  };
+  error?: string;
+  remaining_scans?: number;
+}
+
+/**
+ * Read QC struk via AI (Supabase Edge Function + Gemini 2.5 Flash Lite).
+ * Requires authentication. Rate limited to 20 scans/user/day.
+ */
 export async function readStruk(image: string, mediaType: string, alat: string): Promise<{
   status: string;
   data?: ReadStrukResult;
   raw?: string;
   message?: string;
 }> {
-  if (!isConnected()) throw new Error('Demo mode');
-  const res = await fetch(APPS_SCRIPT_URL, {
+  // Get auth user from localStorage
+  const authJson = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!authJson) {
+    throw new Error('Not authenticated');
+  }
+
+  let authUser: AuthUser;
+  try {
+    authUser = JSON.parse(authJson);
+  } catch {
+    throw new Error('Not authenticated');
+  }
+
+  const sessionToken = authUser.token;
+  
+  console.log('[AI] Session token:', sessionToken ? `${sessionToken.substring(0, 8)}...` : 'null');
+  
+  if (!sessionToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const functionUrl = import.meta.env.VITE_EDGE_FUNCTION_URL
+    || `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-qc`;
+
+  if (!functionUrl) {
+    throw new Error('VITE_SUPABASE_URL or VITE_EDGE_FUNCTION_URL not configured');
+  }
+
+  // Remove data URL prefix if present
+  const imageBase64 = image.replace(/^data:image\/\w+;base64,/, '');
+
+  console.log('[AI] Calling Edge Function:', functionUrl);
+  console.log('[AI] Image size:', imageBase64.length, 'chars');
+
+  const res = await fetch(functionUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({
-      action: 'readStruk',
-      image,
-      mediaType,
-      alat,
-    }),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ 
+      imageBase64,
+      sessionToken 
+    })
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+
+  console.log('[AI] Response status:', res.status);
+
+  const aiResponse: AIExtractionResponse = await res.json();
+  
+  console.log('[AI] Response:', aiResponse);
+
+  if (!res.ok || !aiResponse.success) {
+    const errorMsg = aiResponse.error || `HTTP ${res.status}`;
+    console.error('[AI] Error:', errorMsg);
+    return {
+      status: 'error',
+      message: errorMsg,
+      raw: JSON.stringify(aiResponse)
+    };
+  }
+
+  // Transform AI response to match existing ReadStrukResult format
+  const data = aiResponse.data;
+  if (!data) {
+    return {
+      status: 'error',
+      message: 'No data in AI response'
+    };
+  }
+
+  const result: ReadStrukResult = {
+    alat: data.alat,
+    tanggal: data.tanggal,
+    lot: data.lot,
+    level: data.level,
+    ...data.params
+  };
+
+  return {
+    status: 'success',
+    data: result,
+    raw: JSON.stringify(aiResponse)
+  };
+}
+
+/**
+ * Get remaining AI scans for current user today.
+ * Returns 0 if not authenticated or error.
+ */
+export async function getRemainingAIScans(): Promise<number> {
+  const authJson = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!authJson) return 0;
+
+  let authUser: AuthUser;
+  try {
+    authUser = JSON.parse(authJson);
+  } catch {
+    return 0;
+  }
+
+  const sessionToken = authUser.token;
+  if (!sessionToken) return 0;
+
+  try {
+    const supabase = createSupabaseClient(sessionToken);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data, error } = await supabase
+      .rpc('get_remaining_ai_scans', { p_user_id: user.id, p_limit: 20 });
+
+    if (error) {
+      console.error('Failed to get remaining scans:', error);
+      return 0;
+    }
+
+    return data ?? 0;
+  } catch (error) {
+    console.error('Error getting remaining scans:', error);
+    return 0;
+  }
 }

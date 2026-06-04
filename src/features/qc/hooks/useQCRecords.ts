@@ -4,25 +4,40 @@ import * as api from '@/lib/api';
 import { generateMockRecords } from '@/lib/mock-data';
 import { toast } from 'sonner';
 import { getStoredAuth } from '@/lib/auth-api';
+import { createSupabaseClient } from '@/lib/supabase';
 
 const STORAGE_KEY = 'labqc_records';
 
-/** Fetch QC records — online: getByMonth for current month, offline: localStorage */
+/** Fetch QC records — online: Supabase current month, offline: localStorage */
 async function fetchRecords(): Promise<QCRecord[]> {
   if (api.isConnected()) {
-    const month = new Date().toLocaleString('id-ID', { month: 'long' }).toUpperCase();
     const auth = getStoredAuth();
-    console.log('=== Fetching QC Records ===');
-    console.log('Month:', month);
-    console.log('Token:', auth?.token ? 'Present' : 'Missing');
-    console.log('GAS URL:', import.meta.env.VITE_GAS_QC_URL);
-    const records = await api.fetchRecordsByMonth(month, auth?.token);
-    console.log('Records fetched:', records.length);
-    if (records.length > 0) {
-      console.log('First record:', records[0]);
+    if (!auth) return [];
+
+    const client = createSupabaseClient(auth.token);
+
+    // Fetch last 12 months of records
+    const now = new Date();
+    const endDate = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`;
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
+
+    const { data, error } = await client
+      .from('qc_records')
+      .select('*')
+      .gte('tanggal', startDate)
+      .lt('tanggal', endDate)
+      .order('tanggal', { ascending: true })
+      .order('timestamp', { ascending: true });
+
+    if (error) {
+      console.error('Fetch QC records error:', error);
+      return [];
     }
-    return records;
+
+    return data || [];
   }
+
   // Demo mode: read from localStorage or generate mock data
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
@@ -37,14 +52,38 @@ async function fetchRecords(): Promise<QCRecord[]> {
 async function saveRecord(record: QCRecord): Promise<QCRecord> {
   if (api.isConnected()) {
     const auth = getStoredAuth();
-    await api.saveRecord(record, auth?.token);
+    if (!auth) throw new Error('Not authenticated');
+
+    const client = createSupabaseClient(auth.token);
+    
+    const { error } = await client.from('qc_records').insert({
+      id: record.id,
+      timestamp: record.timestamp,
+      tanggal: record.tanggal,
+      alat: record.alat,
+      level: record.level,
+      lot: record.lot,
+      params: record.params,
+      status: record.status,
+      analis: record.analis,
+      catatan: record.catatan,
+      created_by: auth.id,
+    });
+
+    if (error) {
+      console.error('Save QC record error:', error);
+      throw new Error(error.message);
+    }
+
+    return record;
   } else {
+    // Demo mode: save to localStorage
     const stored = localStorage.getItem(STORAGE_KEY);
     const records: QCRecord[] = stored ? JSON.parse(stored) : [];
     records.push(record);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return record;
   }
-  return record;
 }
 
 // ─── Query Keys ──────────────────────────────────────────────────────────────
@@ -105,6 +144,58 @@ export function useAddQCRecord() {
     },
     onSettled: () => {
       // Always refetch after mutation settles
+      queryClient.invalidateQueries({ queryKey: qcRecordKeys.all });
+    },
+  });
+}
+
+/** Delete a QC record by ID — online: Supabase DELETE, offline: localStorage */
+async function deleteRecordById(recordId: string): Promise<void> {
+  if (api.isConnected()) {
+    const auth = getStoredAuth();
+    if (!auth) throw new Error('Not authenticated');
+
+    const client = createSupabaseClient(auth.token);
+    const { error } = await client.from('qc_records').delete().eq('id', recordId);
+    if (error) {
+      console.error('Delete QC record error:', error);
+      throw new Error(error.message);
+    }
+  } else {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const records: QCRecord[] = stored ? JSON.parse(stored) : [];
+    const filtered = records.filter((r) => r.id !== recordId);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  }
+}
+
+/**
+ * Mutation hook for deleting a QC record.
+ * Optimistically removes the record from cache.
+ */
+export function useDeleteQCRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteRecordById,
+    onMutate: async (recordId) => {
+      await queryClient.cancelQueries({ queryKey: qcRecordKeys.all });
+      const previousRecords = queryClient.getQueryData<QCRecord[]>(qcRecordKeys.all);
+      queryClient.setQueryData<QCRecord[]>(qcRecordKeys.all, (old) => {
+        return old ? old.filter((r) => r.id !== recordId) : [];
+      });
+      return { previousRecords };
+    },
+    onError: (_err, _recordId, context) => {
+      if (context?.previousRecords) {
+        queryClient.setQueryData(qcRecordKeys.all, context.previousRecords);
+      }
+      toast.error('Gagal menghapus data QC');
+    },
+    onSuccess: () => {
+      toast.success('Data QC berhasil dihapus');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: qcRecordKeys.all });
     },
   });

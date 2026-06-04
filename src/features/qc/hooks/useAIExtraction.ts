@@ -68,15 +68,32 @@ export function useAIExtraction({ instrument, getParamConfig, onExtracted }: Use
 
         const response = await extractMutation.mutateAsync({ base64Data, mediaType });
 
-        if (response.status === 'ok' && response.data && !response.data.parseError) {
+        if (response.status === 'success' && response.data && !response.data.parseError) {
           applyResult(response.data);
+        } else if (response.status === 'error') {
+          const msg = response.message || '';
+          if (msg.includes('Rate limit') || msg.includes('rate limit')) {
+            toast.error('Limit AI scan habis (20/hari), coba lagi besok');
+          } else if (msg.includes('session') || msg.includes('auth') || msg.includes('401')) {
+            toast.error('Sesi login habis, silakan login ulang');
+          } else {
+            toast.error('AI gagal baca otomatis, isi manual ya');
+          }
+          setState((prev) => ({ ...prev, isLoading: false }));
         } else {
           toast.error('AI gagal baca otomatis, isi manual ya');
           setState((prev) => ({ ...prev, isLoading: false }));
         }
       } catch (err) {
         console.error('AI extraction error:', err);
-        toast.error('Koneksi ke Apps Script gagal');
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        if (errorMessage.includes('Not authenticated')) {
+          toast.error('Sesi login habis, silakan login ulang');
+        } else if (errorMessage.includes('Rate limit')) {
+          toast.error('Limit AI scan habis (20/hari), coba lagi besok');
+        } else {
+          toast.error('AI extraction gagal, coba lagi atau isi manual');
+        }
         setState((prev) => ({ ...prev, isLoading: false }));
       }
     },

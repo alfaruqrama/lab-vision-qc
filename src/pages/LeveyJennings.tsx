@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
+import { getEasyliteLots } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
+import { computeZScores, type ZScorePoint } from '@/lib/zscore';
+import { analyzeMultiLevel, detectR4s, type MultiLevelAnalysis } from '@/lib/westgard-multi';
 import {
   ResponsiveContainer,
   LineChart,
@@ -17,7 +20,18 @@ import {
   ReferenceLine,
   Tooltip,
   Dot,
+  Legend,
 } from 'recharts';
+import {
+  Activity,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  TrendingUp,
+  TrendingDown,
+  ArrowRightLeft,
+  ShieldCheck,
+} from 'lucide-react';
 
 const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[] }[] = [
   { name: 'PT', alat: 'CA660', levels: ['Kontrol'] },
@@ -30,37 +44,216 @@ const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[
   { name: 'GDA', alat: 'ONCALL2', levels: ['CTRL0', 'CTRL1', 'CTRL2'] },
 ];
 
+const CHART_INSTRUMENT_LABELS: Record<InstrumentType, string> = {
+  CA660: 'CA-660',
+  EASYLITE: 'Easylite',
+  ONCALL1: 'OnCall 1',
+  ONCALL2: 'OnCall 2',
+};
+
+const NORMAL_COLOR = 'hsl(220,79%,48%)';
+const HIGH_COLOR = 'hsl(142,69%,40%)';
+
+type ChartMode = 'single' | 'multi';
+
+// ─── Custom Dot (Single Mode) ─────────────────────────────────────────────────
+
 function CustomDot(props: any) {
   const { cx, cy, payload } = props;
   if (!cx || !cy) return null;
   const st = payload.status;
+  const hasCatatan = payload.catatan && payload.catatan.trim() !== '';
   const color = st === 'oos' ? 'hsl(0,72%,51%)' : st === 'warning' ? 'hsl(38,92%,44%)' : 'hsl(220,79%,48%)';
+
   if (st === 'oos') {
     return (
       <g>
         <line x1={cx - 5} y1={cy - 5} x2={cx + 5} y2={cy + 5} stroke={color} strokeWidth={2} />
         <line x1={cx + 5} y1={cy - 5} x2={cx - 5} y2={cy + 5} stroke={color} strokeWidth={2} />
+        {hasCatatan && (
+          <circle cx={cx + 8} cy={cy - 8} r={3} fill="hsl(var(--foreground))" stroke="white" strokeWidth={1.5} />
+        )}
+      </g>
+    );
+  }
+  return (
+    <g>
+      <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />
+      {hasCatatan && (
+        <circle cx={cx + 6} cy={cy - 6} r={2.5} fill="hsl(var(--foreground))" stroke="white" strokeWidth={1.5} />
+      )}
+    </g>
+  );
+}
+
+// ─── Multi Mode Dot ───────────────────────────────────────────────────────────
+
+function MultiDot(props: any) {
+  const { cx, cy, payload } = props;
+  if (!cx || !cy) return null;
+  const st = payload.status;
+  const color = payload.level === 'HIGH' ? HIGH_COLOR : NORMAL_COLOR;
+
+  if (st === 'oos') {
+    return (
+      <g>
+        <line x1={cx - 4} y1={cy - 4} x2={cx + 4} y2={cy + 4} stroke="hsl(0,72%,51%)" strokeWidth={2} opacity={0.9} />
+        <line x1={cx + 4} y1={cy - 4} x2={cx - 4} y2={cy + 4} stroke="hsl(0,72%,51%)" strokeWidth={2} opacity={0.9} />
+        <circle cx={cx} cy={cy} r={5} stroke={color} strokeWidth={1.5} fill="white" />
+      </g>
+    );
+  }
+  if (st === 'warning') {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={5} fill="hsl(38,92%,44%)" stroke={color} strokeWidth={1.5} />
+        <path d={`M${cx - 2} ${cy - 2} L${cx + 2} ${cy + 2}`} stroke="white" strokeWidth={1} />
+        <path d={`M${cx + 2} ${cy - 2} L${cx - 2} ${cy + 2}`} stroke="white" strokeWidth={1} />
       </g>
     );
   }
   return <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
 }
 
+// ─── Westgard Analysis Card ───────────────────────────────────────────────────
+
+function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysis }) {
+  const { rules, patterns, crossLevel, recommendation } = analysis;
+  const hasViolations = rules.length > 0;
+  const hasPatterns = patterns.length > 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <Activity size={16} className="text-primary" />
+          <h3 className="text-sm font-bold">Analisis Westgard Multi-Level</h3>
+        </div>
+
+        {/* Rule Violations */}
+        {hasViolations && (
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Aturan Terlanggar</h4>
+            {rules.map((r, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-start gap-2 rounded-md px-3 py-2 text-xs',
+                  r.status === 'oos' ? 'bg-destructive/10 border border-destructive/20' : 'bg-warning/10 border border-warning/20',
+                )}
+              >
+                {r.status === 'oos' ? (
+                  <XCircle size={14} className="text-destructive shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-0.5">
+                  <p className="font-semibold">
+                    {r.rule} — {r.level}
+                  </p>
+                  <p className="text-muted-foreground">{r.description}</p>
+                  <p className="text-[10px] font-mono-data text-muted-foreground">
+                    {r.affectedDays.slice(0, 5).join(', ')}
+                    {r.affectedDays.length > 5 ? ` +${r.affectedDays.length - 5} hari` : ''}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Patterns */}
+        {hasPatterns && (
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pola Terdeteksi</h4>
+            {patterns.map((p, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs">
+                {p.type === 'shift' && <ArrowRightLeft size={14} className="text-primary shrink-0 mt-0.5" />}
+                {p.type === 'trend_up' && <TrendingUp size={14} className="text-warning shrink-0 mt-0.5" />}
+                {p.type === 'trend_down' && <TrendingDown size={14} className="text-warning shrink-0 mt-0.5" />}
+                {(p.type === 'bias_high' || p.type === 'bias_low') && <Activity size={14} className="text-primary shrink-0 mt-0.5" />}
+                {p.type === 'random_error' && <AlertTriangle size={14} className="text-muted-foreground shrink-0 mt-0.5" />}
+                <div>
+                  <p className="font-semibold">{p.level} — {p.type.replace('_', ' ')}</p>
+                  <p className="text-muted-foreground">{p.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Cross-Level */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Analisis Cross-Level</h4>
+          <div
+            className={cn(
+              'rounded-md px-3 py-2.5 text-xs space-y-1',
+              crossLevel.type === 'systematic'
+                ? 'bg-destructive/10 border border-destructive/20'
+                : crossLevel.type === 'specific'
+                  ? 'bg-warning/10 border border-warning/20'
+                  : 'bg-success/10 border border-success/20',
+            )}
+          >
+            <p className="font-semibold flex items-center gap-1.5">
+              {crossLevel.type === 'stable' ? (
+                <ShieldCheck size={14} className="text-success" />
+              ) : crossLevel.type === 'systematic' ? (
+                <XCircle size={14} className="text-destructive" />
+              ) : crossLevel.type === 'specific' ? (
+                <AlertTriangle size={14} className="text-warning" />
+              ) : null}
+              {crossLevel.summary}
+            </p>
+            {crossLevel.details.map((d, i) => (
+              <p key={i} className="text-muted-foreground">{d}</p>
+            ))}
+          </div>
+        </div>
+
+        {/* Recommendation */}
+        <div className="rounded-md bg-primary/5 border border-primary/20 px-3 py-2.5">
+          <p className="text-xs font-semibold text-primary mb-1">Rekomendasi</p>
+          <p className="text-xs leading-relaxed whitespace-pre-wrap">{recommendation}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function LeveyJennings() {
   const { records, config } = useQCStore();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState<ControlLevel>('Kontrol');
+  const [mode, setMode] = useState<ChartMode>('single');
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   );
 
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+      options.push({ value, label });
+    }
+    return options;
+  }, []);
+
   const selected = ALL_PARAMS[selectedIdx];
   const levelOptions = selected.levels;
+  const supportsMultiLevel = selected.alat === 'EASYLITE' && mode === 'multi';
+
+  // ── Single Mode ─────────────────────────────────────────────────────────────
 
   const filteredRecords = useMemo(() => {
-    const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
+    const lvl = supportsMultiLevel ? 'NORMAL' : selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
     return records
       .filter(
         (r) =>
@@ -70,7 +263,7 @@ export default function LeveyJennings() {
           r.tanggal.startsWith(selectedMonth),
       )
       .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-  }, [records, selected, selectedLevel, selectedMonth]);
+  }, [records, selected, selectedLevel, selectedMonth, supportsMultiLevel]);
 
   const lotConfig = useMemo(() => {
     if (selected.alat === 'CA660') {
@@ -81,9 +274,9 @@ export default function LeveyJennings() {
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
       return (lot as any)?.[lvl]?.GDA || null;
     } else {
-      const lot = config.EASYLITE[0];
       const lvl = selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
-      return (lot as any)?.[lvl]?.[selected.name] || null;
+      const lot = getEasyliteLots(config, lvl)[0];
+      return lot?.params?.[selected.name as 'Na' | 'K' | 'Cl'] || null;
     }
   }, [config, selected, selectedLevel]);
 
@@ -94,13 +287,13 @@ export default function LeveyJennings() {
       status: r.status[selected.name] || 'ok',
       date: r.tanggal,
       analis: r.analis,
+      catatan: r.catatan || '',
     }));
   }, [filteredRecords, selected]);
 
   const mean = lotConfig?.mean || 0;
   const sd = lotConfig?.sd || 1;
 
-  // Stats
   const actualValues = chartData.map((d) => d.value!).filter((v) => v != null);
   const actualMean = actualValues.length ? actualValues.reduce((a, b) => a + b, 0) / actualValues.length : 0;
   const actualSD =
@@ -111,22 +304,87 @@ export default function LeveyJennings() {
   const inControl = chartData.filter((d) => d.status === 'ok').length;
   const inControlPct = chartData.length ? (inControl / chartData.length) * 100 : 0;
 
+  // ── Multi Mode ──────────────────────────────────────────────────────────────
+
+  const multiModeRecords = useMemo(() => {
+    if (!supportsMultiLevel) return [];
+    return records.filter(
+      (r) =>
+        r.alat === 'EASYLITE' &&
+        r.tanggal.startsWith(selectedMonth) &&
+        r.params[selected.name] != null,
+    );
+  }, [records, selected, selectedMonth, supportsMultiLevel]);
+
+  const multiZScores = useMemo(() => {
+    if (!supportsMultiLevel || multiModeRecords.length === 0) return { NORMAL: [], HIGH: [] } as Record<ControlLevel, ZScorePoint[]>;
+    return computeZScores(multiModeRecords, config, 'EASYLITE', selected.name);
+  }, [supportsMultiLevel, multiModeRecords, config, selected.name]);
+
+  const multiChartData = useMemo(() => {
+    if (!supportsMultiLevel) return [];
+    const normal = multiZScores.NORMAL || [];
+    const high = multiZScores.HIGH || [];
+
+    // Merge both levels into a single chart dataset by date
+    const dateMap = new Map<string, { normal?: ZScorePoint; high?: ZScorePoint }>();
+    for (const p of normal) {
+      dateMap.set(p.tanggal, { ...dateMap.get(p.tanggal), normal: p });
+    }
+    for (const p of high) {
+      dateMap.set(p.tanggal, { ...dateMap.get(p.tanggal), high: p });
+    }
+
+    return Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { normal: n, high: h }]) => ({
+        date,
+        normal: n?.zScore ?? null,
+        high: h?.zScore ?? null,
+        nStatus: n?.status ?? 'ok',
+        hStatus: h?.status ?? 'ok',
+        nRaw: n?.rawValue,
+        hRaw: h?.rawValue,
+      }));
+  }, [supportsMultiLevel, multiZScores]);
+
+  const multiAnalysis = useMemo((): MultiLevelAnalysis | null => {
+    if (!supportsMultiLevel || multiChartData.length === 0) return null;
+    const base = analyzeMultiLevel(multiZScores.NORMAL || [], multiZScores.HIGH || []);
+    const r4s = detectR4s(multiZScores.NORMAL || [], multiZScores.HIGH || []);
+    return {
+      ...base,
+      rules: [...base.rules, ...r4s],
+    };
+  }, [supportsMultiLevel, multiZScores, multiChartData.length]);
+
+  function handleParamClick(idx: number, levels: ControlLevel[]) {
+    setSelectedIdx(idx);
+    setSelectedLevel(levels[0]);
+    if (ALL_PARAMS[idx].alat !== 'EASYLITE') {
+      setMode('single');
+    }
+  }
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Grafik Levey-Jennings</h1>
-        <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
-      </div>
-
-      {/* Month selector */}
-      <div className="flex items-center gap-2">
-        <Label className="text-xs whitespace-nowrap">Bulan:</Label>
-        <Input
-          type="month"
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Grafik Levey-Jennings</h1>
+          <p className="text-sm text-muted-foreground">Kontrol kualitas berdasarkan parameter</p>
+        </div>
+        {/* Month selector */}
+        <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-36 h-8 text-sm font-mono-data"
-        />
+          className="w-40 h-9 text-sm rounded-md border border-input bg-background px-2.5 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {monthOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Parameter tabs — grouped by instrument */}
@@ -135,17 +393,14 @@ export default function LeveyJennings() {
           const params = ALL_PARAMS.map((p, i) => ({ ...p, i })).filter((p) => p.alat === alat);
           return (
             <div key={alat} className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-muted-foreground w-20 shrink-0 truncate">
-                {INSTRUMENT_LABELS[alat].split(' ').slice(-1)[0]}
+              <span className="text-[10px] font-semibold text-muted-foreground w-24 shrink-0 truncate">
+                {CHART_INSTRUMENT_LABELS[alat]}
               </span>
               <div className="flex gap-1.5 flex-wrap">
                 {params.map((p) => (
                   <button
                     key={p.i}
-                    onClick={() => {
-                      setSelectedIdx(p.i);
-                      setSelectedLevel(p.levels[0]);
-                    }}
+                    onClick={() => handleParamClick(p.i, p.levels)}
                     className={cn(
                       'px-3 py-1 rounded-md text-xs font-medium transition-all',
                       selectedIdx === p.i
@@ -162,8 +417,39 @@ export default function LeveyJennings() {
         })}
       </Card>
 
-      {/* Level selector for multi-level params */}
-      {levelOptions.length > 1 && (
+      {/* Mode toggle (Easylite only) */}
+      {selected.alat === 'EASYLITE' && (
+        <div className="flex items-center gap-3">
+          <Label className="text-xs text-muted-foreground">Mode:</Label>
+          <div className="flex rounded-md border border-input bg-muted p-0.5">
+            <button
+              onClick={() => setMode('single')}
+              className={cn(
+                'px-3 py-1 rounded-sm text-xs font-medium transition-all',
+                mode === 'single'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setMode('multi')}
+              className={cn(
+                'px-3 py-1 rounded-sm text-xs font-medium transition-all',
+                mode === 'multi'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Multi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Level selector — only in Single mode with multiple levels */}
+      {!supportsMultiLevel && levelOptions.length > 1 && (
         <div className="flex gap-2">
           {levelOptions.map((lvl) => (
             <button
@@ -182,75 +468,253 @@ export default function LeveyJennings() {
         </div>
       )}
 
-      {/* Chart */}
-      <Card className="p-4">
-        {chartData.length === 0 ? (
-          <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
-            <p className="text-sm font-medium">Belum ada data untuk bulan ini</p>
-            <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-              {/* SD bands */}
-              <ReferenceArea y1={mean - 3 * sd} y2={mean - 2 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
-              <ReferenceArea y1={mean + 2 * sd} y2={mean + 3 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
-              <ReferenceArea y1={mean - 2 * sd} y2={mean - sd} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
-              <ReferenceArea y1={mean + sd} y2={mean + 2 * sd} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
-              <ReferenceArea y1={mean - sd} y2={mean + sd} fill="hsl(160,94%,31%)" fillOpacity={0.06} />
-
-              <ReferenceLine y={mean} stroke="hsl(var(--foreground))" strokeDasharray="5 3" strokeOpacity={0.5} label={{ value: 'Mean', position: 'left', fontSize: 10 }} />
-              <ReferenceLine y={mean + sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+1SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-1SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean + 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+2SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-2SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
-              <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
-
-              <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} />
-              <Tooltip
-                contentStyle={{
-                  fontSize: 12,
-                  borderRadius: 8,
-                  border: '1px solid hsl(var(--border))',
-                  backgroundColor: 'hsl(var(--card))',
-                  color: 'hsl(var(--foreground))',
-                }}
-                formatter={(value: number) => [value, selected.name]}
-                labelFormatter={(label, payload) => {
-                  const item = payload?.[0]?.payload;
-                  return item ? `Run #${label} — ${item.date} (${item.analis})` : `Run #${label}`;
-                }}
-              />
-              <Line
-                type="linear"
-                dataKey="value"
-                stroke="hsl(220,79%,48%)"
-                strokeWidth={2}
-                dot={<CustomDot />}
-                activeDot={{ r: 6, fill: 'hsl(220,79%,48%)' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </Card>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Mean Aktual', value: actualMean.toFixed(2), color: '' },
-          { label: 'SD', value: actualSD.toFixed(2), color: '' },
-          { label: 'CV%', value: `${cv.toFixed(1)}%`, color: '' },
-          { label: 'In-Control', value: `${inControlPct.toFixed(0)}%`, color: 'text-success' },
-        ].map((stat) => (
-          <Card key={stat.label} className="p-3 text-center">
-            <p className="text-[10px] text-muted-foreground font-medium">{stat.label}</p>
-            <p className={cn('text-lg font-mono-data font-bold mt-0.5', stat.color)}>{stat.value}</p>
+      {/* ── Single Mode Chart ─────────────────────────────────────────────────── */}
+      {!supportsMultiLevel && (
+        <>
+          <Card className="p-4">
+            {chartData.length === 0 ? (
+              <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <p className="text-sm font-medium">Belum ada data untuk bulan ini</p>
+                <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                  <ReferenceArea y1={mean - 3 * sd} y2={mean - 2 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={mean + 2 * sd} y2={mean + 3 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={mean - 2 * sd} y2={mean - sd} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={mean + sd} y2={mean + 2 * sd} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={mean - sd} y2={mean + sd} fill="hsl(160,94%,31%)" fillOpacity={0.06} />
+                  <ReferenceLine y={mean} stroke="hsl(var(--foreground))" strokeDasharray="5 3" strokeOpacity={0.5} label={{ value: 'Mean', position: 'left', fontSize: 10 }} />
+                  <ReferenceLine y={mean + sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+1SD', position: 'left', fontSize: 9 }} />
+                  <ReferenceLine y={mean - sd} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-1SD', position: 'left', fontSize: 9 }} />
+                  <ReferenceLine y={mean + 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+2SD', position: 'left', fontSize: 9 }} />
+                  <ReferenceLine y={mean - 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-2SD', position: 'left', fontSize: 9 }} />
+                  <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
+                  <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
+                  <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} />
+                  <Tooltip
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: 8,
+                      border: '1px solid hsl(var(--border))',
+                      backgroundColor: 'hsl(var(--card))',
+                      color: 'hsl(var(--foreground))',
+                      maxWidth: 280,
+                      padding: 0,
+                    }}
+                    content={({ payload }) => {
+                      if (!payload || payload.length === 0) return null;
+                      const item = payload[0].payload;
+                      const isOoc = item.status === 'oos';
+                      const isWarning = item.status === 'warning';
+                      return (
+                        <div className="p-2.5 space-y-1 text-xs">
+                          <p className="font-semibold">
+                            Run #{item.run} — {item.date}
+                          </p>
+                          <p className="text-muted-foreground">Analis: {item.analis}</p>
+                          <p className={cn(
+                            'font-mono-data font-bold text-sm',
+                            isOoc ? 'text-destructive' : isWarning ? 'text-warning' : '',
+                          )}>
+                            {selected.name}: {item.value}
+                          </p>
+                          {item.catatan && item.catatan.trim() !== '' && (
+                            <div className="pt-1.5 mt-1 border-t border-border/50">
+                              <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wide">
+                                Tindakan Korektif
+                              </p>
+                              <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
+                                {item.catatan}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="value"
+                    stroke="hsl(220,79%,48%)"
+                    strokeWidth={2}
+                    dot={<CustomDot />}
+                    activeDot={{ r: 6, fill: 'hsl(220,79%,48%)' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </Card>
-        ))}
-      </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Mean Aktual', value: actualMean.toFixed(2), color: '' },
+              { label: 'SD', value: actualSD.toFixed(2), color: '' },
+              { label: 'CV%', value: `${cv.toFixed(1)}%`, color: '' },
+              { label: 'In-Control', value: `${inControlPct.toFixed(0)}%`, color: 'text-success' },
+            ].map((stat) => (
+              <Card key={stat.label} className="p-3 text-center">
+                <p className="text-[10px] text-muted-foreground font-medium">{stat.label}</p>
+                <p className={cn('text-lg font-mono-data font-bold mt-0.5', stat.color)}>{stat.value}</p>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Multi Mode Chart ──────────────────────────────────────────────────── */}
+      {supportsMultiLevel && (
+        <>
+          {/* Legend */}
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: NORMAL_COLOR }} />
+              NORMAL
+            </span>
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: HIGH_COLOR }} />
+              HIGH
+            </span>
+          </div>
+
+          <Card className="p-4">
+            {multiChartData.length === 0 ? (
+              <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
+                <p className="text-sm font-medium">Belum ada data untuk bulan ini</p>
+                <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={multiChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                  {/* SD bands for Z-score */}
+                  <ReferenceArea y1={2} y2={3} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={-3} y2={-2} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={1} y2={2} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={-2} y2={-1} fill="hsl(38,92%,44%)" fillOpacity={0.06} />
+                  <ReferenceArea y1={-1} y2={1} fill="hsl(160,94%,31%)" fillOpacity={0.06} />
+                  <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeDasharray="5 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={1} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={-1} stroke="hsl(160,94%,31%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={2} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={-2} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <ReferenceLine y={-3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
+                  <XAxis dataKey="date" fontSize={9} tick={{ fill: 'hsl(var(--muted-foreground))' }} interval="preserveStartEnd" />
+                  <YAxis
+                    fontSize={10}
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    domain={[-4, 4]}
+                    ticks={[-3, -2, -1, 0, 1, 2, 3]}
+                    tickFormatter={(v: number) => `${v}`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: 8,
+                      border: '1px solid hsl(var(--border))',
+                      backgroundColor: 'hsl(var(--card))',
+                      color: 'hsl(var(--foreground))',
+                      maxWidth: 260,
+                      padding: 0,
+                    }}
+                    content={({ payload }) => {
+                      if (!payload || payload.length === 0) return null;
+                      const item = payload[0].payload;
+                      return (
+                        <div className="p-2.5 space-y-1 text-xs">
+                          <p className="font-semibold">{item.date}</p>
+                          {item.normal !== null && (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: NORMAL_COLOR }} />
+                              <span className="text-muted-foreground">NORMAL</span>
+                              <span className={cn('font-mono-data font-bold', item.nStatus === 'oos' ? 'text-destructive' : item.nStatus === 'warning' ? 'text-warning' : '')}>
+                                Z={item.normal} ({selected.name}: {item.nRaw})
+                              </span>
+                            </div>
+                          )}
+                          {item.high !== null && (
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: HIGH_COLOR }} />
+                              <span className="text-muted-foreground">HIGH</span>
+                              <span className={cn('font-mono-data font-bold', item.hStatus === 'oos' ? 'text-destructive' : item.hStatus === 'warning' ? 'text-warning' : '')}>
+                                Z={item.high} ({selected.name}: {item.hRaw})
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="normal"
+                    stroke={NORMAL_COLOR}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 5, fill: NORMAL_COLOR }}
+                    connectNulls
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="high"
+                    stroke={HIGH_COLOR}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 5, fill: HIGH_COLOR }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          {/* Multi-level stats */}
+          {multiChartData.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                {
+                  label: 'NORMAL Z-avg',
+                  value: (multiZScores.NORMAL || []).length
+                    ? ((multiZScores.NORMAL || []).reduce((s, p) => s + p.zScore, 0) / (multiZScores.NORMAL || []).length).toFixed(2)
+                    : '-',
+                  color: '',
+                },
+                {
+                  label: 'HIGH Z-avg',
+                  value: (multiZScores.HIGH || []).length
+                    ? ((multiZScores.HIGH || []).reduce((s, p) => s + p.zScore, 0) / (multiZScores.HIGH || []).length).toFixed(2)
+                    : '-',
+                  color: '',
+                },
+                {
+                  label: 'NORMAL OK',
+                  value: `${(multiZScores.NORMAL || []).filter((p) => p.status === 'ok').length}/${(multiZScores.NORMAL || []).length}`,
+                  color: 'text-success',
+                },
+                {
+                  label: 'HIGH OK',
+                  value: `${(multiZScores.HIGH || []).filter((p) => p.status === 'ok').length}/${(multiZScores.HIGH || []).length}`,
+                  color: 'text-success',
+                },
+              ].map((stat) => (
+                <Card key={stat.label} className="p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground font-medium">{stat.label}</p>
+                  <p className={cn('text-lg font-mono-data font-bold mt-0.5', stat.color)}>{stat.value}</p>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Westgard Analysis Card */}
+          {multiAnalysis && multiChartData.length > 0 && (
+            <WestgardAnalysisCard analysis={multiAnalysis} />
+          )}
+        </>
+      )}
     </div>
   );
 }

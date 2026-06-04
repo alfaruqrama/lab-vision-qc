@@ -1,22 +1,25 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
+import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord, EasyliteLotConfig } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { evaluateWestgard } from '@/lib/westgard';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/hooks/use-qc-store';
+import { useAuth } from '@/hooks/use-auth';
 import { useAIExtraction } from '@/features/qc/hooks';
 import { ParamValueCard } from '@/features/qc/components';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { PhotoCapture } from './PhotoCapture';
 import { AIResultPanel } from './AIResultPanel';
+import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Loader2, Wifi, WifiOff, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface StepFormProps {
@@ -28,53 +31,73 @@ interface StepFormProps {
 export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const navigate = useNavigate();
   const { config, addRecord, connected } = useQCStore();
+  const { user } = useAuth();
 
   // Form state
   const [lotNumber, setLotNumber] = useState('');
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
-  const [analis, setAnalis] = useState('');
   const [values, setValues] = useState<Partial<Record<ParamName, string>>>({});
   const [catatan, setCatatan] = useState('');
   const [saving, setSaving] = useState(false);
 
   const params = getParamsForInstrument(instrument);
+  const isEasylite = instrument === 'EASYLITE';
+
+  // EASYLITE: separate state for HIGH level values
+  const [highValues, setHighValues] = useState<Partial<Record<ParamName, string>>>({});
 
   // Lot options
   const lots = useMemo(() => {
     if (instrument === 'CA660') return config.CA660;
     if (instrument === 'ONCALL1') return config.ONCALL1;
     if (instrument === 'ONCALL2') return config.ONCALL2;
-    return config.EASYLITE;
+    // EASYLITE: merge NORMAL and HIGH lots, deduplicate by lot number
+    const normalLots = config.EASYLITE.NORMAL || [];
+    const highLots = config.EASYLITE.HIGH || [];
+    const merged = new Map<string, EasyliteLotConfig>();
+    for (const lot of normalLots) merged.set(lot.lot, lot);
+    for (const lot of highLots) if (!merged.has(lot.lot)) merged.set(lot.lot, lot);
+    return Array.from(merged.values());
   }, [instrument, config]);
 
   // Auto-select first lot
-  useMemo(() => {
-    if (lots.length > 0 && !lotNumber) {
+  useEffect(() => {
+    if (lots.length > 0 && (!lotNumber || !lots.some((lot) => lot.lot === lotNumber))) {
       setLotNumber(lots[0].lot);
     }
-  }, [lots]);
+  }, [lots, lotNumber]);
 
   const selectedLot = useMemo(() => {
     return lots.find((l) => l.lot === lotNumber) || null;
   }, [lots, lotNumber]);
 
+  const lotExpiry = useMemo(() => {
+    if (!selectedLot) return null;
+    return checkLotExpiry((selectedLot as { exp: string }).exp);
+  }, [selectedLot]);
+
   // Get param config for a specific parameter
   const getParamConfig = useCallback(
-    (param: ParamName): ParamConfig | null => {
-      if (!selectedLot || !level) return null;
+    (param: ParamName, overrideLevel?: ControlLevel): ParamConfig | null => {
+      const effectiveLevel = overrideLevel || level;
+      if (!selectedLot || !effectiveLevel) return null;
       if (instrument === 'CA660') {
         const lot = selectedLot as { Kontrol: Record<string, ParamConfig> };
         return lot.Kontrol?.[param] || null;
       }
       if (instrument === 'ONCALL1' || instrument === 'ONCALL2') {
         const lot = selectedLot as Record<string, Record<string, ParamConfig>>;
-        return lot[level]?.[param] || null;
+        return lot[effectiveLevel]?.[param] || null;
       }
-      // EASYLITE
-      const lot = selectedLot as Record<string, Record<string, ParamConfig>>;
-      return lot[level]?.[param] || null;
+      // EASYLITE: look up from config by level array
+      if (effectiveLevel === 'NORMAL' || effectiveLevel === 'HIGH') {
+        const levelLots = config.EASYLITE[effectiveLevel] || [];
+        const match = levelLots.find((l) => l.lot === lotNumber);
+        return match?.params?.[param] || null;
+      }
+      return null;
     },
-    [selectedLot, level, instrument],
+    [selectedLot, level, instrument, config, lotNumber],
   );
 
   // AI Extraction hook
@@ -88,50 +111,90 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     },
   });
 
+  // When AI extracts EASYLITE data, also fill HIGH level values
+  useEffect(() => {
+    if (isEasylite && ai.easyliteData) {
+      const highVals = ai.getEasyliteLevelValues('HIGH');
+      if (highVals) {
+        setHighValues(highVals);
+      }
+    }
+  }, [isEasylite, ai.easyliteData]);
+
   function handleValueChange(param: ParamName, val: string) {
     setValues((prev) => ({ ...prev, [param]: val }));
   }
 
+  function handleHighValueChange(param: ParamName, val: string) {
+    setHighValues((prev) => ({ ...prev, [param]: val }));
+  }
+
   async function handleSave() {
-    if (!lotNumber || !analis.trim()) {
-      toast.error('Lengkapi semua field yang wajib');
+    if (!lotNumber) {
+      toast.error('Pilih nomor lot');
       return;
     }
-    const hasValues = params.some((p) => values[p] && values[p]!.trim());
-    if (!hasValues) {
-      toast.error('Isi minimal satu nilai parameter');
-      return;
+
+    if (isEasylite) {
+      const hasNormal = params.some((p) => values[p] && values[p]!.trim());
+      const hasHigh = params.some((p) => highValues[p] && highValues[p]!.trim());
+      if (!hasNormal && !hasHigh) {
+        toast.error('Isi minimal satu nilai parameter');
+        return;
+      }
+    } else {
+      const hasValues = params.some((p) => values[p] && values[p]!.trim());
+      if (!hasValues) {
+        toast.error('Isi minimal satu nilai parameter');
+        return;
+      }
     }
 
     setSaving(true);
-    const parsedParams: Partial<Record<ParamName, number>> = {};
-    const statuses: Partial<Record<ParamName, string>> = {};
-    params.forEach((p) => {
-      if (values[p]) {
-        const num = parseFloat(values[p]!);
-        if (!isNaN(num)) {
-          parsedParams[p] = num;
-          const cfg = getParamConfig(p);
-          statuses[p] = cfg ? evaluateWestgard(num, cfg).status : 'ok';
-        }
-      }
-    });
 
-    const record: QCRecord = {
-      id: `qc-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      tanggal,
-      alat: instrument,
-      level,
-      lot: lotNumber,
-      params: parsedParams,
-      status: statuses as QCRecord['status'],
-      analis: analis.trim(),
-      catatan,
-    };
+    function parseParams(
+      vals: Partial<Record<ParamName, string>>,
+      lvl?: ControlLevel,
+    ): { params: Partial<Record<ParamName, number>>; statuses: Partial<Record<ParamName, string>> } {
+      const parsedParams: Partial<Record<ParamName, number>> = {};
+      const statuses: Partial<Record<ParamName, string>> = {};
+      params.forEach((p) => {
+        if (vals[p]) {
+          const num = parseFloat(vals[p]!);
+          if (!isNaN(num)) {
+            parsedParams[p] = num;
+            const cfg = lvl ? getParamConfig(p, lvl) : getParamConfig(p);
+            statuses[p] = cfg ? evaluateWestgard(num, cfg).status : 'ok';
+          }
+        }
+      });
+      return { params: parsedParams, statuses };
+    }
+
+    function makeRecord(lvl: ControlLevel, p: ReturnType<typeof parseParams>): QCRecord {
+      return {
+        id: `qc-${Date.now()}-${lvl.toLowerCase()}`,
+        timestamp: new Date().toISOString(),
+        tanggal,
+        alat: instrument,
+        level: lvl,
+        lot: lotNumber,
+        params: p.params,
+        status: p.statuses as QCRecord['status'],
+        analis: user?.nama || 'Unknown',
+        catatan,
+      };
+    }
 
     try {
-      await addRecord(record);
+      if (isEasylite) {
+        const normal = parseParams(values, 'NORMAL');
+        const high = parseParams(highValues, 'HIGH');
+        await Promise.all([addRecord(makeRecord('NORMAL', normal)), addRecord(makeRecord('HIGH', high))]);
+      } else {
+        const single = parseParams(values);
+        await addRecord(makeRecord(level, single));
+      }
       navigate('/qc');
     } catch {
       toast.error('Gagal menyimpan data');
@@ -150,7 +213,9 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
 
       <div>
         <h1 className="text-xl font-bold">Input QC — {INSTRUMENT_LABELS[instrument]}</h1>
-        <p className="text-sm text-muted-foreground">Level: {level}</p>
+        <p className="text-sm text-muted-foreground">
+          Level: {isEasylite ? 'Normal & High' : level}
+        </p>
       </div>
 
       {/* Photo capture (CA660 & Easylite only) */}
@@ -198,32 +263,103 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             className="font-mono-data"
           />
         </div>
-        <div className="md:col-span-2 space-y-1.5">
-          <Label className="text-xs">Nama Analis</Label>
-          <Input
-            type="text"
-            value={analis}
-            onChange={(e) => setAnalis(e.target.value)}
-            placeholder="Masukkan nama analis"
-          />
-        </div>
       </div>
 
+      {/* Lot expiry warning */}
+      {lotExpiry && lotExpiry.status === 'expired' && (
+        <Alert variant="destructive" className="animate-in slide-in-from-top-1 duration-200">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot ini sudah expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Sebaiknya gunakan lot baru atau update
+            tanggal expiry di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'expiring-soon' && (
+        <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Lot akan expired</span> —{' '}
+            {formatExpiryMessage(lotExpiry.daysRemaining)}. Siapkan lot baru segera.
+          </AlertDescription>
+        </Alert>
+      )}
+      {lotExpiry && lotExpiry.status === 'unknown' && (
+        <Alert className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Tanggal expiry lot ini belum diset. Update di{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/qc/config')}
+              className="underline font-semibold hover:no-underline"
+            >
+              Konfigurasi Lot
+            </button>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Parameter inputs */}
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Nilai Parameter</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {params.map((param) => (
-            <ParamValueCard
-              key={param}
-              param={param}
-              value={values[param] || ''}
-              onChange={(val) => handleValueChange(param, val)}
-              config={getParamConfig(param)}
-            />
-          ))}
+      {isEasylite ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* NORMAL column */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2 text-accent-foreground">NORMAL</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {params.map((param) => (
+                <ParamValueCard
+                  key={`normal-${param}`}
+                  param={param}
+                  value={values[param] || ''}
+                  onChange={(val) => handleValueChange(param, val)}
+                  config={getParamConfig(param, 'NORMAL')}
+                />
+              ))}
+            </div>
+          </div>
+          {/* HIGH column */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2 text-muted-foreground">HIGH</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {params.map((param) => (
+                <ParamValueCard
+                  key={`high-${param}`}
+                  param={param}
+                  value={highValues[param] || ''}
+                  onChange={(val) => handleHighValueChange(param, val)}
+                  config={getParamConfig(param, 'HIGH')}
+                />
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div>
+          <h3 className="text-sm font-semibold mb-2">Nilai Parameter</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {params.map((param) => (
+              <ParamValueCard
+                key={param}
+                param={param}
+                value={values[param] || ''}
+                onChange={(val) => handleValueChange(param, val)}
+                config={getParamConfig(param)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       <div className="space-y-1.5">
@@ -242,7 +378,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         {connected ? (
           <>
             <Wifi size={12} className="text-success" />
-            Data tersimpan ke Google Sheets
+            Data tersimpan ke Supabase
           </>
         ) : (
           <>

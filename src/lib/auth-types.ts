@@ -1,11 +1,12 @@
 export type UserRole = 'admin' | 'petugas' | 'viewer';
 
 export interface AuthUser {
+  id: string;        // uuid from profiles table
   username: string;
   nama: string;
   role: UserRole;
-  token: string;
-  loginAt: number; // timestamp
+  token: string;     // uuid from sessions table
+  loginAt: number;   // timestamp
 }
 
 export interface LoginResponse {
@@ -42,4 +43,5 @@ export interface ResetPasswordRequest {
 
 export const SESSION_DURATION = 4 * 60 * 60 * 1000; // 4 jam dalam ms
 export const AUTH_STORAGE_KEY = 'lab-portal-auth';
-export const AUTH_URL_KEY = 'gs-url-auth';
+
+// Removed: AUTH_URL_KEY (no longer needed with Supabase)

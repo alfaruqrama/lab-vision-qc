@@ -6,7 +6,6 @@ import {
   validateToken as apiValidateToken,
   getStoredAuth, 
   storeAuth,
-  isSessionTimeValid,
   clearAuth as apiClearAuth,
 } from '@/lib/auth-api';
 
@@ -26,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Can be disabled by setting VITE_DISABLE_AUTH_BYPASS=true in .env.local
 const DEV_BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_DISABLE_AUTH_BYPASS !== 'true';
 const DEV_USER: AuthUser = {
+  id: 'dev-bypass-id',
   username: 'dev-admin',
   nama: 'Developer (Bypass)',
   role: 'admin',
@@ -37,9 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(DEV_BYPASS_AUTH ? DEV_USER : null);
   const [isLoading, setIsLoading] = useState(DEV_BYPASS_AUTH ? false : true);
 
-  // Check session on mount — validasi ke server, bukan hanya localStorage
+  // Check session on mount — validate token with server
   useEffect(() => {
-    // Skip session check in dev bypass mode
     if (DEV_BYPASS_AUTH) return;
 
     const checkSession = async () => {
@@ -50,37 +49,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Quick check: apakah waktu session masih valid di client
-      if (!isSessionTimeValid()) {
-        apiClearAuth();
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
-
-      // Server validation: cek token ke GAS
-      // Ini mencegah bypass via localStorage edit
+      // Server validation: check token with Supabase
       try {
         const serverUser = await apiValidateToken(storedAuth.token);
         
         if (serverUser) {
-          // Token valid di server — update user data dari server
-          const validatedUser: AuthUser = {
-            username: serverUser.username,
-            nama: serverUser.nama,
-            role: serverUser.role,
-            token: serverUser.token,
-            loginAt: storedAuth.loginAt,
-          };
-          storeAuth(validatedUser);
-          setUser(validatedUser);
+          // Token valid — update user data from server
+          storeAuth(serverUser);
+          setUser(serverUser);
         } else {
-          // Token tidak valid di server — hapus session
+          // Token invalid — clear session
           apiClearAuth();
           setUser(null);
         }
       } catch (error) {
-        // Kalau server tidak bisa dihubungi, fallback ke localStorage
+        // Server unreachable — fallback to cached session
         console.warn('Server validation failed, using cached session:', error);
         setUser(storedAuth);
       }
@@ -90,34 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkSession();
   }, []);
-
-  // Auto-check session setiap 60 detik
-  useEffect(() => {
-    if (!user || DEV_BYPASS_AUTH) return;
-
-    const interval = setInterval(async () => {
-      if (!isSessionTimeValid()) {
-        apiClearAuth();
-        setUser(null);
-        window.location.href = '/login';
-        return;
-      }
-
-      // Periodic server validation
-      try {
-        const serverUser = await apiValidateToken(user.token);
-        if (!serverUser) {
-          apiClearAuth();
-          setUser(null);
-          window.location.href = '/login';
-        }
-      } catch {
-        // Network error — skip, coba lagi di interval berikutnya
-      }
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   const login = useCallback(async (username: string, password: string) => {
     const result = await apiLogin(username, password);
@@ -154,6 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'qc': ['admin', 'petugas', 'viewer'],
       'input-qc': ['admin', 'petugas'],
       'admin-users': ['admin'],
+      'b3': ['admin', 'petugas', 'viewer'],
+      'b3-input': ['admin', 'petugas'],
+      'maintenance': ['admin', 'petugas', 'viewer'],
+      'maintenance-input': ['admin', 'petugas'],
     };
 
     const allowedRoles = accessMap[feature];

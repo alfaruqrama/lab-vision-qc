@@ -39,7 +39,7 @@ export function getStatusLabel(status: WestgardStatus): string {
   switch (status) {
     case 'ok': return 'OK';
     case 'warning': return 'Peringatan';
-    case 'oos': return 'Diluar Kendali';
+    case 'oos': return 'Diluar Kontrol';
   }
 }
 
