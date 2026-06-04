@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { LotConfig, ParamConfig, InstrumentType } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -19,44 +19,116 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/features/qc/lib/constants';
-import { Trash2, Plus, Loader2, Save } from 'lucide-react';
+import { Trash2, Plus, Loader2, Save, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
 type TabType = keyof LotConfig;
 type EasyliteLevel = 'NORMAL' | 'HIGH';
+type InputMode = 'mean' | 'range' | 'cv';
+
+type ParamConfigExt = ParamConfig & {
+  low?: number;
+  high?: number;
+  cv?: number;
+};
 
 // ─── Reusable ParamRow ───────────────────────────────────────────────────────
 
 function ParamRow({
   label,
   config,
+  mode,
   onChange,
 }: {
   label: string;
-  config: ParamConfig;
-  onChange: (c: ParamConfig) => void;
+  config: ParamConfigExt;
+  mode: InputMode;
+  onChange: (c: ParamConfigExt) => void;
 }) {
+  function handleRangeChange(field: 'low' | 'high', val: string) {
+    const num = val === '' ? 0 : parseFloat(val) || 0;
+    const updated = { ...config, [field]: num };
+    if (updated.low && updated.high && updated.low > 0 && updated.high > 0) {
+      updated.mean = parseFloat(((updated.low + updated.high) / 2).toFixed(2));
+      const autoSd = parseFloat(((updated.high - updated.low) / 4).toFixed(3));
+      const prevAutoSd = config.low && config.high
+        ? parseFloat(((config.high - config.low) / 4).toFixed(3))
+        : null;
+      if (config.sd === 0 || config.sd === prevAutoSd) {
+        updated.sd = autoSd;
+      }
+    }
+    onChange(updated);
+  }
+
+  function handleCvChange(val: string) {
+    const cv = val === '' ? 0 : parseFloat(val) || 0;
+    const updated = { ...config, cv };
+    if (cv > 0 && config.mean > 0) {
+      // SD = (CV% × Mean) / 100
+      updated.sd = parseFloat(((cv * config.mean) / 100).toFixed(3));
+    }
+    onChange(updated);
+  }
+
+  function handleMeanChange(val: string) {
+    const mean = val === '' ? 0 : parseFloat(val) || 0;
+    const updated = { ...config, mean };
+    if (mode === 'cv' && updated.cv && updated.cv > 0 && mean > 0) {
+      updated.sd = parseFloat(((updated.cv * mean) / 100).toFixed(3));
+    }
+    onChange(updated);
+  }
+
   return (
     <TableRow>
       <TableCell className="px-2 py-1.5 text-xs font-semibold">{label}</TableCell>
       <TableCell className="px-2 py-1">
-        <Input
-          type="number"
-          step="any"
-          value={config.mean === 0 ? '' : config.mean}
-          onChange={(e) => onChange({ ...config, mean: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-          className="h-7 text-xs font-mono-data text-center"
-        />
+        {mode === 'range' ? (
+          <div className="flex items-center gap-1">
+            <Input
+              type="number" step="any" placeholder="Low"
+              value={config.low && config.low !== 0 ? config.low : ''}
+              onChange={(e) => handleRangeChange('low', e.target.value)}
+              className="h-7 text-[10px] font-mono-data text-center w-full"
+            />
+            <span className="text-[10px] text-muted-foreground shrink-0">–</span>
+            <Input
+              type="number" step="any" placeholder="High"
+              value={config.high && config.high !== 0 ? config.high : ''}
+              onChange={(e) => handleRangeChange('high', e.target.value)}
+              className="h-7 text-[10px] font-mono-data text-center w-full"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Input
+              type="number" step="any"
+              value={config.mean === 0 ? '' : config.mean}
+              onChange={(e) => handleMeanChange(e.target.value)}
+              className="h-7 text-xs font-mono-data text-center w-full"
+            />
+            {mode === 'cv' && <span className="text-[10px] text-muted-foreground shrink-0">&times;</span>}
+          </div>
+        )}
       </TableCell>
       <TableCell className="px-2 py-1">
-        <Input
-          type="number"
-          step="any"
-          value={config.sd === 0 ? '' : config.sd}
-          onChange={(e) => onChange({ ...config, sd: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-          className="h-7 text-xs font-mono-data text-center"
-        />
+        {mode === 'cv' ? (
+          <Input
+            type="number" step="any" placeholder="CV%"
+            value={config.cv && config.cv !== 0 ? config.cv : ''}
+            onChange={(e) => handleCvChange(e.target.value)}
+            className="h-7 text-[10px] font-mono-data text-center"
+          />
+        ) : (
+          <Input
+            type="number" step="any"
+            value={config.sd === 0 ? '' : config.sd}
+            onChange={(e) => onChange({ ...config, sd: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+            className="h-7 text-xs font-mono-data text-center"
+          />
+        )}
       </TableCell>
     </TableRow>
   );
@@ -152,19 +224,61 @@ function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onD
 
 // ─── Param Table ─────────────────────────────────────────────────────────────
 
+const MODE_LABELS: Record<InputMode, string> = {
+  mean: 'Mean + SD',
+  range: 'Range (Low–High)',
+  cv: 'Mean + CV%',
+};
+
+const MODE_HEADERS: Record<InputMode, string> = {
+  mean: 'Mean',
+  range: 'Low – High',
+  cv: 'Mean × CV%',
+};
+
+const MODE_SD_LABELS: Record<InputMode, string> = {
+  mean: 'SD',
+  range: 'SD',
+  cv: 'CV%',
+};
+
 function ParamTable({ label, children }: { label: string; children: React.ReactNode }) {
+  const [mode, setMode] = useState<InputMode>('range');
+  const nextMode: InputMode = mode === 'mean' ? 'range' : mode === 'range' ? 'cv' : 'mean';
+
   return (
     <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-1">{label}</p>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-semibold">{label}</p>
+        <button
+          type="button"
+          onClick={() => setMode(nextMode)}
+          className={cn(
+            'inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md transition-all',
+            mode !== 'mean'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-muted text-muted-foreground hover:bg-muted-foreground/15 hover:text-foreground',
+          )}
+        >
+          <ArrowLeftRight size={12} />
+          {MODE_LABELS[mode]}
+        </button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead className="h-7 px-2 text-[10px]">Parameter</TableHead>
-            <TableHead className="h-7 px-2 text-[10px] text-center">Mean</TableHead>
-            <TableHead className="h-7 px-2 text-[10px] text-center">SD</TableHead>
+            <TableHead className="h-7 px-2 text-[10px] text-center">{MODE_HEADERS[mode]}</TableHead>
+            <TableHead className="h-7 px-2 text-[10px] text-center">{MODE_SD_LABELS[mode]}</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>{children}</TableBody>
+        <TableBody>
+          {React.Children.map(children, (child) =>
+            React.isValidElement(child)
+              ? React.cloneElement(child as React.ReactElement<{ mode: InputMode }>, { mode })
+              : child,
+          )}
+        </TableBody>
       </Table>
     </div>
   );

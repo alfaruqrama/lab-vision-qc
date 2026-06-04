@@ -39,6 +39,8 @@ interface AIExtractionResponse {
     level: string;
     lot: string;
     params: Record<string, number>;
+    NORMAL?: Record<string, number>;
+    HIGH?: Record<string, number>;
   };
   error?: string;
   remaining_scans?: number;
@@ -129,7 +131,10 @@ export async function readStruk(image: string, mediaType: string, alat: string):
     tanggal: data.tanggal,
     lot: data.lot,
     level: data.level,
-    ...data.params
+    ...data.params,
+    // Pass through dual-level EASYLITE data
+    NORMAL: data.NORMAL as ReadStrukResult['NORMAL'],
+    HIGH: data.HIGH as ReadStrukResult['HIGH'],
   };
 
   return {
