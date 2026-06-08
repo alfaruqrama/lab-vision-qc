@@ -126,7 +126,7 @@ export default function MaintenanceChecklistHarian() {
             }}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
-            {(['BC6800', 'BC760', 'CA500600'] as MaintenanceAlat[]).map((a) => (
+            {(['BC6800', 'BC760', 'CA500600', 'EasyLyte'] as MaintenanceAlat[]).map((a) => (
               <option key={a} value={a}>
                 {ALAT_LABELS[a]}
               </option>

@@ -6,7 +6,7 @@ import { MaintenanceStatusBadge } from '@/features/maintenance/components/Mainte
 import { DashboardSkeleton } from '@/features/maintenance/components/DashboardSkeleton';
 import { MAINTENANCE_TEMPLATES } from '@/features/maintenance/lib/constants';
 import { useMaintenanceStore } from '@/hooks/use-maintenance-store';
-import { ClipboardCheck, ChevronRight } from 'lucide-react';
+import { ClipboardCheck, ChevronRight, ShieldCheck } from 'lucide-react';
 import type { MaintenanceRecord, MaintenanceTipe } from '@/lib/maintenance-types';
 
 function getToday(): string {
@@ -120,27 +120,48 @@ export default function MaintenanceDashboard() {
                   </span>
                 </div>
               )}
+              {tipeSet.has('uji_fungsi') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Uji Fungsi</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {records.filter((r) => r.alat === alat && r.tipe === 'uji_fungsi').length} hari
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1 h-8 text-xs"
+                className="w-full h-8 text-xs"
                 onClick={() => navigate(`/maintenance/harian?alat=${alat}`)}
               >
                 <ClipboardCheck size={14} className="mr-1" />
                 Checklist
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => navigate(`/maintenance/history?alat=${alat}`)}
-              >
-                Riwayat
-                <ChevronRight size={14} className="ml-1" />
-              </Button>
+              <div className="flex gap-1.5">
+                {tipeSet.has('uji_fungsi') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    onClick={() => navigate(`/maintenance/uji-fungsi?alat=${alat}`)}
+                  >
+                    <ShieldCheck size={14} className="mr-1" />
+                    Uji Fungsi
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-8 text-xs"
+                  onClick={() => navigate(`/maintenance/history?alat=${alat}`)}
+                >
+                  Riwayat
+                  <ChevronRight size={14} className="ml-1" />
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
