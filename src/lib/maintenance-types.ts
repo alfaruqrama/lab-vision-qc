@@ -1,6 +1,6 @@
-export type MaintenanceAlat = 'BC6800' | 'BC760' | 'CA500600';
+export type MaintenanceAlat = 'BC6800' | 'BC760' | 'CA500600' | 'EasyLyte' | 'ALAT_UMUM';
 
-export type MaintenanceTipe = 'daily' | 'weekly' | 'monthly' | 'as_needed';
+export type MaintenanceTipe = 'daily' | 'weekly' | 'monthly' | 'as_needed' | 'uji_fungsi';
 
 export interface MaintenanceTemplate {
   alat: MaintenanceAlat;

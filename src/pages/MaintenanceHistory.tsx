@@ -67,7 +67,7 @@ export default function MaintenanceHistory() {
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="">Semua alat</option>
-            {(['BC6800', 'BC760', 'CA500600'] as MaintenanceAlat[]).map((a) => (
+            {(['BC6800', 'BC760', 'CA500600', 'EasyLyte', 'ALAT_UMUM'] as MaintenanceAlat[]).map((a) => (
               <option key={a} value={a}>
                 {ALAT_LABELS[a]}
               </option>
@@ -86,6 +86,7 @@ export default function MaintenanceHistory() {
             <option value="weekly">Mingguan</option>
             <option value="monthly">Bulanan</option>
             <option value="as_needed">Insidental</option>
+            <option value="uji_fungsi">Uji Fungsi</option>
           </select>
         </div>
         <div className="flex-1">
