@@ -36,6 +36,7 @@ import MaintenanceChecklistBerkala from "@/pages/MaintenanceChecklistBerkala";
 import MaintenanceHistory from "@/pages/MaintenanceHistory";
 import MaintenanceSchedule from "@/pages/MaintenanceSchedule";
 import MaintenanceUjiFungsi from "@/pages/MaintenanceUjiFungsi";
+import MaintenanceLaporan from "@/pages/MaintenanceLaporan";
 
 const queryClient = new QueryClient();
 
@@ -83,6 +84,7 @@ const App = () => (
                 <Route path="/maintenance/history" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceHistory /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/schedule" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceSchedule /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/uji-fungsi" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceUjiFungsi /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/laporan" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceLaporan /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
 
                 <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />
               </Routes>

@@ -1,1 +1,9 @@
-export { useMaintenanceRecords, useAddMaintenanceRecord, useDeleteMaintenanceRecord, maintenanceKeys } from './useMaintenanceRecords';
+export {
+  useMaintenanceRecords,
+  useAddMaintenanceRecord,
+  useDeleteMaintenanceRecord,
+  useUjiFungsiRecords,
+  useSaveUjiFungsi,
+  useDeleteUjiFungsi,
+  maintenanceKeys,
+} from './useMaintenanceRecords';

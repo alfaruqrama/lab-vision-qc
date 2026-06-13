@@ -28,3 +28,23 @@ export interface MaintenanceStatus {
   weekly: { done: boolean; date: string };
   monthly: { done: boolean; date: string };
 }
+
+export interface UjiFungsiRecord {
+  id: string;
+  alat: MaintenanceAlat;
+  tanggal: string;
+  fungsi: 'baik' | 'rusak';
+  petugas: string;
+  keterangan: string;
+  created_at?: string;
+}
+
+export interface LaporanValidasi {
+  id: string;
+  alat: MaintenanceAlat;
+  tipe: MaintenanceTipe;
+  bulan: string;
+  pic_alat: string;
+  ka_lab: string;
+  updated_at?: string;
+}

@@ -5,11 +5,11 @@ import { Card } from '@/components/ui/card';
 import { UjiFungsiForm } from '@/features/maintenance/components/UjiFungsiForm';
 import type { UjiFungsiRow } from '@/features/maintenance/components/UjiFungsiForm';
 import { ALAT_LABELS } from '@/features/maintenance/lib/constants';
-import { useMaintenanceStore } from '@/hooks/use-maintenance-store';
+import { useUjiFungsiRecords, useSaveUjiFungsi } from '@/features/maintenance/hooks/useMaintenanceRecords';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { Save, RotateCcw, ChevronLeft } from 'lucide-react';
-import type { MaintenanceAlat, MaintenanceRecord } from '@/lib/maintenance-types';
+import type { MaintenanceAlat } from '@/lib/maintenance-types';
 
 function getMonthOptions() {
   const now = new Date();
@@ -25,7 +25,7 @@ function getMonthOptions() {
 }
 
 function generateId(): string {
-  return `maint-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `uf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const ALAT_OPTIONS: MaintenanceAlat[] = ['BC6800', 'BC760', 'CA500600', 'EasyLyte'];
@@ -34,7 +34,6 @@ export default function MaintenanceUjiFungsi() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { records, addRecord } = useMaintenanceStore();
   const monthOptions = useMemo(() => getMonthOptions(), []);
 
   const alatParam = (searchParams.get('alat') as MaintenanceAlat) || 'BC6800';
@@ -43,22 +42,22 @@ export default function MaintenanceUjiFungsi() {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<UjiFungsiRow[]>([]);
 
-  // Load existing records for this alat + month
+  // Fetch existing uji fungsi records for this alat + month
+  const { data: existingRecords = [] } = useUjiFungsiRecords(selectedAlat, selectedMonth);
+  const saveUjiFungsi = useSaveUjiFungsi();
+
+  // Build a lookup map from existing records
   const existingMap = useMemo(() => {
     const map: Record<string, { fungsi: 'baik' | 'rusak' | null; petugas: string; keterangan: string }> = {};
-    records
-      .filter(
-        (r) => r.alat === selectedAlat && r.tipe === 'uji_fungsi' && r.tanggal.startsWith(selectedMonth),
-      )
-      .forEach((r) => {
-        map[r.tanggal] = {
-          fungsi: r.aktivitas['fungsi_baik'] === true ? 'baik' : r.aktivitas['fungsi_baik'] === false ? 'rusak' : null,
-          petugas: r.petugas || '',
-          keterangan: r.catatan['keterangan'] || '',
-        };
-      });
+    existingRecords.forEach((r) => {
+      map[r.tanggal] = {
+        fungsi: r.fungsi || null,
+        petugas: r.petugas || '',
+        keterangan: r.keterangan || '',
+      };
+    });
     return map;
-  }, [records, selectedAlat, selectedMonth]);
+  }, [existingRecords]);
 
   const handleSave = async () => {
     const filled = formData.filter((r) => r.fungsi !== null);
@@ -70,20 +69,20 @@ export default function MaintenanceUjiFungsi() {
     setSaving(true);
 
     try {
-      for (const row of filled) {
-        const record: MaintenanceRecord = {
-          id: generateId(),
-          alat: selectedAlat,
-          tipe: 'uji_fungsi',
-          tanggal: row.date,
-          aktivitas: { fungsi_baik: row.fungsi === 'baik' },
-          catatan: row.keterangan ? { keterangan: row.keterangan } : {},
-          catatan_umum: '',
-          petugas: row.petugas || user?.nama || user?.username || 'Unknown',
-        };
-        await addRecord(record);
-      }
-      toast.success(`${filled.length} hari tersimpan — ${ALAT_LABELS[selectedAlat]}`);
+      const data = filled.map((row) => ({
+        id: generateId(),
+        tanggal: row.date,
+        fungsi: row.fungsi as 'baik' | 'rusak',
+        petugas: row.petugas || user?.nama || user?.username || 'Unknown',
+        keterangan: row.keterangan || '',
+      }));
+
+      await saveUjiFungsi.mutateAsync({
+        alat: selectedAlat,
+        bulan: selectedMonth,
+        data,
+      });
+
       navigate('/maintenance');
     } catch {
       // error already toasted by hook

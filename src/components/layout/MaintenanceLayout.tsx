@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, CalendarCheck, History, Calendar, Plus, ChevronLeft, Wrench, Sun, Moon, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, CalendarCheck, History, Calendar, Plus, ChevronLeft, Wrench, Sun, Moon, ShieldCheck, FileText } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { useMaintenanceStore } from '@/hooks/use-maintenance-store';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ const navItems = [
   { path: '/maintenance/harian', label: 'Checklist Harian', icon: ClipboardCheck },
   { path: '/maintenance/berkala', label: 'Checklist Berkala', icon: CalendarCheck },
   { path: '/maintenance/uji-fungsi', label: 'Uji Fungsi', icon: ShieldCheck },
+  { path: '/maintenance/laporan', label: 'Laporan', icon: FileText },
   { path: '/maintenance/history', label: 'Riwayat', icon: History },
 ];
 
