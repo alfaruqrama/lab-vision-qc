@@ -1334,6 +1334,49 @@ export default function InputHarianTab() {
     toast.success('Form direset');
   };
 
+  // ── fetchWithRetry helper ──────────────────────────────────────────────────
+  const fetchWithRetry = useCallback(async (
+    url: string,
+    body: object,
+    maxRetries = 2,
+    timeoutMs = 35000,
+  ): Promise<{ ok: boolean; data?: any; error?: string }> => {
+    let lastError = '';
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!res.ok) {
+          lastError = `HTTP ${res.status}`;
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, (attempt + 1) * 1500));
+          }
+          continue;
+        }
+        const data = await res.json();
+        return { ok: !data.error, data, error: data.error || undefined };
+      } catch (err: any) {
+        clearTimeout(timer);
+        lastError = err.name === 'AbortError' ? 'Timeout (20s)' : (err.message || String(err));
+        if (attempt < maxRetries) {
+          console.warn(`Retry ${attempt + 1}/${maxRetries} in ${(attempt + 1) * 1.5}s: ${lastError}`);
+          await new Promise(r => setTimeout(r, (attempt + 1) * 1500));
+        }
+      }
+    }
+    return { ok: false, error: lastError };
+  }, []);
+
+  // ── Snapshot refs — cegah race condition ──────────────────────────────────
+  const submitSnapshotRef = useRef<{ kunjungan: KunjunganInputRow[]; mcu: McuInputRow[] } | null>(null);
+
   // ── Submit (2-step: preview → confirm → kirim) ─────────────────────────────
   const handleSubmitClick = async () => {
     // Validasi dasar
@@ -1343,6 +1386,12 @@ export default function InputHarianTab() {
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     const GS_LAPORAN_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
     if (!GS_URL && !GS_LAPORAN_URL) { toast.error('GAS URL belum diset di .env'); return; }
+
+    // Snapshot state untuk mencegah race condition dengan MCU aggregation effect
+    submitSnapshotRef.current = {
+      kunjungan: kunjungan.filter(r => r.namaPenjamin.trim() && r.total > 0),
+      mcu: mcu.filter(r => r.namaPenjamin.trim() && r.peserta > 0),
+    };
 
     // Reset & buka modal
     setKunjCheckData(null); setKunjCheckStatus(GS_URL ? 'checking' : 'skipped');
@@ -1388,45 +1437,82 @@ export default function InputHarianTab() {
     const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
     const GS_LAPORAN_URL = (import.meta.env.VITE_GAS_LAPORAN_URL as string) || '';
     setSubmitting(true);
-    const payload = JSON.stringify({ tanggal, kunjungan, mcu });
-    const results: string[] = [];
-    const errors: string[] = [];
+
+    // Gunakan snapshot ref (bukan state langsung) untuk cegah race condition
+    const snapshot = submitSnapshotRef.current;
+    const activeKunjungan = snapshot?.kunjungan ?? kunjungan.filter(r => r.namaPenjamin.trim() && r.total > 0);
+    const activeMcu = snapshot?.mcu ?? mcu.filter(r => r.namaPenjamin.trim() && r.peserta > 0);
+    const grandTotal = activeKunjungan.reduce((s, r) => s + r.total, 0);
+
+    const results: { label: string; ok: boolean; error?: string; verified?: boolean }[] = [];
 
     // Submit ke KUNJUNGAN 2026
     if (GS_URL) {
-      try {
-        const res = await fetch(GS_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain'},
-          body: JSON.stringify({ action:'inputHarian', tanggal, kunjungan, mcu }),
-        });
-        const r = await res.json();
-        if (r.error) errors.push(`Kunjungan: ${r.error}`);
-        else results.push(`Kunjungan 2026: OK`);
-      } catch (err: any) { errors.push(`Kunjungan: ${err.message}`); }
+      const { ok, data, error } = await fetchWithRetry(GS_URL, {
+        action: 'inputHarian', tanggal, kunjungan: activeKunjungan, mcu: activeMcu,
+      });
+      if (ok) {
+        // Verifikasi pasca-submit
+        let verified = false;
+        try {
+          const checkUrl = `${GS_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`;
+          const checkRes = await fetch(checkUrl);
+          const checkData = await checkRes.json();
+          verified = checkData.status === 'ok' && checkData.hasData;
+        } catch { /* verifikasi gagal bukan berarti submit gagal */ }
+        results.push({ label: 'KUNJUNGAN 2026', ok: true, verified });
+      } else {
+        results.push({ label: 'KUNJUNGAN 2026', ok: false, error });
+      }
     }
 
     // Submit ke LAPORAN HARIAN
     if (GS_LAPORAN_URL) {
-      try {
-        const res = await fetch(GS_LAPORAN_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain'},
-          body: JSON.stringify({ action:'inputLaporan', tanggal, kunjungan, mcu }),
-        });
-        const r = await res.json();
-        if (r.error) errors.push(`Laporan: ${r.error}`);
-        else results.push(`Laporan Harian: OK`);
-      } catch (err: any) { errors.push(`Laporan: ${err.message}`); }
+      const { ok, data, error } = await fetchWithRetry(GS_LAPORAN_URL, {
+        action: 'inputLaporan', tanggal, kunjungan: activeKunjungan, mcu: activeMcu,
+      });
+      if (ok) {
+        // Verifikasi pasca-submit
+        let verified = false;
+        try {
+          const checkUrl = `${GS_LAPORAN_URL}?action=checkDay&tanggal=${encodeURIComponent(tanggal)}`;
+          const checkRes = await fetch(checkUrl);
+          const checkData = await checkRes.json();
+          verified = checkData.status === 'ok' && checkData.hasData;
+        } catch { /* verifikasi gagal bukan berarti submit gagal */ }
+        results.push({ label: 'LAPORAN HARIAN', ok: true, verified });
+      } else {
+        results.push({ label: 'LAPORAN HARIAN', ok: false, error });
+      }
     }
 
-    if (errors.length > 0) {
-      toast.error(`Gagal: ${errors.join('; ')}`);
-      if (results.length > 0) toast.success(`Berhasil: ${results.join(', ')}`);
-    } else if (results.length > 0) {
-      toast.success(`Data berhasil dikirim! ${results.join(', ')}`);
-      // Draft TIDAK dihapus setelah submit — tab Laporan membaca dari draft ini
-    } else {
+    // Clear snapshot
+    submitSnapshotRef.current = null;
+
+    // Feedback ke user
+    const okCount = results.filter(r => r.ok).length;
+    const failCount = results.filter(r => !r.ok).length;
+    const totalEndpoints = results.length;
+
+    if (totalEndpoints === 0) {
       toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
+    } else if (failCount === 0) {
+      const unverified = results.filter(r => !r.verified).map(r => r.label);
+      if (unverified.length > 0) {
+        toast.warning(`⚠️ Data terkirim tapi verifikasi gagal untuk: ${unverified.join(', ')}. Cek sheet manual.`, { duration: 8000 });
+      } else {
+        toast.success(`✅ ${grandTotal} kunjungan tersimpan di ${okCount} sheet`);
+      }
+    } else if (okCount === 0) {
+      const errors = results.map(r => `${r.label}: ${r.error}`).join('; ');
+      toast.error(`❌ Gagal mengirim ke ${failCount} sheet. Draft tetap tersimpan — coba lagi.\n${errors}`, { duration: 10000 });
+    } else {
+      // Partial success
+      const okLabels = results.filter(r => r.ok).map(r => r.label).join(', ');
+      const failLabels = results.filter(r => !r.ok).map(r => `${r.label}: ${r.error}`).join('; ');
+      toast.warning(`⚠️ ${okCount}/${totalEndpoints} berhasil (${okLabels}). Gagal: ${failLabels}`, { duration: 10000 });
     }
+
     setSubmitting(false);
   };
 
