@@ -1,4 +1,4 @@
-export type InstrumentType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2';
+export type InstrumentType = 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2' | 'CLEVER1' | 'CLEVER2';
 
 export type ControlLevel = 'Kontrol' | 'NORMAL' | 'HIGH' | 'CTRL0' | 'CTRL1' | 'CTRL2';
 
@@ -52,6 +52,14 @@ export interface OnCallLotConfig {
   CTRL2: { GDA: ParamConfig };
 }
 
+export interface CleverLotConfig {
+  lot: string;
+  exp: string;
+  Kontrol: {
+    GDA: ParamConfig;
+  };
+}
+
 export interface LotConfig {
   CA660: CA660LotConfig[];
   EASYLITE: {
@@ -60,6 +68,8 @@ export interface LotConfig {
   };
   ONCALL1: OnCallLotConfig[];
   ONCALL2: OnCallLotConfig[];
+  CLEVER1: CleverLotConfig[];
+  CLEVER2: CleverLotConfig[];
 }
 
 export type ParamName = 'PT' | 'APTT' | 'INR' | 'Na' | 'K' | 'Cl' | 'GDA';
@@ -81,6 +91,8 @@ export const CA660_PARAMS: ParamName[] = ['PT', 'APTT', 'INR'];
 export const EASYLITE_PARAMS: ParamName[] = ['Na', 'K', 'Cl'];
 export const ONCALL1_PARAMS: ParamName[] = ['GDA'];
 export const ONCALL2_PARAMS: ParamName[] = ['GDA'];
+export const CLEVER1_PARAMS: ParamName[] = ['GDA'];
+export const CLEVER2_PARAMS: ParamName[] = ['GDA'];
 
 export const PARAM_UNITS: Record<ParamName, string> = {
   PT: 'detik',
@@ -96,6 +108,8 @@ export function getParamsForInstrument(alat: InstrumentType): ParamName[] {
   if (alat === 'CA660') return CA660_PARAMS;
   if (alat === 'ONCALL1') return ONCALL1_PARAMS;
   if (alat === 'ONCALL2') return ONCALL2_PARAMS;
+  if (alat === 'CLEVER1') return CLEVER1_PARAMS;
+  if (alat === 'CLEVER2') return CLEVER2_PARAMS;
   return EASYLITE_PARAMS;
 }
 

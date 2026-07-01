@@ -1,4 +1,5 @@
 import type { ZScorePoint } from './zscore';
+import type { ControlLevel } from './types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,35 +44,45 @@ const BIAS_RATIO = 0.8;     // 8+ out of 10 on one side → bias
 // ─── Core Analysis ────────────────────────────────────────────────────────────
 
 /**
- * Full multi-level QC analysis.
+ * Full multi-level QC analysis — generalized for 2 or 3 levels.
  *
- * @param normalPoints - Z-score points for NORMAL level
- * @param highPoints - Z-score points for HIGH level
+ * @param levelPoints - Map of control level → Z-score points
  */
 export function analyzeMultiLevel(
-  normalPoints: ZScorePoint[],
-  highPoints: ZScorePoint[],
+  levelPoints: Record<ControlLevel, ZScorePoint[]>,
 ): MultiLevelAnalysis {
+  const levels = Object.keys(levelPoints) as ControlLevel[];
   const ruleViolations: RuleViolation[] = [];
 
   // Per-level rule scanning
-  const normalRules = scanRules(normalPoints, 'NORMAL');
-  const highRules = scanRules(highPoints, 'HIGH');
-  ruleViolations.push(...normalRules, ...highRules);
+  for (const level of levels) {
+    const levelRules = scanRules(levelPoints[level], level);
+    ruleViolations.push(...levelRules);
+  }
+
+  // R-4s cross-level: check all pairs
+  const r4sViolations = detectR4s(levelPoints);
+  ruleViolations.push(...r4sViolations);
 
   // Pattern detection per level
-  const normalPatterns = detectPatterns(normalPoints, 'NORMAL');
-  const highPatterns = detectPatterns(highPoints, 'HIGH');
+  const allPatterns: PatternResult[] = [];
+  for (const level of levels) {
+    allPatterns.push(...detectPatterns(levelPoints[level], level));
+  }
 
   // Cross-level analysis
-  const crossLevel = analyzeCrossLevel(normalPoints, highPoints);
+  const crossLevel = analyzeCrossLevel(levelPoints);
 
   // Generate recommendation
-  const recommendation = generateRecommendation(ruleViolations, normalPatterns, highPatterns, crossLevel);
+  const recommendation = generateRecommendation(
+    ruleViolations,
+    allPatterns.filter((p) => p.type !== 'none'),
+    crossLevel,
+  );
 
   return {
     rules: ruleViolations,
-    patterns: [...normalPatterns.filter((p) => p.type !== 'none'), ...highPatterns.filter((p) => p.type !== 'none')],
+    patterns: allPatterns.filter((p) => p.type !== 'none'),
     crossLevel,
     recommendation,
     timestamp: new Date().toISOString(),
@@ -175,33 +186,42 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   return rules;
 }
 
-// ─── R-4s Cross-Level Rule ────────────────────────────────────────────────────
+// ─── R-4s Cross-Level Rule (generalized for N levels) ─────────────────────────
 
-export function detectR4s(normalPoints: ZScorePoint[], highPoints: ZScorePoint[]): RuleViolation[] {
+export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): RuleViolation[] {
+  const levels = Object.keys(levelPoints) as ControlLevel[];
   const violations: RuleViolation[] = [];
-  const normalMap = new Map(normalPoints.map((p) => [p.tanggal, p]));
-  const highMap = new Map(highPoints.map((p) => [p.tanggal, p]));
 
-  const commonDates = [...normalMap.keys()].filter((d) => highMap.has(d));
-  const affectedDays: string[] = [];
+  // Check all pairs of levels
+  for (let i = 0; i < levels.length; i++) {
+    for (let j = i + 1; j < levels.length; j++) {
+      const levelA = levels[i];
+      const levelB = levels[j];
+      const mapA = new Map(levelPoints[levelA].map((p) => [p.tanggal, p]));
+      const mapB = new Map(levelPoints[levelB].map((p) => [p.tanggal, p]));
 
-  for (const date of commonDates) {
-    const n = normalMap.get(date)!;
-    const h = highMap.get(date)!;
-    // R-4s: difference in Z-scores between levels > 4
-    if (Math.abs(n.zScore - h.zScore) > 4) {
-      affectedDays.push(date);
+      const commonDates = [...mapA.keys()].filter((d) => mapB.has(d));
+      const affectedDays: string[] = [];
+
+      for (const date of commonDates) {
+        const a = mapA.get(date)!;
+        const b = mapB.get(date)!;
+        // R-4s: difference in Z-scores between levels > 4
+        if (Math.abs(a.zScore - b.zScore) > 4) {
+          affectedDays.push(date);
+        }
+      }
+
+      if (affectedDays.length > 0) {
+        violations.push({
+          rule: 'R-4s',
+          level: `${levelA}-${levelB}`,
+          status: 'oos',
+          affectedDays,
+          description: `Selisih Z-score ${levelA} vs ${levelB} > 4 — perbedaan signifikan antar level`,
+        });
+      }
     }
-  }
-
-  if (affectedDays.length > 0) {
-    violations.push({
-      rule: 'R-4s',
-      level: 'CROSS',
-      status: 'oos',
-      affectedDays,
-      description: `Selisih Z-score NORMAL vs HIGH > 4 — perbedaan signifikan antar level`,
-    });
   }
 
   return violations;
@@ -228,7 +248,7 @@ function detectPatterns(points: ZScorePoint[], level: string): PatternResult[] {
           description: `Shift terdeteksi: ${shiftDays.length} titik di sisi ${scores[i] > 0 ? 'atas' : 'bawah'} mean`,
           days: shiftDays,
         });
-        break; // one shift detection per level is enough
+        break;
       }
     } else {
       sideStreak = 1;
@@ -297,13 +317,25 @@ function detectPatterns(points: ZScorePoint[], level: string): PatternResult[] {
   return patterns;
 }
 
-// ─── Cross-Level Analysis ─────────────────────────────────────────────────────
+// ─── Cross-Level Analysis (generalized for N levels) ──────────────────────────
 
 function analyzeCrossLevel(
-  normalPoints: ZScorePoint[],
-  highPoints: ZScorePoint[],
+  levelPoints: Record<ControlLevel, ZScorePoint[]>,
 ): CrossLevelResult {
-  if (normalPoints.length < 5 || highPoints.length < 5) {
+  const levels = Object.keys(levelPoints) as ControlLevel[];
+  const levelData = levels.map((lvl) => ({
+    name: lvl,
+    points: levelPoints[lvl],
+    zScores: levelPoints[lvl].map((p) => p.zScore),
+    oosCount: levelPoints[lvl].filter((p) => p.status === 'oos').length,
+    warnCount: levelPoints[lvl].filter((p) => p.status === 'warning').length,
+    avgZ: levelPoints[lvl].length > 0
+      ? levelPoints[lvl].reduce((a, p) => a + p.zScore, 0) / levelPoints[lvl].length
+      : 0,
+  }));
+
+  const minPoints = Math.min(...levelData.map((d) => d.points.length));
+  if (minPoints < 5) {
     return {
       type: 'insufficient_data',
       summary: 'Data tidak cukup untuk analisis cross-level (min 5 titik per level)',
@@ -311,53 +343,60 @@ function analyzeCrossLevel(
     };
   }
 
-  const nZ = normalPoints.map((p) => p.zScore);
-  const hZ = highPoints.map((p) => p.zScore);
-  const nAvg = nZ.reduce((a, b) => a + b, 0) / nZ.length;
-  const hAvg = hZ.reduce((a, b) => a + b, 0) / hZ.length;
-
-  // Correlation: check if both levels move in same direction day-to-day
-  const commonCount = Math.min(nZ.length, hZ.length);
-  let sameDirection = 0;
-  for (let i = 1; i < commonCount; i++) {
-    const nDir = nZ[i] > nZ[i - 1] ? 1 : nZ[i] < nZ[i - 1] ? -1 : 0;
-    const hDir = hZ[i] > hZ[i - 1] ? 1 : hZ[i] < hZ[i - 1] ? -1 : 0;
-    if (nDir !== 0 && hDir !== 0 && nDir === hDir) sameDirection++;
+  // Correlation: average same-direction agreement across all level pairs
+  let totalPairs = 0;
+  let sameDirectionPairs = 0;
+  for (let i = 0; i < levels.length; i++) {
+    for (let j = i + 1; j < levels.length; j++) {
+      const a = levelData[i].zScores;
+      const b = levelData[j].zScores;
+      const commonCount = Math.min(a.length, b.length);
+      for (let k = 1; k < commonCount; k++) {
+        const aDir = a[k] > a[k - 1] ? 1 : a[k] < a[k - 1] ? -1 : 0;
+        const bDir = b[k] > b[k - 1] ? 1 : b[k] < b[k - 1] ? -1 : 0;
+        if (aDir !== 0 && bDir !== 0) {
+          totalPairs++;
+          if (aDir === bDir) sameDirectionPairs++;
+        }
+      }
+    }
   }
 
-  const pairsCompared = commonCount - 1;
-  const correlation = pairsCompared > 0 ? sameDirection / pairsCompared : 0;
+  const correlation = totalPairs > 0 ? sameDirectionPairs / totalPairs : 0;
 
-  const nOos = normalPoints.filter((p) => p.status === 'oos').length;
-  const hOos = highPoints.filter((p) => p.status === 'oos').length;
-  const nWarn = normalPoints.filter((p) => p.status === 'warning').length;
-  const hWarn = highPoints.filter((p) => p.status === 'warning').length;
+  const totalOos = levelData.reduce((s, d) => s + d.oosCount, 0);
+  const totalWarn = levelData.reduce((s, d) => s + d.warnCount, 0);
+  const levelsWithIssues = levelData.filter((d) => d.oosCount + d.warnCount > 0);
 
   const details: string[] = [];
   let type: CrossLevelResult['type'];
   let summary: string;
 
-  // Both levels have issues
-  if (nOos + nWarn > 0 && hOos + hWarn > 0 && correlation > 0.5) {
+  // All or most levels have issues & correlated → systematic
+  if (levelsWithIssues.length >= levels.length * 0.5 && correlation > 0.5 && totalOos + totalWarn > 0) {
     type = 'systematic';
-    summary = 'Systematic Error — kedua level menunjukkan pola serupa';
+    summary = 'Systematic Error — multiple level menunjukkan pola serupa';
     details.push(`Korelasi arah pergerakan: ${Math.round(correlation * 100)}%`);
-    details.push(`NORMAL: ${nOos} oos, ${nWarn} warning`);
-    details.push(`HIGH: ${hOos} oos, ${hWarn} warning`);
+    for (const d of levelData) {
+      details.push(`${d.name}: ${d.oosCount} oos, ${d.warnCount} warning (avg Z=${d.avgZ.toFixed(2)})`);
+    }
     details.push('Kemungkinan penyebab: degradasi reagen, masalah kalibrasi, atau suhu penyimpanan');
-  } else if ((nOos + nWarn > 3 && hOos + hWarn <= 1) || (hOos + hWarn > 3 && nOos + nWarn <= 1)) {
+  } else if (levelsWithIssues.length === 1 && totalOos + totalWarn > 3) {
     type = 'specific';
-    const problemLevel = nOos + nWarn > hOos + hWarn ? 'NORMAL' : 'HIGH';
+    const problemLevel = levelsWithIssues[0].name;
     summary = `Masalah Spesifik — hanya level ${problemLevel} yang bermasalah`;
     details.push(`Level ${problemLevel} menunjukkan penyimpangan tanpa diikuti level lainnya`);
     details.push('Kemungkinan: lot kontrol rusak, kontaminasi spesifik, atau kesalahan preparasi');
   } else {
     type = 'stable';
-    summary = 'Stabil — kedua level terkendali';
-    if (Math.abs(nAvg) < 0.3 && Math.abs(hAvg) < 0.3) {
-      details.push('Kedua level dekat dengan mean (bias minimal)');
+    summary = 'Stabil — semua level terkendali';
+    const allClose = levelData.every((d) => Math.abs(d.avgZ) < 0.3);
+    if (allClose) {
+      details.push('Semua level dekat dengan mean (bias minimal)');
     }
-    details.push(`Rata-rata Z: NORMAL=${nAvg.toFixed(2)}, HIGH=${hAvg.toFixed(2)}`);
+    for (const d of levelData) {
+      details.push(`Rata-rata Z ${d.name}: ${d.avgZ.toFixed(2)}`);
+    }
     details.push(`Korelasi pergerakan: ${Math.round(correlation * 100)}%`);
   }
 
@@ -368,11 +407,9 @@ function analyzeCrossLevel(
 
 function generateRecommendation(
   rules: RuleViolation[],
-  normalPatterns: PatternResult[],
-  highPatterns: PatternResult[],
+  allPatterns: PatternResult[],
   crossLevel: CrossLevelResult,
 ): string {
-  const allPatterns = [...normalPatterns, ...highPatterns].filter((p) => p.type !== 'none');
   const oosRules = rules.filter((r) => r.status === 'oos');
   const warnRules = rules.filter((r) => r.status === 'warning');
   const hasShift = allPatterns.some((p) => p.type === 'shift');

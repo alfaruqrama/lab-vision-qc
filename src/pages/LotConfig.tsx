@@ -315,6 +315,20 @@ export default function LotConfigPage() {
     }));
   }
 
+  function addCleverLot(key: 'CLEVER1' | 'CLEVER2') {
+    setLocalConfig((prev) => ({
+      ...prev,
+      [key]: [
+        ...prev[key],
+        {
+          lot: '',
+          exp: '',
+          Kontrol: { GDA: { mean: 0, sd: 0 } },
+        },
+      ],
+    }));
+  }
+
   function updateLot<T>(key: TabType, index: number, updated: T) {
     setLocalConfig((prev) => {
       const arr = [...(prev[key] as any[])];
@@ -377,6 +391,8 @@ export default function LotConfigPage() {
     { value: 'EASYLITE', label: 'Easylite' },
     { value: 'ONCALL1', label: 'On Call Sure 1' },
     { value: 'ONCALL2', label: 'On Call Sure 2' },
+    { value: 'CLEVER1', label: 'GDA Clever Check 1' },
+    { value: 'CLEVER2', label: 'GDA Clever Check 2' },
   ];
 
   return (
@@ -483,11 +499,34 @@ export default function LotConfigPage() {
             </LotCard>
           ))}
 
+        {/* CLEVER1 / CLEVER2 */}
+        {(selectedInstrument === 'CLEVER1' || selectedInstrument === 'CLEVER2') &&
+          localConfig[selectedInstrument].map((lot, i) => (
+            <LotCard
+              key={i}
+              instrument={selectedInstrument}
+              lotNumber={lot.lot}
+              expDate={lot.exp}
+              onLotChange={(v) => updateLot(selectedInstrument, i, { ...lot, lot: v })}
+              onExpChange={(v) => updateLot(selectedInstrument, i, { ...lot, exp: v })}
+              onDelete={() => deleteLot(selectedInstrument, i)}
+            >
+              <ParamTable label="Kontrol">
+                <ParamRow
+                  label="GDA (mg/dL)"
+                  config={lot.Kontrol.GDA}
+                  onChange={(c) => updateLot(selectedInstrument, i, { ...lot, Kontrol: { ...lot.Kontrol, GDA: c } })}
+                />
+              </ParamTable>
+            </LotCard>
+          ))}
+
         {/* Add lot button */}
         {selectedInstrument !== 'EASYLITE' && (
         <button
           onClick={() => {
             if (selectedInstrument === 'CA660') addCA660Lot();
+            else if (selectedInstrument === 'CLEVER1' || selectedInstrument === 'CLEVER2') addCleverLot(selectedInstrument);
             else addOnCallLot(selectedInstrument);
           }}
           className={cn(

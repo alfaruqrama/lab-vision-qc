@@ -12,7 +12,7 @@ export interface LotExpiryInfo {
 }
 
 const EXPIRY_WARNING_DAYS = 7;
-const INSTRUMENTS: InstrumentType[] = ['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2'];
+const INSTRUMENTS: InstrumentType[] = ['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2', 'CLEVER1', 'CLEVER2'];
 
 export function checkLotExpiry(expDate: string): { status: ExpiryStatus; daysRemaining: number } {
   if (!expDate || expDate.trim() === '') {
@@ -104,11 +104,12 @@ export function getLotConfigHash(config: LotConfig): string {
     INSTRUMENTS.map((inst) => {
       if (inst === 'EASYLITE') {
         return (['NORMAL', 'HIGH'] as const)
-          .map((level) => config.EASYLITE[level].map((l) => `${level}|${l.lot}|${l.exp}`).join(','))
+          .map((level) => (config.EASYLITE[level] || []).map((l) => `${level}|${l.lot}|${l.exp}`).join(','))
           .join(',');
       }
-      const lots = config[inst] as Array<{ lot: string; exp: string }>;
-      return lots.map((l) => `${l.lot}|${l.exp}`).join(',');
+      const lots = (config as any)[inst];
+      if (!Array.isArray(lots)) return '';
+      return lots.map((l: { lot: string; exp: string }) => `${l.lot}|${l.exp}`).join(',');
     }),
   );
 }
