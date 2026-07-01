@@ -322,6 +322,11 @@ export default function LaporanTab() {
 
   const isAuto = (k: string) => autoFields.has(k);
 
+  // Komputasi BPJS
+  const bpjsRJ  = form.rj  - form.nonBpjsRJ;
+  const bpjsRI  = form.ri  - form.nonBpjsRI;
+  const bpjsIGD = form.igd - form.nonBpjsIGD;
+
   const outputTeks = useMemo(() => {
     const SEP = '──────────────────────────────────';
     const lines: string[] = [];
@@ -341,39 +346,39 @@ export default function LaporanTab() {
     lines.push(``);
     // 3. Rincian
     lines.push(`Rincian `);
-    lines.push(`* Rawat Jalan : ${fmtKunj(form.rj)}`);
-    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsRJ)}`);
-    lines.push(`* Rawat Inap : ${fmtKunj(form.ri)}`);
-    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
-    lines.push(`* IGD : ${fmtKunj(form.igd)}`);
-    lines.push(`▪Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
-    lines.push(`* MCU : ${fmtKunj(form.mcu)}`);
-    lines.push(`* Rujukan SBU/Grahu : ${fmtKunj(form.rujukanGrahu)}`);
-    lines.push(`* Rujukan SBU/PPK1 : ${fmtKunj(form.rujukanPPK1)}`);
-    lines.push(`* Rujukan SBU/Satkal : ${fmtKunj(form.rujukanSatkal)}`);
-    lines.push(`* Rujukan dokter Luar : ${fmtKunj(form.rujukanDokterLuar)}`);
-    lines.push(`* Poli Exclusive : ${fmtKunj(form.poliExclusive)}`);
-    lines.push(`* Poli Prioritas : ${fmtKunj(form.poliPrioritas)}`);
-    lines.push(`* Pasien PG:`);
+    lines.push(`▪️Rawat Jalan : ${fmtKunj(form.rj)}`);
+    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsRJ)}`);
+    lines.push(`* BPJS : ${fmtKunj(bpjsRJ)}`);
+    lines.push(`▪️Rawat Inap : ${fmtKunj(form.ri)}`);
+    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
+    lines.push(`* BPJS : ${fmtKunj(bpjsRI)}`);
+    lines.push(`▪️IGD : ${fmtKunj(form.igd)}`);
+    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
+    lines.push(`* BPJS : ${fmtKunj(bpjsIGD)}`);
+    lines.push(`▪️MCU : ${fmtKunj(form.mcu)}`);
+    lines.push(`▪️Rujukan SBU/Grahu : ${fmtKunj(form.rujukanGrahu)}`);
+    lines.push(`▪️Rujukan SBU/PPK1 : ${fmtKunj(form.rujukanPPK1)}`);
+    lines.push(`▪️Rujukan SBU/Satkal : ${fmtKunj(form.rujukanSatkal)}`);
+    lines.push(`▪️Rujukan dokter Luar : ${fmtKunj(form.rujukanDokterLuar)}`);
+    lines.push(`▪️Poli Exclusive : ${fmtKunj(form.poliExclusive)}`);
+    lines.push(`▪️Poli Prioritas : ${fmtKunj(form.poliPrioritas)}`);
+    lines.push(`▪️Pasien PG:`);
     lines.push(`1. Igd Kry PG : ${fmtKunj(form.briIgdKry)}`);
     lines.push(`2. Igd Kel PG : ${fmtKunj(form.briIgdKel)}`);
     lines.push(`3. Rajal Kry PG : ${fmtKunj(form.briRajalKry)}`);
     lines.push(`4. Rajal Kel  PG : ${fmtKunj(form.briRajalKel)}`);
     lines.push(`5. Rawin Kry PG : ${fmtKunj(form.briRawinKry)}`);
     lines.push(`6. Rawin Kel PG : ${fmtKunj(form.briRawinKel)}`);
-    if (form.promoItems.length > 0) {
-  lines.push(`* Promo Lab : `);
-  form.promoItems.forEach((p, i) => { lines.push(`${i + 1}. ${p.label}: ${fmtKunj(p.value)}`); });
-} else {
-  lines.push(`* Promo Lab : 0`);
-}
-    lines.push(`* Pasien AS Morula `);
+    lines.push(`▪️Promo Lab : ${fmtKunj(totalPromoLab)}`);
+    lines.push(`▪️Pasien AS Morula `);
     lines.push(`1. Terjadwal hari ini : ${fmtKunj(form.morullaTerjadwal)}`);
     lines.push(`2. Hadir hari ini : ${fmtKunj(form.morullaHadir)}`);
     lines.push(SEP);
     lines.push(`================`);
     // 4. Capaian Bulan
-    lines.push(`CAPAIAN 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    lines.push(` *CAPAIAN*`);
+    lines.push(` 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    lines.push(``);
     lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzetTotal)} (${pctKumOmzet}%)`);
     lines.push(`* Total kunjungan  :   ${fmtKunj(kumKunjTotal)} (${pctKumKunj}%)`);
     lines.push(SEP);
@@ -384,7 +389,7 @@ export default function LaporanTab() {
     return lines.join('\n');
   }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanSelainMCU, pctKumOmzet, pctKumKunj,
-      kumOmzetTotal, kumKunjTotal]);
+      kumOmzetTotal, kumKunjTotal, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab]);
 
   const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
