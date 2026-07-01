@@ -55,6 +55,24 @@ export const DEFAULT_LOT_CONFIG: LotConfig = {
       CTRL2: { GDA: { mean: 364, sd: 36.5 } },
     },
   ],
+  CLEVER1: [
+    {
+      lot: 'CC1-2024-001',
+      exp: '2026-12-31',
+      Kontrol: {
+        GDA: { mean: 100, sd: 5 },
+      },
+    },
+  ],
+  CLEVER2: [
+    {
+      lot: 'CC2-2024-001',
+      exp: '2026-12-31',
+      Kontrol: {
+        GDA: { mean: 100, sd: 5 },
+      },
+    },
+  ],
 };
 
 function generateValue(mean: number, sd: number, bias: number = 0): number {
@@ -75,6 +93,8 @@ export function generateMockRecords(): QCRecord[] {
   const elHighLot = DEFAULT_LOT_CONFIG.EASYLITE.HIGH[0];
   const oc1Lot = DEFAULT_LOT_CONFIG.ONCALL1[0];
   const oc2Lot = DEFAULT_LOT_CONFIG.ONCALL2[0];
+  const cc1Lot = DEFAULT_LOT_CONFIG.CLEVER1[0];
+  const cc2Lot = DEFAULT_LOT_CONFIG.CLEVER2[0];
 
   for (let day = 1; day <= Math.min(now.getDate(), 28); day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -230,6 +250,44 @@ export function generateMockRecords(): QCRecord[] {
         catatan: '',
       });
     }
+
+    // GDA Clever Check 1 - daily
+    const cc1Params: Partial<Record<ParamName, number>> = {
+      GDA: generateValue(cc1Lot.Kontrol.GDA.mean, cc1Lot.Kontrol.GDA.sd, day === 20 ? 3 : 0),
+    };
+    const cc1Status: Partial<Record<ParamName, any>> = {};
+    cc1Status.GDA = evaluateWestgard(cc1Params.GDA!, cc1Lot.Kontrol.GDA).status;
+    records.push({
+      id: `mock-cc1-${day}`,
+      timestamp: new Date(year, month, day, 9, 15).toISOString(),
+      tanggal: dateStr,
+      alat: 'CLEVER1',
+      level: 'Kontrol',
+      lot: cc1Lot.lot,
+      params: cc1Params,
+      status: cc1Status,
+      analis,
+      catatan: '',
+    });
+
+    // GDA Clever Check 2 - daily
+    const cc2Params: Partial<Record<ParamName, number>> = {
+      GDA: generateValue(cc2Lot.Kontrol.GDA.mean, cc2Lot.Kontrol.GDA.sd),
+    };
+    const cc2Status: Partial<Record<ParamName, any>> = {};
+    cc2Status.GDA = evaluateWestgard(cc2Params.GDA!, cc2Lot.Kontrol.GDA).status;
+    records.push({
+      id: `mock-cc2-${day}`,
+      timestamp: new Date(year, month, day, 9, 30).toISOString(),
+      tanggal: dateStr,
+      alat: 'CLEVER2',
+      level: 'Kontrol',
+      lot: cc2Lot.lot,
+      params: cc2Params,
+      status: cc2Status,
+      analis,
+      catatan: '',
+    });
   }
 
   return records;

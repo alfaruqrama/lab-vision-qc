@@ -36,8 +36,8 @@ export default function InputQC() {
 
   function handleInstrumentSelect(selected: InstrumentType) {
     setInstrument(selected);
-    if (selected === 'CA660') {
-      // CA660 only has 1 level, skip step 2
+    if (selected === 'CA660' || selected === 'CLEVER1' || selected === 'CLEVER2') {
+      // Single-level instruments, skip step 2
       setLevel('Kontrol');
       setStep(3);
     } else if (selected === 'EASYLITE') {
@@ -62,7 +62,7 @@ export default function InputQC() {
   }
 
   function handleBackToLevel() {
-    if (instrument === 'CA660' || instrument === 'EASYLITE') {
+    if (instrument === 'CA660' || instrument === 'EASYLITE' || instrument === 'CLEVER1' || instrument === 'CLEVER2') {
       handleBackToInstrument();
     } else {
       setStep(2);
@@ -71,7 +71,7 @@ export default function InputQC() {
   }
 
   // Determine total steps for indicator
-  const totalSteps: 2 | 3 = (instrument === 'CA660' || instrument === 'EASYLITE') ? 2 : 3;
+  const totalSteps: 2 | 3 = (instrument === 'CA660' || instrument === 'EASYLITE' || instrument === 'CLEVER1' || instrument === 'CLEVER2') ? 2 : 3;
 
   return (
     <div className="space-y-5">

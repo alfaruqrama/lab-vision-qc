@@ -30,7 +30,7 @@ export default function MonthlyReport() {
   const { records, config } = useQCStore();
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-  const [instrument, setInstrument] = useState<'ALL' | 'CA660' | 'EASYLITE' | 'ONCALL1' | 'ONCALL2'>('ALL');
+  const [instrument, setInstrument] = useState<'ALL' | InstrumentType>('ALL');
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +69,12 @@ export default function MonthlyReport() {
           if (r.alat === 'CA660') {
             const lot = config.CA660.find((l) => l.lot === r.lot);
             meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
+          } else if (r.alat === 'CLEVER1') {
+            const lot = config.CLEVER1.find((l) => l.lot === r.lot);
+            meanTarget = lot?.Kontrol?.GDA?.mean || 0;
+          } else if (r.alat === 'CLEVER2') {
+            const lot = config.CLEVER2.find((l) => l.lot === r.lot);
+            meanTarget = lot?.Kontrol?.GDA?.mean || 0;
           } else if (r.alat === 'ONCALL1') {
             const lot = config.ONCALL1.find((l) => l.lot === r.lot);
             meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
@@ -166,6 +172,8 @@ export default function MonthlyReport() {
             <option value="EASYLITE">Easylite</option>
             <option value="ONCALL1">On Call Sure 1</option>
             <option value="ONCALL2">On Call Sure 2</option>
+            <option value="CLEVER1">GDA Clever Check 1</option>
+            <option value="CLEVER2">GDA Clever Check 2</option>
           </select>
         </div>
         <div className="flex items-end">

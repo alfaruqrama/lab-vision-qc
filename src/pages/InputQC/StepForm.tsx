@@ -52,6 +52,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     if (instrument === 'CA660') return config.CA660;
     if (instrument === 'ONCALL1') return config.ONCALL1;
     if (instrument === 'ONCALL2') return config.ONCALL2;
+    if (instrument === 'CLEVER1') return config.CLEVER1;
+    if (instrument === 'CLEVER2') return config.CLEVER2;
     // EASYLITE: return NORMAL lots for the main selector
     return config.EASYLITE.NORMAL || [];
   }, [instrument, config]);
@@ -98,7 +100,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     (param: ParamName, overrideLevel?: ControlLevel): ParamConfig | null => {
       const effectiveLevel = overrideLevel || level;
       if (!selectedLot || !effectiveLevel) return null;
-      if (instrument === 'CA660') {
+      if (instrument === 'CA660' || instrument === 'CLEVER1' || instrument === 'CLEVER2') {
         const lot = selectedLot as { Kontrol: Record<string, ParamConfig> };
         return lot.Kontrol?.[param] || null;
       }
@@ -221,7 +223,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     }
   }
 
-  const showPhotoCapture = instrument !== 'ONCALL1' && instrument !== 'ONCALL2';
+  const showPhotoCapture = instrument !== 'ONCALL1' && instrument !== 'ONCALL2' && instrument !== 'CLEVER1' && instrument !== 'CLEVER2';
 
   return (
     <div className="space-y-5">

@@ -39,6 +39,8 @@ function normalizeLotConfig(config: StoredLotConfig | null | undefined): LotConf
     EASYLITE: normalizeEasyliteConfig(config.EASYLITE),
     ONCALL1: config.ONCALL1 || DEFAULT_LOT_CONFIG.ONCALL1,
     ONCALL2: config.ONCALL2 || DEFAULT_LOT_CONFIG.ONCALL2,
+    CLEVER1: (config as any).CLEVER1 || DEFAULT_LOT_CONFIG.CLEVER1,
+    CLEVER2: (config as any).CLEVER2 || DEFAULT_LOT_CONFIG.CLEVER2,
   };
 }
 

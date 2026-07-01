@@ -16,7 +16,7 @@ interface InstrumentSelectorProps {
   className?: string;
 }
 
-const ALL_INSTRUMENTS: InstrumentType[] = ['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2'];
+const ALL_INSTRUMENTS: InstrumentType[] = ['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2', 'CLEVER1', 'CLEVER2'];
 
 export function InstrumentSelector({
   onSelect,
