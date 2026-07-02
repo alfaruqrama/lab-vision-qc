@@ -181,6 +181,7 @@ export default function LaporanTab() {
     } catch {}
     return null;
   });
+  const [reportType, setReportType] = useState<'pagi' | 'sore'>('pagi');
   const [autoFields, setAutoFields] = useState<Set<string>>(new Set());
   const [inputHarianGrandTotal, setInputHarianGrandTotal] = useState<number | null>(null);
 
@@ -327,12 +328,19 @@ export default function LaporanTab() {
   const bpjsRI  = form.ri  - form.nonBpjsRI;
   const bpjsIGD = form.igd - form.nonBpjsIGD;
 
+  const isSore = reportType === 'sore';
+
   const outputTeks = useMemo(() => {
     const SEP = '──────────────────────────────────';
     const lines: string[] = [];
     // 1. Header
     lines.push(`LAPORAN KUNJUNGAN  `);
-    lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
+    if (isSore) {
+      lines.push(`${namaHari}. ${tgl.getDate()}  ${namaBulan} ${tahun}`);
+      lines.push(`00.00 - 16.00 WIB`);
+    } else {
+      lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
+    }
     lines.push(``);
     // 2. Capaian Harian
     lines.push(`Capaian Harian `);
@@ -377,7 +385,11 @@ export default function LaporanTab() {
     lines.push(`================`);
     // 4. Capaian Bulan
     lines.push(` *CAPAIAN*`);
-    lines.push(` 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    if (isSore) {
+      lines.push(` 01 ${namaBulan} ${tahun}`);
+    } else {
+      lines.push(` 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    }
     lines.push(``);
     lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzetTotal)} (${pctKumOmzet}%)`);
     lines.push(`* Total kunjungan  :   ${fmtKunj(kumKunjTotal)} (${pctKumKunj}%)`);
@@ -389,7 +401,7 @@ export default function LaporanTab() {
     return lines.join('\n');
   }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanSelainMCU, pctKumOmzet, pctKumKunj,
-      kumOmzetTotal, kumKunjTotal, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab]);
+      kumOmzetTotal, kumKunjTotal, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSore]);
 
   const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
@@ -580,7 +592,27 @@ export default function LaporanTab() {
 
       {/* RIGHT: Preview */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+          <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setReportType('pagi')}
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+                reportType === 'pagi' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🌅 Pagi
+            </button>
+            <button
+              onClick={() => setReportType('sore')}
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+                reportType === 'sore' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🌇 Sore
+            </button>
+          </div>
+        </div>
         {inputHarianGrandTotal !== null && totalKunjungan !== inputHarianGrandTotal && (
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
@@ -597,7 +629,7 @@ export default function LaporanTab() {
             <Copy className="w-3.5 h-3.5 mr-1.5" /> Salin Teks
           </Button>
           <Button onClick={handleWA} className="flex-1 h-9 text-xs bg-[#25d366] hover:bg-[#20bd5a] text-white">
-            <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Kirim via WhatsApp
+            <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Kirim WA {isSore ? 'Sore' : 'Pagi'}
           </Button>
         </div>
       </div>
