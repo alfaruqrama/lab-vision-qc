@@ -45,6 +45,7 @@ interface FormData {
   totalOmzet: number; pendapatanMCU: number;
   // Kumulatif manual
   kumOmzet: number; kumKunj: number;
+  kumOmzetMCU: number; kumKunjMCU: number;
   targetOmzetBulan: number; targetKunjBulan: number;
   tglAkhir: number;
 }
@@ -60,7 +61,8 @@ function defaultForm(): FormData {
     morullaTerjadwal: 0, morullaHadir: 0,
     targetKunjungan: 0, targetOmzet: 0,
     totalOmzet: 0, pendapatanMCU: 0,
-    kumOmzet: 0, kumKunj: 0, targetOmzetBulan: 0, targetKunjBulan: 0, tglAkhir: 0,
+    kumOmzet: 0, kumKunj: 0, kumOmzetMCU: 0, kumKunjMCU: 0,
+    targetOmzetBulan: 0, targetKunjBulan: 0, tglAkhir: 0,
   };
 }
 
@@ -181,6 +183,7 @@ export default function LaporanTab() {
     } catch {}
     return null;
   });
+  const [reportType, setReportType] = useState<'pagi' | 'siang'>('pagi');
   const [autoFields, setAutoFields] = useState<Set<string>>(new Set());
   const [inputHarianGrandTotal, setInputHarianGrandTotal] = useState<number | null>(null);
 
@@ -270,6 +273,36 @@ export default function LaporanTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.tanggal]);
 
+  // Auto-fill kumulatif MCU dari GAS getKumulatifMCU (sheet OMZET MCU 2026)
+  useEffect(() => {
+    let cancelled = false;
+    const GS_URL = (import.meta.env.VITE_GAS_INPUT_URL as string) || '';
+    if (!GS_URL || !form.tanggal) return;
+
+    fetch(`${GS_URL}?action=getKumulatifMCU&tanggal=${encodeURIComponent(form.tanggal)}`)
+      .then(res => res.ok ? res.json() : Promise.reject('HTTP ' + res.status))
+      .then(d => {
+        if (cancelled) return;
+        if (d.error) { console.warn('getKumulatifMCU error:', d.error); return; }
+        console.log('getKumulatifMCU response:', d);
+        setForm(prev => ({
+          ...prev,
+          kumOmzetMCU: d.kumOmzetMCU ?? prev.kumOmzetMCU,
+          kumKunjMCU: d.kumKunjMCU ?? prev.kumKunjMCU,
+        }));
+        setAutoFields(prev => {
+          const s = new Set(prev);
+          if (d.kumOmzetMCU !== undefined) s.add('kumOmzetMCU');
+          if (d.kumKunjMCU !== undefined) s.add('kumKunjMCU');
+          return s;
+        });
+      })
+      .catch(err => console.warn('getKumulatifMCU fetch failed:', err));
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.tanggal]);
+
   // Auto-save
   useEffect(() => {
     const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -310,6 +343,11 @@ export default function LaporanTab() {
   const kumKunjTotal  = form.kumKunj  + totalKunjungan;
   const pctKumOmzet = form.targetOmzetBulan > 0 ? Math.round((kumOmzetTotal / form.targetOmzetBulan) * 100) : 0;
   const pctKumKunj  = form.targetKunjBulan  > 0 ? Math.round((kumKunjTotal  / form.targetKunjBulan)  * 100) : 0;
+  // Kumulatif MCU
+  const kumOmzetMCUTotal = form.kumOmzetMCU + form.pendapatanMCU;
+  const kumKunjMCUTotal  = form.kumKunjMCU  + form.mcu;
+  const kumOmzetNonMCU = Math.max(0, kumOmzetTotal - kumOmzetMCUTotal);
+  const kumKunjNonMCU  = Math.max(0, kumKunjTotal  - kumKunjMCUTotal);
 
   const tgl = useMemo(() => {
     const [y, m, d] = form.tanggal.split('-').map(Number);
@@ -327,19 +365,26 @@ export default function LaporanTab() {
   const bpjsRI  = form.ri  - form.nonBpjsRI;
   const bpjsIGD = form.igd - form.nonBpjsIGD;
 
+  const isSiang = reportType === 'siang';
+
   const outputTeks = useMemo(() => {
     const SEP = '──────────────────────────────────';
     const lines: string[] = [];
     // 1. Header
     lines.push(`LAPORAN KUNJUNGAN  `);
-    lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
+    if (isSiang) {
+      lines.push(`${namaHari}. ${tgl.getDate()}  ${namaBulan} ${tahun}`);
+      lines.push(`00.00 - 12.00 WIB`);
+    } else {
+      lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
+    }
     lines.push(``);
     // 2. Capaian Harian
     lines.push(`Capaian Harian `);
     lines.push(`* Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
-    lines.push(`* Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
-    lines.push(`* Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
+    lines.push(`  └ Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
+    lines.push(`  └ Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
     lines.push(`* Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(SEP);
@@ -377,10 +422,18 @@ export default function LaporanTab() {
     lines.push(`================`);
     // 4. Capaian Bulan
     lines.push(` *CAPAIAN*`);
-    lines.push(` 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    if (isSiang) {
+      lines.push(` 01 ${namaBulan} ${tahun}`);
+    } else {
+      lines.push(` 01 - ${tglAkhir} ${namaBulan} ${tahun}`);
+    }
     lines.push(``);
     lines.push(`* Total pendapatan : Rp ${fmtRpWA(kumOmzetTotal)} (${pctKumOmzet}%)`);
+    lines.push(`  └ Pendapatan MCU : Rp ${fmtRpWA(kumOmzetMCUTotal)}`);
+    lines.push(`  └ Pendapatan selain MCU : Rp ${fmtRpWA(kumOmzetNonMCU)}`);
     lines.push(`* Total kunjungan  :   ${fmtKunj(kumKunjTotal)} (${pctKumKunj}%)`);
+    lines.push(`  └ Kunjungan MCU : ${fmtKunj(kumKunjMCUTotal)}`);
+    lines.push(`  └ Kunjungan Non MCU : ${fmtKunj(kumKunjNonMCU)}`);
     lines.push(SEP);
     lines.push(`Data`);
     lines.push(`Target ${namaBulan} ${tahun}`);
@@ -389,7 +442,8 @@ export default function LaporanTab() {
     return lines.join('\n');
   }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanSelainMCU, pctKumOmzet, pctKumKunj,
-      kumOmzetTotal, kumKunjTotal, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab]);
+      kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
+      kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
 
   const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
@@ -560,6 +614,18 @@ export default function LaporanTab() {
                   <span className="w-24 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 font-semibold">{kumKunjTotal}</span>
                 </div>
               </div>
+              <RpInput  label="Pendapatan MCU s/d kemarin"   value={form.kumOmzetMCU}      onChange={v => set('kumOmzetMCU', v)}      gsAutoFill={isAuto('kumOmzetMCU')} />
+              <NumInput label="Kunjungan MCU s/d kemarin"   value={form.kumKunjMCU}       onChange={v => set('kumKunjMCU', v)}       gsAutoFill={isAuto('kumKunjMCU')} />
+              <div className="pt-1.5 border-t border-dashed border-border/50 space-y-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground flex-1">Total MCU s/d tgl <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                  <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 font-semibold">Rp {fmtRpWA(kumOmzetMCUTotal)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground flex-1">Kunjungan MCU s/d tgl <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                  <span className="w-24 h-8 text-right text-xs font-mono flex items-center justify-end pr-1 font-semibold">{kumKunjMCUTotal}</span>
+                </div>
+              </div>
               <RpInput  label="Target Omzet Bulan"        value={form.targetOmzetBulan} onChange={v => set('targetOmzetBulan', v)} gsAutoFill={isAuto('targetOmzetBulan')} />
               <NumInput label="Target Kunjungan Bulan"    value={form.targetKunjBulan}  onChange={v => set('targetKunjBulan', v)}  gsAutoFill={isAuto('targetKunjBulan')} />
               <div className="pt-2 border-t border-border space-y-1 text-xs">
@@ -580,7 +646,27 @@ export default function LaporanTab() {
 
       {/* RIGHT: Preview */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+          <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setReportType('pagi')}
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+                reportType === 'pagi' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🌅 Pagi
+            </button>
+            <button
+              onClick={() => setReportType('siang')}
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+                reportType === 'siang' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              ☀️ Siang
+            </button>
+          </div>
+        </div>
         {inputHarianGrandTotal !== null && totalKunjungan !== inputHarianGrandTotal && (
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-800">
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
@@ -597,7 +683,7 @@ export default function LaporanTab() {
             <Copy className="w-3.5 h-3.5 mr-1.5" /> Salin Teks
           </Button>
           <Button onClick={handleWA} className="flex-1 h-9 text-xs bg-[#25d366] hover:bg-[#20bd5a] text-white">
-            <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Kirim via WhatsApp
+            <MessageCircle className="w-3.5 h-3.5 mr-1.5" /> Kirim WA {isSiang ? 'Siang' : 'Pagi'}
           </Button>
         </div>
       </div>
