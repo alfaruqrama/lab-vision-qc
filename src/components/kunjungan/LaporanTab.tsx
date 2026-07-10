@@ -382,9 +382,9 @@ export default function LaporanTab() {
     // 2. Capaian Harian
     lines.push(`Capaian Harian `);
     lines.push(`* Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
-    lines.push(`* Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
-    lines.push(`* Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
+    lines.push(`  └ Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
+    lines.push(`  └ Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
     lines.push(`* Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
     lines.push(`* Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(SEP);
@@ -433,6 +433,7 @@ export default function LaporanTab() {
     lines.push(`  └ Pendapatan selain MCU : Rp ${fmtRpWA(kumOmzetNonMCU)}`);
     lines.push(`* Total kunjungan  :   ${fmtKunj(kumKunjTotal)} (${pctKumKunj}%)`);
     lines.push(`  └ Kunjungan MCU : ${fmtKunj(kumKunjMCUTotal)}`);
+    lines.push(`  └ Kunjungan Non MCU : ${fmtKunj(kumKunjNonMCU)}`);
     lines.push(SEP);
     lines.push(`Data`);
     lines.push(`Target ${namaBulan} ${tahun}`);
