@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
+import { PARAM_UNITS } from '@/lib/types';
 import { getEasyliteLots } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -20,6 +21,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
+import { QCRecordCard } from '@/features/qc/components';
+import { useAuth } from '@/hooks/use-auth';
 import { computeZScores, type ZScorePoint } from '@/lib/zscore';
 import { analyzeMultiLevel, detectR4s, type MultiLevelAnalysis } from '@/lib/westgard-multi';
 import { toPng } from 'html-to-image';
@@ -50,6 +53,7 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 
 const ALL_PARAMS: { name: ParamName; alat: InstrumentType; levels: ControlLevel[] }[] = [
@@ -83,6 +87,15 @@ const MULTI_LEVEL_COLORS: Record<string, string> = {
   CTRL0: 'hsl(220,79%,48%)',
   CTRL1: 'hsl(142,69%,40%)',
   CTRL2: 'hsl(30,85%,50%)',
+};
+
+const LEVEL_LABELS: Record<ControlLevel, string> = {
+  Kontrol: 'Kontrol',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  CTRL0: 'CTRL0 (Low)',
+  CTRL1: 'CTRL1 (Normal)',
+  CTRL2: 'CTRL2 (High)',
 };
 
 type ChartMode = 'single' | 'multi';
@@ -144,6 +157,60 @@ function MultiDot(props: any) {
     );
   }
   return <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
+}
+
+// ─── Control Summary Card ─────────────────────────────────────────────────────
+
+interface ControlSummaryProps {
+  total: number;
+  inControl: number;
+  outOfControl: number;
+  inControlPct: number;
+  levelLabel?: string;
+}
+
+function ControlSummary({ total, inControl, outOfControl, inControlPct, levelLabel }: ControlSummaryProps) {
+  const isInControl = inControlPct >= 95;
+
+  return (
+    <Card className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        {isInControl ? (
+          <CheckCircle size={16} className="text-success" />
+        ) : (
+          <XCircle size={16} className="text-destructive" />
+        )}
+        <h3 className="text-sm font-bold">
+          Resume Kontrol{levelLabel ? ` (${levelLabel})` : ''}
+        </h3>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <p className="text-muted-foreground">Total Run</p>
+          <p className="font-bold font-mono-data">{total}</p>
+        </div>
+        <div>
+          <p className="text-success">In-Control</p>
+          <p className="font-bold font-mono-data text-success">
+            {inControl} ({inControlPct.toFixed(0)}%)
+          </p>
+        </div>
+        <div>
+          <p className="text-destructive">Out-of-Control</p>
+          <p className="font-bold font-mono-data text-destructive">
+            {outOfControl} ({total > 0 ? ((outOfControl / total) * 100).toFixed(0) : 0}%)
+          </p>
+        </div>
+      </div>
+      <p
+        className={`text-xs font-semibold mt-2 ${
+          isInControl ? 'text-success' : 'text-destructive'
+        }`}
+      >
+        {isInControl ? '✓ Kontrol Masuk' : '✗ Kontrol Tidak Masuk'}
+      </p>
+    </Card>
+  );
 }
 
 // ─── Westgard Analysis Card ───────────────────────────────────────────────────
@@ -255,7 +322,8 @@ function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysis }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LeveyJennings() {
-  const { records, config } = useQCStore();
+  const { records, config, deleteRecord } = useQCStore();
+  const { user } = useAuth();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState<ControlLevel>('Kontrol');
   const [mode, setMode] = useState<ChartMode>('single');
@@ -429,6 +497,37 @@ export default function LeveyJennings() {
     return analyzeMultiLevel(multiZScores);
   }, [supportsMultiLevel, multiZScores, multiChartData.length]);
 
+  const displayLevel = supportsMultiLevel
+    ? selected.levels.join(', ')
+    : (selected.levels.length === 1 ? selected.levels[0] : selectedLevel);
+
+  // Computed summary data for both modes (used in page, preview, and print)
+  const controlSummary = useMemo(() => {
+    if (supportsMultiLevel) {
+      const total = multiChartData.length;
+      const inControlCount = multiChartData.filter((row: any) =>
+        multiLevels.every((lvl) => row[`${lvl.toLowerCase()}Status`] === 'ok')
+      ).length;
+      const oocCount = multiChartData.filter((row: any) =>
+        multiLevels.some((lvl) => row[`${lvl.toLowerCase()}Status`] === 'oos')
+      ).length;
+      return {
+        total,
+        inControl: inControlCount,
+        outOfControl: oocCount,
+        inControlPct: total > 0 ? (inControlCount / total) * 100 : 0,
+        levelLabel: multiLevels.map((l) => LEVEL_LABELS[l] || l).join(', '),
+      };
+    }
+    return {
+      total: chartData.length,
+      inControl,
+      outOfControl: chartData.length - inControl,
+      inControlPct,
+      levelLabel: displayLevel,
+    };
+  }, [supportsMultiLevel, multiChartData, multiLevels, chartData.length, inControl, inControlPct, displayLevel]);
+
   function handleParamClick(idx: number, levels: ControlLevel[]) {
     setSelectedIdx(idx);
     setSelectedLevel(levels[0]);
@@ -442,10 +541,6 @@ export default function LeveyJennings() {
     const d = new Date(parseInt(y), parseInt(m) - 1, 1);
     return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
   }, [selectedMonth]);
-
-  const displayLevel = supportsMultiLevel
-    ? selected.levels.join(', ')
-    : (selected.levels.length === 1 ? selected.levels[0] : selectedLevel);
 
   // ── Download handlers ─────────────────────────────────────────────────────────
 
@@ -508,10 +603,20 @@ export default function LeveyJennings() {
     .title .sub { font-size: 10px; color: #666; }
     .chart { border: 1px solid #ddd; border-radius: 4px; overflow: hidden; margin-bottom: 20px; }
     .chart img { width: 100%; display: block; }
+    .summary { margin: 16px 0; padding: 12px 16px; border: 1px solid #ddd; border-radius: 4px; }
+    .summary-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .summary-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .summary-table td { padding: 4px 8px; text-align: center; border: 1px solid #eee; }
+    .summary-table .bold { font-weight: 700; font-size: 12px; }
+    .summary-table .ok { color: #16a34a; }
+    .summary-table .nok { color: #dc2626; }
+    .verdict { font-size: 12px; font-weight: 700; margin-top: 8px; }
+    .verdict.ok { color: #16a34a; }
+    .verdict.nok { color: #dc2626; }
     .signatures { display: flex; justify-content: space-between; margin-top: 40px; padding-top: 16px; border-top: 1px solid #ccc; }
     .sig { text-align: center; flex: 1; }
-    .sig .label { font-size: 11px; font-weight: 600; margin-bottom: 48px; }
-    .sig .line { font-size: 10px; color: #999; }
+    .sig .label { font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+    .sig .line { font-size: 10px; color: #555; }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
@@ -530,14 +635,32 @@ export default function LeveyJennings() {
   <div class="chart">
     <img src="${previewImage}" alt="LJ Chart" />
   </div>
+  <div class="summary">
+    <h3 class="summary-title">Resume Kontrol${controlSummary.levelLabel ? ` (${controlSummary.levelLabel})` : ''}</h3>
+    <table class="summary-table">
+      <tr>
+        <td>Total Run</td>
+        <td>In-Control</td>
+        <td>Out-of-Control</td>
+      </tr>
+      <tr>
+        <td class="bold">${controlSummary.total}</td>
+        <td class="bold ok">${controlSummary.inControl} (${controlSummary.inControlPct.toFixed(0)}%)</td>
+        <td class="bold nok">${controlSummary.outOfControl} (${controlSummary.total > 0 ? ((controlSummary.outOfControl / controlSummary.total) * 100).toFixed(0) : 0}%)</td>
+      </tr>
+    </table>
+    <p class="verdict ${controlSummary.inControlPct >= 95 ? 'ok' : 'nok'}">
+      ${controlSummary.inControlPct >= 95 ? '✓ Kontrol Masuk' : '✗ Kontrol Tidak Masuk'}
+    </p>
+  </div>
   <div class="signatures">
     <div class="sig">
       <p class="label">PIC Alat</p>
-      <p class="line">(.....................................)</p>
+      <p class="line">${user?.nama || '(.....................................)'}</p>
     </div>
     <div class="sig">
       <p class="label">Ka. Instalasi Lab</p>
-      <p class="line">(.....................................)</p>
+      <p class="line">Marlina Setya Dewi, Str.Kes</p>
     </div>
   </div>
   <script>window.onload = function() { window.print(); }</script>
@@ -724,8 +847,18 @@ export default function LeveyJennings() {
                 <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+              <>
+                {/* Single-mode legend */}
+                <div className="flex items-center gap-4 mb-2">
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: NORMAL_COLOR }} />
+                    {selected.levels.length === 1
+                      ? LEVEL_LABELS[selected.levels[0]] || selected.levels[0]
+                      : LEVEL_LABELS[selectedLevel] || selectedLevel}
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
                   <ReferenceArea y1={mean - 3 * sd} y2={mean - 2 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
                   <ReferenceArea y1={mean + 2 * sd} y2={mean + 3 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
@@ -739,8 +872,18 @@ export default function LeveyJennings() {
                   <ReferenceLine y={mean - 2 * sd} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-2SD', position: 'left', fontSize: 9 }} />
                   <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
                   <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
-                  <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} />
+                  <XAxis
+                    dataKey="run"
+                    fontSize={10}
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    label={{ value: 'Run Ke-', position: 'insideBottom', offset: -10, fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis
+                    fontSize={10}
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    domain={[mean - 4 * sd, mean + 4 * sd]}
+                    label={{ value: `${selected.name} (${PARAM_UNITS[selected.name]})`, angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }}
+                  />
                   <Tooltip
                     contentStyle={{
                       fontSize: 12,
@@ -792,6 +935,7 @@ export default function LeveyJennings() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+              </>
             )}
           </Card>
 
@@ -808,25 +952,51 @@ export default function LeveyJennings() {
               </Card>
             ))}
           </div>
+
+          {/* Resume Kontrol — Single Mode */}
+          {controlSummary.total > 0 && (
+            <ControlSummary
+              total={controlSummary.total}
+              inControl={controlSummary.inControl}
+              outOfControl={controlSummary.outOfControl}
+              inControlPct={controlSummary.inControlPct}
+              levelLabel={controlSummary.levelLabel}
+            />
+          )}
+
+          {/* Data Records — Single Mode */}
+          {filteredRecords.length > 0 && (
+            <details className="group">
+              <summary className="flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer py-2 px-3 rounded-md hover:bg-muted/50 transition-colors">
+                <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+                Data Records ({filteredRecords.length})
+              </summary>
+              <div className="mt-2 space-y-2">
+                {filteredRecords.map((record) => (
+                  <QCRecordCard
+                    key={record.id}
+                    record={record}
+                    compact
+                    onDelete={
+                      user?.role === 'admin'
+                        ? () => {
+                            if (confirm(`Hapus data QC ${record.alat} — ${record.tanggal}?`)) {
+                              deleteRecord(record.id);
+                            }
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </details>
+          )}
         </>
       )}
 
       {/* ── Multi Mode Chart ──────────────────────────────────────────────────── */}
       {supportsMultiLevel && (
         <>
-          {/* Legend */}
-          <div className="flex items-center gap-4">
-            {multiLevels.map((lvl) => (
-              <span key={lvl} className="flex items-center gap-1.5 text-xs">
-                <span
-                  className="w-3 h-0.5 rounded-full"
-                  style={{ backgroundColor: MULTI_LEVEL_COLORS[lvl] || 'hsl(var(--foreground))' }}
-                />
-                {lvl}
-              </span>
-            ))}
-          </div>
-
           <Card className="p-4" ref={chartContainerRef}>
             {multiChartData.length === 0 ? (
               <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
@@ -834,8 +1004,21 @@ export default function LeveyJennings() {
                 <p className="text-xs">Pilih bulan lain atau input data QC terlebih dahulu</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={multiChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+              <>
+                {/* Multi-mode legend — inside card so it's captured in export */}
+                <div className="flex items-center gap-4 mb-2">
+                  {multiLevels.map((lvl) => (
+                    <span key={lvl} className="flex items-center gap-1.5 text-xs">
+                      <span
+                        className="w-3 h-0.5 rounded-full"
+                        style={{ backgroundColor: MULTI_LEVEL_COLORS[lvl] || 'hsl(var(--foreground))' }}
+                      />
+                      {LEVEL_LABELS[lvl] || lvl}
+                    </span>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={multiChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
                   {/* SD bands for Z-score */}
                   <ReferenceArea y1={2} y2={3} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
@@ -850,13 +1033,20 @@ export default function LeveyJennings() {
                   <ReferenceLine y={-2} stroke="hsl(38,92%,44%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                   <ReferenceLine y={3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
                   <ReferenceLine y={-3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
-                  <XAxis dataKey="date" fontSize={9} tick={{ fill: 'hsl(var(--muted-foreground))' }} interval="preserveStartEnd" />
+                  <XAxis
+                    dataKey="date"
+                    fontSize={9}
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    interval="preserveStartEnd"
+                    label={{ value: 'Tanggal', position: 'insideBottom', offset: -10, fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  />
                   <YAxis
                     fontSize={10}
                     tick={{ fill: 'hsl(var(--muted-foreground))' }}
                     domain={[-4, 4]}
                     ticks={[-3, -2, -1, 0, 1, 2, 3]}
                     tickFormatter={(v: number) => `${v}`}
+                    label={{ value: 'Z-Score', angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }}
                   />
                   <Tooltip
                     contentStyle={{
@@ -912,6 +1102,7 @@ export default function LeveyJennings() {
                   })}
                 </LineChart>
               </ResponsiveContainer>
+              </>
             )}
           </Card>
 
@@ -945,9 +1136,48 @@ export default function LeveyJennings() {
             </div>
           )}
 
+          {/* Resume Kontrol — Multi Mode */}
+          {controlSummary.total > 0 && (
+            <ControlSummary
+              total={controlSummary.total}
+              inControl={controlSummary.inControl}
+              outOfControl={controlSummary.outOfControl}
+              inControlPct={controlSummary.inControlPct}
+              levelLabel={controlSummary.levelLabel}
+            />
+          )}
+
           {/* Westgard Analysis Card */}
           {multiAnalysis && multiChartData.length > 0 && (
             <WestgardAnalysisCard analysis={multiAnalysis} />
+          )}
+
+          {/* Data Records — Multi Mode */}
+          {multiModeRecords.length > 0 && (
+            <details className="group">
+              <summary className="flex items-center gap-2 text-sm font-semibold text-muted-foreground cursor-pointer py-2 px-3 rounded-md hover:bg-muted/50 transition-colors">
+                <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+                Data Records ({multiModeRecords.length})
+              </summary>
+              <div className="mt-2 space-y-2">
+                {multiModeRecords.map((record) => (
+                  <QCRecordCard
+                    key={record.id}
+                    record={record}
+                    compact
+                    onDelete={
+                      user?.role === 'admin'
+                        ? () => {
+                            if (confirm(`Hapus data QC ${record.alat} — ${record.tanggal}?`)) {
+                              deleteRecord(record.id);
+                            }
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </details>
           )}
         </>
       )}
@@ -985,18 +1215,29 @@ export default function LeveyJennings() {
                 </div>
               )}
 
+              {/* Resume Kontrol — Preview */}
+              {controlSummary.total > 0 && (
+                <ControlSummary
+                  total={controlSummary.total}
+                  inControl={controlSummary.inControl}
+                  outOfControl={controlSummary.outOfControl}
+                  inControlPct={controlSummary.inControlPct}
+                  levelLabel={controlSummary.levelLabel}
+                />
+              )}
+
               {/* Signatures */}
               <div className="grid grid-cols-2 gap-8 pt-8 mt-4 border-t">
                 <div className="text-center space-y-12">
                   <p className="text-xs font-semibold">PIC Alat</p>
                   <div>
-                    <p className="text-xs text-muted-foreground">(.....................................)</p>
+                    <p className="text-xs text-muted-foreground">{user?.nama || '(.....................................)'}</p>
                   </div>
                 </div>
                 <div className="text-center space-y-12">
                   <p className="text-xs font-semibold">Ka. Instalasi Lab</p>
                   <div>
-                    <p className="text-xs text-muted-foreground">(.....................................)</p>
+                    <p className="text-xs text-muted-foreground">Marlina Setya Dewi, Str.Kes</p>
                   </div>
                 </div>
               </div>

@@ -30,7 +30,7 @@ interface StepFormProps {
 
 export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const navigate = useNavigate();
-  const { config, addRecord, connected } = useQCStore();
+  const { config, addRecord, connected, records } = useQCStore();
   const { user } = useAuth();
 
   // Form state
@@ -94,6 +94,36 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     if (!selectedHighLot) return null;
     return checkLotExpiry((selectedHighLot as { exp: string }).exp);
   }, [selectedHighLot]);
+
+  // Duplicate detection
+  const duplicateRecords = useMemo(() => {
+    const dups: QCRecord[] = [];
+
+    if (isEasylite) {
+      const hasNormal = params.some((p) => values[p] && values[p]!.trim());
+      const hasHigh = params.some((p) => highValues[p] && highValues[p]!.trim());
+
+      if (hasNormal) {
+        const existing = records.find(
+          (r) => r.alat === instrument && r.level === 'NORMAL' && r.tanggal === tanggal,
+        );
+        if (existing) dups.push(existing);
+      }
+      if (hasHigh) {
+        const existing = records.find(
+          (r) => r.alat === instrument && r.level === 'HIGH' && r.tanggal === tanggal,
+        );
+        if (existing) dups.push(existing);
+      }
+    } else {
+      const existing = records.find(
+        (r) => r.alat === instrument && r.level === level && r.tanggal === tanggal,
+      );
+      if (existing) dups.push(existing);
+    }
+
+    return dups;
+  }, [records, instrument, level, tanggal, values, highValues, isEasylite, params]);
 
   // Get param config for a specific parameter
   const getParamConfig = useCallback(
@@ -384,6 +414,24 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Duplicate warning */}
+      {duplicateRecords.length > 0 && (
+        <Alert variant="warning" className="animate-in slide-in-from-top-1 duration-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-semibold">Peringatan: Data sudah pernah diinput</span>
+            <br />
+            {duplicateRecords.map((r) => (
+              <span key={r.id} className="text-xs">
+                {r.alat} — Level: {r.level} — {r.tanggal} (oleh {r.analis || '?'})
+              </span>
+            ))}
+            <br />
+            <span className="text-xs">Data dengan kombinasi alat, level, dan tanggal yang sama akan tetap tersimpan jika dilanjutkan.</span>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Notes */}
