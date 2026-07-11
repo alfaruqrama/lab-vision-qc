@@ -145,6 +145,7 @@ export default function MaintenanceUjiFungsi() {
           month={selectedMonth}
           initialData={existingMap}
           onChange={setFormData}
+          defaultPetugas={user?.nama || user?.username || ''}
         />
       </Card>
 

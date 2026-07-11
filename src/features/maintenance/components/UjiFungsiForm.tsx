@@ -15,6 +15,7 @@ interface Props {
   initialData?: Record<string, { fungsi: 'baik' | 'rusak' | null; petugas: string; keterangan: string }>;
   onChange?: (rows: UjiFungsiRow[]) => void;
   readOnly?: boolean;
+  defaultPetugas?: string;
 }
 
 function getDaysInMonth(month: string): { day: number; date: string }[] {
@@ -28,7 +29,7 @@ function getDaysInMonth(month: string): { day: number; date: string }[] {
   return result;
 }
 
-export function UjiFungsiForm({ month, initialData = {}, onChange, readOnly = false }: Props) {
+export function UjiFungsiForm({ month, initialData = {}, onChange, readOnly = false, defaultPetugas = '' }: Props) {
   const days = getDaysInMonth(month);
 
   const [rows, setRows] = useState<UjiFungsiRow[]>(
@@ -36,7 +37,7 @@ export function UjiFungsiForm({ month, initialData = {}, onChange, readOnly = fa
       day: d.day,
       date: d.date,
       fungsi: initialData[d.date]?.fungsi ?? null,
-      petugas: initialData[d.date]?.petugas ?? '',
+      petugas: initialData[d.date]?.petugas || defaultPetugas,
       keterangan: initialData[d.date]?.keterangan ?? '',
     })),
   );
@@ -47,7 +48,7 @@ export function UjiFungsiForm({ month, initialData = {}, onChange, readOnly = fa
         day: d.day,
         date: d.date,
         fungsi: initialData[d.date]?.fungsi ?? null,
-        petugas: initialData[d.date]?.petugas ?? '',
+        petugas: initialData[d.date]?.petugas || defaultPetugas,
         keterangan: initialData[d.date]?.keterangan ?? '',
       })),
     );

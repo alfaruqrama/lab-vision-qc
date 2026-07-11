@@ -92,7 +92,8 @@ export default function MaintenanceLaporan() {
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]?.value || '2026-06');
 
   // TTD fields
-  const [picAlat, setPicAlat] = useState('');
+  const picDefault = user?.nama || user?.username || '';
+  const [picAlat, setPicAlat] = useState(picDefault);
   const [kaLab, setKaLab] = useState(KA_LAB_NAME);
 
   // User list for PIC dropdown
@@ -107,7 +108,19 @@ export default function MaintenanceLaporan() {
     if (!user?.token) return;
     setLoadingUsers(true);
     getUsers(user.token)
-      .then(setUsers)
+      .then((list) => {
+        setUsers(list);
+        // Auto-select current user as PIC if not already set
+        setPicAlat((prev) => {
+          if (!prev && list.length > 0) {
+            const match = list.find(
+              (u) => u.nama === user?.nama || u.username === user?.username,
+            );
+            return match ? match.nama : prev;
+          }
+          return prev;
+        });
+      })
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
   }, [user?.token]);

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
-import type { ParamName, WestgardStatus } from '@/lib/types';
-import { getEasyliteLots, getParamsForInstrument } from '@/lib/types';
+import type { ParamName, WestgardStatus, InstrumentType } from '@/lib/types';
+import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -11,7 +11,21 @@ import { Label } from '@/components/ui/label';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { StatusBadge } from '@/features/qc/components';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
-import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ReferenceArea,
+  ReferenceLine,
+  Tooltip,
+  Dot,
+} from 'recharts';
 import * as XLSX from 'xlsx';
 
 interface SummaryRow {
@@ -28,6 +42,7 @@ interface SummaryRow {
 
 export default function MonthlyReport() {
   const { records, config } = useQCStore();
+  const { user } = useAuth();
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   const [instrument, setInstrument] = useState<'ALL' | InstrumentType>('ALL');
@@ -111,8 +126,99 @@ export default function MonthlyReport() {
     return { pass, warn, reject, total: summary.length };
   }, [summary]);
 
-  function handlePrint() {
-    window.print();
+  // Chart data for LJ overview (one chart per instrument group)
+  const chartGroups = useMemo(() => {
+    const groups: Record<string, { alat: string; level: string; param: ParamName; data: { run: number; value: number; date: string }[]; mean: number; sd: number; color: string }[]> = {};
+
+    const COLORS = ['hsl(220,79%,48%)', 'hsl(142,69%,40%)', 'hsl(30,85%,50%)', 'hsl(0,72%,51%)', 'hsl(270,70%,50%)', 'hsl(180,70%,40%)'];
+
+    // Group records by alat+level
+    const recsByLevel: Record<string, typeof filtered> = {};
+    filtered.forEach((r) => {
+      const key = `${r.alat}|${r.level}`;
+      if (!recsByLevel[key]) recsByLevel[key] = [];
+      recsByLevel[key].push(r);
+    });
+
+    Object.entries(recsByLevel).forEach(([key, recs]) => {
+      const [alat, level] = key.split('|');
+      const alatLabel = INSTRUMENT_LABELS[alat as InstrumentType] || alat;
+      if (!groups[alatLabel]) groups[alatLabel] = [];
+
+      const sorted = recs.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+      const params = getParamsForInstrument(alat as InstrumentType);
+
+      params.forEach((param, pi) => {
+        const points = sorted
+          .map((r, i) => ({ run: i + 1, value: r.params[param], date: r.tanggal }))
+          .filter((p) => p.value != null);
+
+        if (points.length < 2) return;
+
+        const values = points.map((p) => p.value!);
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const sd = values.length > 1
+          ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / (values.length - 1))
+          : 0;
+
+        groups[alatLabel].push({
+          alat: alatLabel,
+          level,
+          param,
+          data: points,
+          mean,
+          sd,
+          color: COLORS[(pi * 3 + groups[alatLabel].length) % COLORS.length],
+        });
+      });
+    });
+
+    return groups;
+  }, [filtered]);
+
+  const [printing, setPrinting] = useState(false);
+
+  async function handlePrint() {
+    if (!reportRef.current) return;
+    setPrinting(true);
+    try {
+      const dataUrl = await toPng(reportRef.current, { quality: 0.95, pixelRatio: 2, skipFonts: true });
+
+      const monthLabel = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]) - 1, 1)
+        .toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+
+      const printWin = window.open('', '_blank', 'width=800,height=600');
+      if (!printWin) return;
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Laporan QC — ${monthLabel}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; padding: 16px 20px; }
+    .report img { width: 100%; display: block; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="report">
+    <img src="${dataUrl}" alt="Laporan QC" />
+  </div>
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+      printWin.document.write(html);
+      printWin.document.close();
+    } catch (err) {
+      console.error('Failed to print report:', err);
+    } finally {
+      setPrinting(false);
+    }
   }
 
   function handleExportExcel() {
@@ -212,8 +318,9 @@ export default function MonthlyReport() {
 
           {/* Export buttons */}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
-              <Printer size={14} /> Print / PDF
+            <Button variant="outline" size="sm" onClick={handlePrint} disabled={printing} className="gap-1.5">
+              {printing ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+              Print / PDF
             </Button>
             <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-1.5">
               <Download size={14} /> Export Excel
@@ -282,19 +389,69 @@ export default function MonthlyReport() {
                 </TableBody>
               </Table>
 
+              {/* LJ Chart overview */}
+              {Object.entries(chartGroups).length > 0 && (
+                <div className="space-y-6 mt-4 pt-4 border-t border-border">
+                  <h4 className="text-sm font-bold text-center">Grafik Levey-Jennings</h4>
+                  {Object.entries(chartGroups).map(([alatLabel, series]) => (
+                    <div key={alatLabel} className="space-y-2">
+                      <h5 className="text-xs font-semibold text-muted-foreground">{alatLabel}</h5>
+                      {series.map((s, si) => (
+                        <div key={`${s.level}-${s.param}`} className="space-y-1">
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.level} — {s.param} ({PARAM_UNITS[s.param]})
+                            <span className="text-muted-foreground/60">n={s.data.length} μ={s.mean.toFixed(1)} σ={s.sd.toFixed(1)}</span>
+                          </div>
+                          <div className="h-[120px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={s.data} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
+                                <ReferenceArea y1={s.mean - s.sd} y2={s.mean + s.sd} fill="#16a34a" fillOpacity={0.06} />
+                                <ReferenceArea y1={s.mean - 2 * s.sd} y2={s.mean - s.sd} fill="#f59e0b" fillOpacity={0.06} />
+                                <ReferenceArea y1={s.mean + s.sd} y2={s.mean + 2 * s.sd} fill="#f59e0b" fillOpacity={0.06} />
+                                <ReferenceArea y1={s.mean - 3 * s.sd} y2={s.mean - 2 * s.sd} fill="#dc2626" fillOpacity={0.06} />
+                                <ReferenceArea y1={s.mean + 2 * s.sd} y2={s.mean + 3 * s.sd} fill="#dc2626" fillOpacity={0.06} />
+                                <ReferenceLine y={s.mean} stroke="#888" strokeDasharray="4 2" strokeOpacity={0.5} />
+                                <XAxis dataKey="run" hide />
+                                <YAxis hide domain={[s.mean - 4 * s.sd, s.mean + 4 * s.sd]} />
+                                <Tooltip
+                                  contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #ddd', padding: '4px 8px' }}
+                                  formatter={(value: number) => [value.toFixed(1), `${s.param}`]}
+                                  labelFormatter={(run: number) => {
+                                    const pt = s.data[run - 1];
+                                    return pt ? `Run #${run} — ${pt.date}` : `Run #${run}`;
+                                  }}
+                                />
+                                <Line
+                                  type="linear"
+                                  dataKey="value"
+                                  stroke={s.color}
+                                  strokeWidth={1.5}
+                                  dot={false}
+                                  activeDot={{ r: 3, fill: s.color }}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Signature section */}
               <div className="grid grid-cols-2 gap-8 pt-8 mt-8 border-t border-border">
                 <div className="text-center text-xs">
-                  <p className="font-semibold">Penanggung Jawab QC</p>
-                  <p className="text-muted-foreground">Analis Laboratorium</p>
+                  <p className="font-semibold">PIC Alat</p>
+                  <p className="text-muted-foreground">{user?.nama || '(.....................................)'}</p>
                   <div className="h-16 mt-2 border-b border-border" />
-                  <p className="mt-1">(...............................)</p>
                 </div>
                 <div className="text-center text-xs">
                   <p className="font-semibold">Ka. Instalasi Lab</p>
-                  <p className="text-muted-foreground">Dokter Sp. PK</p>
+                  <p className="text-muted-foreground">Marlina Setya Dewi, Str.Kes</p>
                   <div className="h-16 mt-2 border-b border-border" />
-                  <p className="mt-1">(...............................)</p>
                 </div>
               </div>
             </div>
