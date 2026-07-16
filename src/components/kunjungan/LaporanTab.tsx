@@ -42,7 +42,7 @@ interface FormData {
   promoItems: PromoItem[];
   morullaTerjadwal: number; morullaHadir: number;
   targetKunjungan: number; targetOmzet: number;
-  totalOmzet: number; pendapatanMCU: number;
+  totalOmzet: number; pendapatanMCU: number; pendapatanBPJS: number;
   // Kumulatif manual
   kumOmzet: number; kumKunj: number;
   kumOmzetMCU: number; kumKunjMCU: number;
@@ -60,7 +60,7 @@ function defaultForm(): FormData {
     promoItems: DEFAULT_PROMO.map(p => ({ ...p })),
     morullaTerjadwal: 0, morullaHadir: 0,
     targetKunjungan: 0, targetOmzet: 0,
-    totalOmzet: 0, pendapatanMCU: 0,
+    totalOmzet: 0, pendapatanMCU: 0, pendapatanBPJS: 0,
     kumOmzet: 0, kumKunj: 0, kumOmzetMCU: 0, kumKunjMCU: 0,
     targetOmzetBulan: 0, targetKunjBulan: 0, tglAkhir: 0,
   };
@@ -120,9 +120,9 @@ function readInputHarianDraft(tanggal: string) {
   } catch { return null; }
 }
 
-function NumInput({ value, onChange, label, auto, gsAutoFill }: {
+function NumInput({ value, onChange, label, auto, gsAutoFill, manual }: {
   value: number; onChange: (v: number) => void; label: string;
-  auto?: boolean; gsAutoFill?: boolean;
+  auto?: boolean; gsAutoFill?: boolean; manual?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -130,6 +130,7 @@ function NumInput({ value, onChange, label, auto, gsAutoFill }: {
         {label}
         {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
         {gsAutoFill && <span className="text-[9px] ml-1 text-accent font-medium">(dari Sheets)</span>}
+        {manual    && <span className="text-[9px] ml-1 text-red-500 font-medium">(input manual)</span>}
       </label>
       <Input
         type="text" inputMode="numeric"
@@ -137,20 +138,22 @@ function NumInput({ value, onChange, label, auto, gsAutoFill }: {
         onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
         className={cn("w-24 h-8 text-right text-xs font-mono",
           auto && "border-green-400/50 bg-green-50/30",
-          gsAutoFill && "bg-accent/5 border-accent/30")}
+          gsAutoFill && "bg-accent/5 border-accent/30",
+          manual && "border-red-300 bg-red-50/30 focus-visible:ring-red-400")}
         placeholder="0"
       />
     </div>
   );
 }
 
-function RpInput({ value, onChange, label, auto, gsAutoFill }: { value: number; onChange: (v: number) => void; label: string; auto?: boolean; gsAutoFill?: boolean }) {
+function RpInput({ value, onChange, label, auto, gsAutoFill, manual }: { value: number; onChange: (v: number) => void; label: string; auto?: boolean; gsAutoFill?: boolean; manual?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-muted-foreground flex-1 min-w-0">
         {label}
         {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
         {gsAutoFill && <span className="text-[9px] ml-1 text-accent font-medium">(dari Sheets)</span>}
+        {manual    && <span className="text-[9px] ml-1 text-red-500 font-medium">(input manual)</span>}
       </label>
       <div className="relative">
         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">Rp</span>
@@ -160,7 +163,8 @@ function RpInput({ value, onChange, label, auto, gsAutoFill }: { value: number; 
           onChange={e => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)}
           className={cn("w-40 h-8 text-right text-[10px] font-mono pl-7",
             auto && "border-green-400/50 bg-green-50/30",
-            gsAutoFill && "bg-accent/5 border-accent/30")}
+            gsAutoFill && "bg-accent/5 border-accent/30",
+            manual && "border-red-300 bg-red-50/30 focus-visible:ring-red-400")}
           placeholder="0"
         />
       </div>
@@ -334,7 +338,8 @@ export default function LaporanTab() {
     + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar
     + form.poliExclusive + form.poliPrioritas + totalPromoLab;
   const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
-  const pendapatanSelainMCU = Math.max(0, form.totalOmzet - form.pendapatanMCU);
+  const pendapatanBPJS = form.pendapatanBPJS;
+  const pendapatanSelainMCUdanBPJS = Math.max(0, form.totalOmzet - form.pendapatanMCU - form.pendapatanBPJS);
   const totalPendapatan = form.totalOmzet;
   const pctPendapatan  = form.targetOmzet > 0 ? Math.round((totalPendapatan / form.targetOmzet) * 100) : 0;
   const rerataPerPasien = totalKunjungan > 0 ? Math.round(totalPendapatan / totalKunjungan) : 0;
@@ -381,12 +386,13 @@ export default function LaporanTab() {
     lines.push(``);
     // 2. Capaian Harian
     lines.push(`Capaian Harian `);
-    lines.push(`* Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
-    lines.push(`* Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
+    lines.push(`• Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
+    lines.push(`• Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
     lines.push(`  └ Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
-    lines.push(`  └ Pendapatan selain MCU: Rp ${fmtRpWA(pendapatanSelainMCU)}`);
-    lines.push(`* Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
-    lines.push(`* Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
+    lines.push(`  └ Pendapatan BPJS : Rp ${fmtRpWA(pendapatanBPJS)}`);
+    lines.push(`  └ Pendapatan selain MCU dan BPJS : Rp ${fmtRpWA(pendapatanSelainMCUdanBPJS)}`);
+    lines.push(`• Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
+    lines.push(`• Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
     lines.push(SEP);
     lines.push(``);
     // 3. Rincian
@@ -441,7 +447,7 @@ export default function LaporanTab() {
     lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
     return lines.join('\n');
   }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
-      namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanSelainMCU, pctKumOmzet, pctKumKunj,
+      namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanBPJS, pendapatanSelainMCUdanBPJS, pctKumOmzet, pctKumKunj,
       kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
       kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
 
@@ -463,7 +469,7 @@ export default function LaporanTab() {
           </div>
         </div>
 
-        <Accordion type="multiple" defaultValue={['a','b']} className="space-y-2">
+        <Accordion type="multiple" defaultValue={[]} className="space-y-2">
 
           {/* A: Tanggal */}
           <AccordionItem value="a" className="card-clinical border rounded-lg overflow-hidden">
@@ -554,25 +560,32 @@ export default function LaporanTab() {
           </AccordionItem>
 
           {/* E: Morula */}
-          <AccordionItem value="e" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">E — Pasien AS Morula</AccordionTrigger>
+          <AccordionItem value="e" className="card-clinical border rounded-lg overflow-hidden border-l-2 border-l-red-400">
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              E — Pasien AS Morula
+              <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 border border-red-200">✎ Manual</span>
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
-              <NumInput label="Terjadwal Hari Ini" value={form.morullaTerjadwal} onChange={v => set('morullaTerjadwal', v)} />
-              <NumInput label="Hadir Hari Ini"     value={form.morullaHadir}     onChange={v => set('morullaHadir', v)} />
+              <NumInput label="Terjadwal Hari Ini" value={form.morullaTerjadwal} onChange={v => set('morullaTerjadwal', v)} manual />
+              <NumInput label="Hadir Hari Ini"     value={form.morullaHadir}     onChange={v => set('morullaHadir', v)} manual />
             </AccordionContent>
           </AccordionItem>
 
           {/* F: Capaian */}
-          <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">F — Capaian Harian</AccordionTrigger>
+          <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden border-l-2 border-l-red-400">
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              F — Capaian Harian
+              <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 border border-red-200">✎ Manual</span>
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <NumInput label="Target Kunjungan Harian" value={form.targetKunjungan} onChange={v => set('targetKunjungan', v)} gsAutoFill={isAuto('targetKunjungan')} />
               <RpInput  label="Target Omzet Harian"     value={form.targetOmzet}     onChange={v => set('targetOmzet', v)}     gsAutoFill={isAuto('targetOmzet')} />
-              <RpInput  label="Total Omzet Harian"       value={form.totalOmzet}       onChange={v => set('totalOmzet', v)} />
+              <RpInput  label="Total Omzet Harian"       value={form.totalOmzet}       onChange={v => set('totalOmzet', v)} manual />
               <RpInput  label="Pendapatan MCU"          value={form.pendapatanMCU}    onChange={v => set('pendapatanMCU', v)} auto={isAuto('pendapatanMCU')} />
+              <RpInput  label="Pendapatan BPJS"          value={form.pendapatanBPJS}   onChange={v => set('pendapatanBPJS', v)} manual />
               <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground flex-1">Pendapatan Selain MCU <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
-                <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 text-muted-foreground">Rp {fmtRpWA(pendapatanSelainMCU)}</span>
+                <label className="text-xs text-muted-foreground flex-1">Pendapatan Selain MCU & BPJS <span className="text-[9px] text-blue-500 font-medium">(auto)</span></label>
+                <span className="w-40 h-8 text-right text-[10px] font-mono flex items-center justify-end pr-1 text-muted-foreground">Rp {fmtRpWA(pendapatanSelainMCUdanBPJS)}</span>
               </div>
               <div className="pt-2 border-t border-border space-y-1">
                 <div className="flex justify-between text-xs">
