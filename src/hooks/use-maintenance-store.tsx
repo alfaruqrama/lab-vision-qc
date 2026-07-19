@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { MaintenanceRecord } from '@/lib/maintenance-types';
-import { isMaintenanceConnected } from '@/lib/maintenance-gs-api';
+import { isConnected } from '@/lib/api';
 import {
   useMaintenanceRecords,
   useAddMaintenanceRecord,
@@ -22,7 +22,7 @@ const MaintenanceContext = createContext<MaintenanceStore | null>(null);
 
 export function MaintenanceProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const connected = isMaintenanceConnected();
+  const connected = isConnected();
 
   const { data: records = [], isLoading } = useMaintenanceRecords();
   const addRecordMutation = useAddMaintenanceRecord();
