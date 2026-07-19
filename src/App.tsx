@@ -60,12 +60,12 @@ const App = () => (
                 <Route path="/kunjungan" element={<ProtectedRoute><PortalLayout><ErrorBoundary><KunjunganDashboard /></ErrorBoundary></PortalLayout></ProtectedRoute>} />
                 <Route path="/suhu" element={<ProtectedRoute><PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout></ProtectedRoute>} />
 
-                {/* Protected routes - B3 module */}
-                <Route path="/b3" element={<ProtectedRoute><B3Layout><B3Dashboard /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/inventory" element={<ProtectedRoute><B3Layout><B3Inventory /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/pemakaian" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><B3Layout><B3Pemakaian /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/limbah" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><B3Layout><B3Limbah /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/report" element={<ProtectedRoute><B3Layout><B3Report /></B3Layout></ProtectedRoute>} />
+                {/* Protected routes - B3 module (admin only) */}
+                <Route path="/b3" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Dashboard /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/inventory" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Inventory /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/pemakaian" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Pemakaian /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/limbah" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Limbah /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/report" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Report /></B3Layout></ProtectedRoute>} />
 
                 {/* Protected routes - QC module with sidebar/bottom nav */}
                 <Route path="/qc" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />

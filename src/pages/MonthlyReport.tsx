@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, WestgardStatus, InstrumentType } from '@/lib/types';
 import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/features/qc/components';
+import { LogSheetView } from '@/features/qc/components/LogSheetView';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { useAuth } from '@/hooks/use-auth';
 import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
@@ -47,6 +49,8 @@ export default function MonthlyReport() {
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   const [instrument, setInstrument] = useState<'ALL' | InstrumentType>('ALL');
   const [showReport, setShowReport] = useState(false);
+  const [viewMode, setViewMode] = useState<'summary' | 'logsheet'>('summary');
+  const [selectedParam, setSelectedParam] = useState<ParamName>('GDA');
   const reportRef = useRef<HTMLDivElement>(null);
 
   // Generate last 12 months for dropdown
@@ -61,6 +65,19 @@ export default function MonthlyReport() {
     }
     return options;
   }, []);
+
+  // Available params based on instrument selection (for log sheet mode)
+  const availableParams = useMemo((): ParamName[] => {
+    if (instrument === 'ALL') return ['PT', 'APTT', 'INR', 'Na', 'K', 'Cl', 'GDA'];
+    return getParamsForInstrument(instrument);
+  }, [instrument]);
+
+  // Reset selectedParam when instrument changes and current param is unavailable
+  useEffect(() => {
+    if (!availableParams.includes(selectedParam)) {
+      setSelectedParam(availableParams[0]);
+    }
+  }, [availableParams, selectedParam]);
 
   const filtered = useMemo(() => {
     let recs = records.filter((r) => r.tanggal.startsWith(month));
@@ -222,25 +239,50 @@ export default function MonthlyReport() {
   }
 
   function handleExportExcel() {
-    const headers = ['Parameter', 'Alat', 'Level', 'N', 'Mean Target', 'Mean Aktual', 'SD', 'CV%', 'Status'];
-    const rows = summary.map((r) => [
-      r.param,
-      r.alat,
-      r.level,
-      r.n,
-      parseFloat(r.meanTarget.toFixed(2)),
-      parseFloat(r.meanActual.toFixed(2)),
-      parseFloat(r.sd.toFixed(2)),
-      parseFloat(r.cv.toFixed(1)),
-      r.status === 'ok' ? 'Pass' : r.status === 'warning' ? 'Warning' : 'Reject',
-    ]);
+    if (viewMode === 'logsheet') {
+      // Log sheet: export raw data
+      const headers = ['Tanggal', 'Instrumen', 'Level', 'Parameter', 'Hasil', 'Operator', 'Status'];
+      const rows = filtered
+        .filter((r) => r.params[selectedParam] != null)
+        .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+        .map((r) => [
+          r.tanggal,
+          INSTRUMENT_LABELS[r.alat] || r.alat,
+          r.level,
+          selectedParam,
+          parseFloat(r.params[selectedParam]!.toFixed(2)),
+          r.analis || '',
+          r.status[selectedParam] || 'ok',
+        ]);
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!cols'] = [8, 16, 10, 5, 12, 12, 8, 8, 10].map((w) => ({ wch: w }));
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws['!cols'] = [12, 18, 12, 10, 10, 14, 8].map((w) => ({ wch: w }));
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Laporan PMI');
-    XLSX.writeFile(wb, `Laporan_PMI_${month}.xlsx`);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Log Sheet QC');
+      XLSX.writeFile(wb, `Log_Sheet_QC_${month}.xlsx`);
+    } else {
+      // Summary: export statistics
+      const headers = ['Parameter', 'Alat', 'Level', 'N', 'Mean Target', 'Mean Aktual', 'SD', 'CV%', 'Status'];
+      const rows = summary.map((r) => [
+        r.param,
+        r.alat,
+        r.level,
+        r.n,
+        parseFloat(r.meanTarget.toFixed(2)),
+        parseFloat(r.meanActual.toFixed(2)),
+        parseFloat(r.sd.toFixed(2)),
+        parseFloat(r.cv.toFixed(1)),
+        r.status === 'ok' ? 'Pass' : r.status === 'warning' ? 'Warning' : 'Reject',
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws['!cols'] = [8, 16, 10, 5, 12, 12, 8, 8, 10].map((w) => ({ wch: w }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Laporan PMI');
+      XLSX.writeFile(wb, `Laporan_PMI_${month}.xlsx`);
+    }
   }
 
   return (
@@ -291,7 +333,16 @@ export default function MonthlyReport() {
 
       {showReport && (
         <>
-          {/* Summary stat cards */}
+          {/* View mode toggle */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'summary' | 'logsheet')}>
+            <TabsList className="grid w-full max-w-xs grid-cols-2">
+              <TabsTrigger value="summary" className="text-xs">Ringkasan</TabsTrigger>
+              <TabsTrigger value="logsheet" className="text-xs">Log Sheet</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Summary stat cards — only in summary mode */}
+          {viewMode === 'summary' && (
           <div className="grid grid-cols-3 gap-3">
             <Card className="p-3 text-center">
               <div className="flex items-center justify-center gap-1.5 mb-1">
@@ -315,6 +366,7 @@ export default function MonthlyReport() {
               <p className="text-lg font-bold font-mono-data text-destructive">{summaryStats.reject}</p>
             </Card>
           </div>
+          )}
 
           {/* Export buttons */}
           <div className="flex gap-2">
@@ -337,7 +389,9 @@ export default function MonthlyReport() {
 
             <div className="p-5 space-y-4">
               <div className="text-center">
-                <h3 className="text-base font-bold">LAPORAN QC</h3>
+                <h3 className="text-base font-bold">
+                  {viewMode === 'summary' ? 'LAPORAN QC' : 'LOG SHEET QC'}
+                </h3>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
@@ -355,90 +409,102 @@ export default function MonthlyReport() {
                 </p>
               </div>
 
-              {/* Summary table */}
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="h-9 px-2 text-xs">Parameter</TableHead>
-                    <TableHead className="h-9 px-2 text-xs">Alat</TableHead>
-                    <TableHead className="h-9 px-2 text-xs">Level</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">N</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">Mean Target</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">Mean Aktual</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">SD</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">CV%</TableHead>
-                    <TableHead className="h-9 px-2 text-xs text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {summary.map((row, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="px-2 py-2 text-xs font-semibold">{row.param}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs">{row.alat}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs">{row.level}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.n}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanTarget.toFixed(2)}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanActual.toFixed(2)}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.sd.toFixed(2)}</TableCell>
-                      <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.cv.toFixed(1)}%</TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        <StatusBadge status={row.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {viewMode === 'summary' ? (
+                <>
+                  {/* Summary table */}
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="h-9 px-2 text-xs">Parameter</TableHead>
+                        <TableHead className="h-9 px-2 text-xs">Alat</TableHead>
+                        <TableHead className="h-9 px-2 text-xs">Level</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">N</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">Mean Target</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">Mean Aktual</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">SD</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">CV%</TableHead>
+                        <TableHead className="h-9 px-2 text-xs text-center">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {summary.map((row, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="px-2 py-2 text-xs font-semibold">{row.param}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{row.alat}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{row.level}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.n}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanTarget.toFixed(2)}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanActual.toFixed(2)}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.sd.toFixed(2)}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.cv.toFixed(1)}%</TableCell>
+                          <TableCell className="px-2 py-2 text-center">
+                            <StatusBadge status={row.status} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
 
-              {/* LJ Chart overview */}
-              {Object.entries(chartGroups).length > 0 && (
-                <div className="space-y-6 mt-4 pt-4 border-t border-border">
-                  <h4 className="text-sm font-bold text-center">Grafik Levey-Jennings</h4>
-                  {Object.entries(chartGroups).map(([alatLabel, series]) => (
-                    <div key={alatLabel} className="space-y-2">
-                      <h5 className="text-xs font-semibold text-muted-foreground">{alatLabel}</h5>
-                      {series.map((s, si) => (
-                        <div key={`${s.level}-${s.param}`} className="space-y-1">
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
-                            {s.level} — {s.param} ({PARAM_UNITS[s.param]})
-                            <span className="text-muted-foreground/60">n={s.data.length} μ={s.mean.toFixed(1)} σ={s.sd.toFixed(1)}</span>
-                          </div>
-                          <div className="h-[120px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={s.data} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
-                                <ReferenceArea y1={s.mean - s.sd} y2={s.mean + s.sd} fill="#16a34a" fillOpacity={0.06} />
-                                <ReferenceArea y1={s.mean - 2 * s.sd} y2={s.mean - s.sd} fill="#f59e0b" fillOpacity={0.06} />
-                                <ReferenceArea y1={s.mean + s.sd} y2={s.mean + 2 * s.sd} fill="#f59e0b" fillOpacity={0.06} />
-                                <ReferenceArea y1={s.mean - 3 * s.sd} y2={s.mean - 2 * s.sd} fill="#dc2626" fillOpacity={0.06} />
-                                <ReferenceArea y1={s.mean + 2 * s.sd} y2={s.mean + 3 * s.sd} fill="#dc2626" fillOpacity={0.06} />
-                                <ReferenceLine y={s.mean} stroke="#888" strokeDasharray="4 2" strokeOpacity={0.5} />
-                                <XAxis dataKey="run" hide />
-                                <YAxis hide domain={[s.mean - 4 * s.sd, s.mean + 4 * s.sd]} />
-                                <Tooltip
-                                  contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #ddd', padding: '4px 8px' }}
-                                  formatter={(value: number) => [value.toFixed(1), `${s.param}`]}
-                                  labelFormatter={(run: number) => {
-                                    const pt = s.data[run - 1];
-                                    return pt ? `Run #${run} — ${pt.date}` : `Run #${run}`;
-                                  }}
-                                />
-                                <Line
-                                  type="linear"
-                                  dataKey="value"
-                                  stroke={s.color}
-                                  strokeWidth={1.5}
-                                  dot={false}
-                                  activeDot={{ r: 3, fill: s.color }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
+                  {/* LJ Chart overview */}
+                  {Object.entries(chartGroups).length > 0 && (
+                    <div className="space-y-6 mt-4 pt-4 border-t border-border">
+                      <h4 className="text-sm font-bold text-center">Grafik Levey-Jennings</h4>
+                      {Object.entries(chartGroups).map(([alatLabel, series]) => (
+                        <div key={alatLabel} className="space-y-2">
+                          <h5 className="text-xs font-semibold text-muted-foreground">{alatLabel}</h5>
+                          {series.map((s, si) => (
+                            <div key={`${s.level}-${s.param}`} className="space-y-1">
+                              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
+                                {s.level} — {s.param} ({PARAM_UNITS[s.param]})
+                                <span className="text-muted-foreground/60">n={s.data.length} μ={s.mean.toFixed(1)} σ={s.sd.toFixed(1)}</span>
+                              </div>
+                              <div className="h-[120px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={s.data} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
+                                    <ReferenceArea y1={s.mean - s.sd} y2={s.mean + s.sd} fill="#16a34a" fillOpacity={0.06} />
+                                    <ReferenceArea y1={s.mean - 2 * s.sd} y2={s.mean - s.sd} fill="#f59e0b" fillOpacity={0.06} />
+                                    <ReferenceArea y1={s.mean + s.sd} y2={s.mean + 2 * s.sd} fill="#f59e0b" fillOpacity={0.06} />
+                                    <ReferenceArea y1={s.mean - 3 * s.sd} y2={s.mean - 2 * s.sd} fill="#dc2626" fillOpacity={0.06} />
+                                    <ReferenceArea y1={s.mean + 2 * s.sd} y2={s.mean + 3 * s.sd} fill="#dc2626" fillOpacity={0.06} />
+                                    <ReferenceLine y={s.mean} stroke="#888" strokeDasharray="4 2" strokeOpacity={0.5} />
+                                    <XAxis dataKey="run" hide />
+                                    <YAxis hide domain={[s.mean - 4 * s.sd, s.mean + 4 * s.sd]} />
+                                    <Tooltip
+                                      contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #ddd', padding: '4px 8px' }}
+                                      formatter={(value: number) => [value.toFixed(1), `${s.param}`]}
+                                      labelFormatter={(run: number) => {
+                                        const pt = s.data[run - 1];
+                                        return pt ? `Run #${run} — ${pt.date}` : `Run #${run}`;
+                                      }}
+                                    />
+                                    <Line
+                                      type="linear"
+                                      dataKey="value"
+                                      stroke={s.color}
+                                      strokeWidth={1.5}
+                                      dot={false}
+                                      activeDot={{ r: 3, fill: s.color }}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
+              ) : (
+                <LogSheetView
+                  records={filtered}
+                  month={month}
+                  instrument={instrument}
+                  selectedParam={selectedParam}
+                  onParamChange={setSelectedParam}
+                />
               )}
 
               {/* Signature section */}

@@ -89,7 +89,7 @@ export default function PortalHome() {
       badge: { label: 'PETUGAS', live: false },
       chips: ['Checklist Harian', 'Checklist Berkala', 'Riwayat'],
       visible: canAccess('maintenance'),
-      wip: true,
+      wip: false,
     },
     {
       title: 'Kelola User',

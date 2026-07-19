@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       'qc': ['admin', 'petugas', 'viewer'],
       'input-qc': ['admin', 'petugas'],
       'admin-users': ['admin'],
-      'b3': ['admin', 'petugas', 'viewer'],
+      'b3': ['admin'],
       'b3-input': ['admin', 'petugas'],
       'maintenance': ['admin', 'petugas', 'viewer'],
       'maintenance-input': ['admin', 'petugas'],
