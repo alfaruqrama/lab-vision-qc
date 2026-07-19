@@ -52,7 +52,7 @@ export function UjiFungsiForm({ month, initialData = {}, onChange, readOnly = fa
         keterangan: initialData[d.date]?.keterangan ?? '',
       })),
     );
-  }, [month]);
+  }, [month, initialData, defaultPetugas]);
 
   const updateRow = (idx: number, patch: Partial<UjiFungsiRow>) => {
     const next = rows.map((row, i) => (i === idx ? { ...row, ...patch } : row));

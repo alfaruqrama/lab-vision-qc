@@ -1,14 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MaintenanceRecord, UjiFungsiRecord } from '@/lib/maintenance-types';
+import { isConnected } from '@/lib/api';
 import {
-  isMaintenanceConnected,
   fetchRecords as gsFetchRecords,
   saveRecord as gsSaveRecord,
   deleteRecord as gsDeleteRecord,
   fetchUjiFungsi as gsFetchUjiFungsi,
   saveUjiFungsiBulk as gsSaveUjiFungsiBulk,
   deleteUjiFungsi as gsDeleteUjiFungsi,
-} from '@/lib/maintenance-gs-api';
+} from '@/lib/maintenance-api';
 import { toast } from 'sonner';
 
 const STORAGE_KEY = 'lab_maintenance_records';
@@ -40,14 +40,14 @@ function saveLocalRecords(records: MaintenanceRecord[]) {
 }
 
 async function fetchRecords(): Promise<MaintenanceRecord[]> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     return gsFetchRecords();
   }
   return loadLocalRecords();
 }
 
 async function addRecord(record: MaintenanceRecord): Promise<MaintenanceRecord> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     await gsSaveRecord(record);
   } else {
     const records = loadLocalRecords();
@@ -61,7 +61,7 @@ async function addRecord(record: MaintenanceRecord): Promise<MaintenanceRecord> 
 }
 
 async function removeRecord(id: string): Promise<void> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     await gsDeleteRecord(id);
   } else {
     const records = loadLocalRecords();
@@ -85,7 +85,7 @@ export function useMaintenanceRecords() {
     queryFn: fetchRecords,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: isMaintenanceConnected(),
+    refetchOnWindowFocus: isConnected(),
   });
 }
 
@@ -163,7 +163,7 @@ function saveLocalUjiFungsi(records: UjiFungsiRecord[]) {
 }
 
 async function fetchUjiFungsiRecords(alat: string, bulan: string): Promise<UjiFungsiRecord[]> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     return gsFetchUjiFungsi(alat, bulan);
   }
   // localStorage fallback: filter by alat + bulan
@@ -176,7 +176,7 @@ async function saveUjiFungsiRecords(
   bulan: string,
   data: { id: string; tanggal: string; fungsi: 'baik' | 'rusak'; petugas: string; keterangan: string }[],
 ): Promise<{ count: number; deleted: number }> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     return gsSaveUjiFungsiBulk(alat, bulan, data);
   }
   // localStorage fallback: remove existing for this alat+bulan, insert new
@@ -197,7 +197,7 @@ async function saveUjiFungsiRecords(
 }
 
 async function removeUjiFungsiRecord(id: string): Promise<void> {
-  if (isMaintenanceConnected()) {
+  if (isConnected()) {
     await gsDeleteUjiFungsi(id);
   } else {
     const all = loadLocalUjiFungsi();
@@ -212,7 +212,7 @@ export function useUjiFungsiRecords(alat: string, bulan: string) {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     enabled: !!alat && !!bulan,
-    refetchOnWindowFocus: isMaintenanceConnected(),
+    refetchOnWindowFocus: isConnected(),
   });
 }
 
