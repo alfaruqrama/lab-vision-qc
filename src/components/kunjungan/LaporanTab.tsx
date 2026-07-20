@@ -404,7 +404,7 @@ export default function LaporanTab() {
     const mcuPerusahaan = Math.max(0, mcuDisplay - mcuPaketPromo);
     lines.push(`*Rincian* `);
     lines.push(`▪️Rawat Jalan : ${fmtKunj(rjDisplay)}`);
-    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRJ)} (Eks : ${fmtKunj(form.poliExclusive)}  Prio : ${fmtKunj(form.poliPrioritas)})`);
+    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRJ)} (Eks : ${fmtKunj(form.poliExclusive)}, Prio : ${fmtKunj(form.poliPrioritas)})`);
     lines.push(`    * BPJS : ${fmtKunj(bpjsRJ)}`);
     lines.push(`▪️Rawat Inap : ${fmtKunj(form.ri)}`);
     lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
@@ -412,7 +412,7 @@ export default function LaporanTab() {
     lines.push(`▪️IGD : ${fmtKunj(form.igd)}`);
     lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
     lines.push(`    * BPJS : ${fmtKunj(bpjsIGD)}`);
-    lines.push(`▪️MCU : ${fmtKunj(mcuDisplay)} (Perusahaan: ${fmtKunj(mcuPerusahaan)} Promo : ${fmtKunj(mcuPaketPromo)})`);
+    lines.push(`▪️MCU : ${fmtKunj(mcuDisplay)} (Perusahaan: ${fmtKunj(mcuPerusahaan)}, Promo : ${fmtKunj(mcuPaketPromo)})`);
     lines.push(`    * Rincian Paket Promo`);
     const promoWithValue = form.promoItems.filter(p => p.value > 0);
     if (promoWithValue.length > 0) {
