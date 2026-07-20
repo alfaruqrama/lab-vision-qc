@@ -334,9 +334,12 @@ export default function LaporanTab() {
 
   // Calculations
   const totalPromoLab = form.promoItems.reduce((s, p) => s + p.value, 0);
-  const totalKunjungan = form.rj + form.ri + form.igd + form.mcu
-    + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar
-    + form.poliExclusive + form.poliPrioritas + totalPromoLab;
+  // RJ display = basic RJ + Exclusive + Prioritas (supaya 100% dari total kunjungan)
+  const rjDisplay = form.rj + form.poliExclusive + form.poliPrioritas;
+  // MCU display = basic MCU + promo items (supaya 100% dari total kunjungan)
+  const mcuDisplay = form.mcu + totalPromoLab;
+  const totalKunjungan = rjDisplay + form.ri + form.igd + mcuDisplay
+    + form.rujukanGrahu + form.rujukanPPK1 + form.rujukanSatkal + form.rujukanDokterLuar;
   const pctKunjungan   = form.targetKunjungan > 0 ? Math.round((totalKunjungan / form.targetKunjungan) * 100) : 0;
   const pendapatanBPJS = form.pendapatanBPJS;
   const pendapatanSelainMCUdanBPJS = Math.max(0, form.totalOmzet - form.pendapatanMCU - form.pendapatanBPJS);
@@ -350,7 +353,7 @@ export default function LaporanTab() {
   const pctKumKunj  = form.targetKunjBulan  > 0 ? Math.round((kumKunjTotal  / form.targetKunjBulan)  * 100) : 0;
   // Kumulatif MCU
   const kumOmzetMCUTotal = form.kumOmzetMCU + form.pendapatanMCU;
-  const kumKunjMCUTotal  = form.kumKunjMCU  + form.mcu;
+  const kumKunjMCUTotal  = form.kumKunjMCU  + mcuDisplay;
   const kumOmzetNonMCU = Math.max(0, kumOmzetTotal - kumOmzetMCUTotal);
   const kumKunjNonMCU  = Math.max(0, kumKunjTotal  - kumKunjMCUTotal);
 
@@ -373,19 +376,19 @@ export default function LaporanTab() {
   const isSiang = reportType === 'siang';
 
   const outputTeks = useMemo(() => {
-    const SEP = '──────────────────────────────────';
+    const SEP = '=========================';
     const lines: string[] = [];
     // 1. Header
-    lines.push(`LAPORAN KUNJUNGAN  `);
+    lines.push(`*LAPORAN KUNJUNGAN*  `);
     if (isSiang) {
-      lines.push(`${namaHari}. ${tgl.getDate()}  ${namaBulan} ${tahun}`);
+      lines.push(`*${namaHari}. ${tgl.getDate()}  ${namaBulan} ${tahun}*`);
       lines.push(`00.00 - 12.00 WIB`);
     } else {
-      lines.push(`${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}`);
+      lines.push(`*${namaHari} ${tgl.getDate()} ${namaBulan} ${tahun}*`);
     }
     lines.push(``);
     // 2. Capaian Harian
-    lines.push(`Capaian Harian `);
+    lines.push(`*Capaian Harian* `);
     lines.push(`• Total Kunj Harian : ${fmtKunj(totalKunjungan)} (${pctKunjungan}%)`);
     lines.push(`• Total Pendapatan: Rp ${fmtRpWA(totalPendapatan)} (${pctPendapatan}%)`);
     lines.push(`  └ Pendapatan MCU :  Rp ${fmtRpWA(form.pendapatanMCU)}`);
@@ -393,41 +396,51 @@ export default function LaporanTab() {
     lines.push(`  └ Pendapatan selain MCU dan BPJS : Rp ${fmtRpWA(pendapatanSelainMCUdanBPJS)}`);
     lines.push(`• Target harian : Rp ${fmtRpWA(form.targetOmzet)}`);
     lines.push(`• Rerata Jumlah entryan Per pasien : Rp ${fmtRpWA(rerataPerPasien)}/Pasien`);
+    lines.push(``);
     lines.push(SEP);
     lines.push(``);
     // 3. Rincian
-    lines.push(`Rincian `);
-    lines.push(`▪️Rawat Jalan : ${fmtKunj(form.rj)}`);
-    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsRJ)}`);
-    lines.push(`* BPJS : ${fmtKunj(bpjsRJ)}`);
+    const mcuPaketPromo = totalPromoLab;
+    const mcuPerusahaan = Math.max(0, mcuDisplay - mcuPaketPromo);
+    lines.push(`*Rincian* `);
+    lines.push(`▪️Rawat Jalan : ${fmtKunj(rjDisplay)}`);
+    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRJ)} (Eks : ${fmtKunj(form.poliExclusive)}  Prio : ${fmtKunj(form.poliPrioritas)})`);
+    lines.push(`    * BPJS : ${fmtKunj(bpjsRJ)}`);
     lines.push(`▪️Rawat Inap : ${fmtKunj(form.ri)}`);
-    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
-    lines.push(`* BPJS : ${fmtKunj(bpjsRI)}`);
+    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
+    lines.push(`    * BPJS : ${fmtKunj(bpjsRI)}`);
     lines.push(`▪️IGD : ${fmtKunj(form.igd)}`);
-    lines.push(`* Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
-    lines.push(`* BPJS : ${fmtKunj(bpjsIGD)}`);
-    lines.push(`▪️MCU : ${fmtKunj(form.mcu)}`);
+    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsIGD)}`);
+    lines.push(`    * BPJS : ${fmtKunj(bpjsIGD)}`);
+    lines.push(`▪️MCU : ${fmtKunj(mcuDisplay)} (Perusahaan: ${fmtKunj(mcuPerusahaan)} Promo : ${fmtKunj(mcuPaketPromo)})`);
+    lines.push(`    * Rincian Paket Promo`);
+    const promoWithValue = form.promoItems.filter(p => p.value > 0);
+    if (promoWithValue.length > 0) {
+      promoWithValue.forEach((p, i) => {
+        lines.push(`        ${i + 1}. ${p.label} : ${fmtKunj(p.value)}`);
+      });
+    } else {
+      lines.push(`        (tidak ada paket promo)`);
+    }
+    lines.push(``);
+    lines.push(`*Keterangan* `);
     lines.push(`▪️Rujukan SBU/Grahu : ${fmtKunj(form.rujukanGrahu)}`);
     lines.push(`▪️Rujukan SBU/PPK1 : ${fmtKunj(form.rujukanPPK1)}`);
     lines.push(`▪️Rujukan SBU/Satkal : ${fmtKunj(form.rujukanSatkal)}`);
     lines.push(`▪️Rujukan dokter Luar : ${fmtKunj(form.rujukanDokterLuar)}`);
-    lines.push(`▪️Poli Exclusive : ${fmtKunj(form.poliExclusive)}`);
-    lines.push(`▪️Poli Prioritas : ${fmtKunj(form.poliPrioritas)}`);
     lines.push(`▪️Pasien PG:`);
-    lines.push(`1. Igd Kry PG : ${fmtKunj(form.briIgdKry)}`);
-    lines.push(`2. Igd Kel PG : ${fmtKunj(form.briIgdKel)}`);
-    lines.push(`3. Rajal Kry PG : ${fmtKunj(form.briRajalKry)}`);
-    lines.push(`4. Rajal Kel  PG : ${fmtKunj(form.briRajalKel)}`);
-    lines.push(`5. Rawin Kry PG : ${fmtKunj(form.briRawinKry)}`);
-    lines.push(`6. Rawin Kel PG : ${fmtKunj(form.briRawinKel)}`);
-    lines.push(`▪️Promo Lab : ${fmtKunj(totalPromoLab)}`);
+    lines.push(`    1. Igd Kry PG : ${fmtKunj(form.briIgdKry)}`);
+    lines.push(`    2. Igd Kel PG : ${fmtKunj(form.briIgdKel)}`);
+    lines.push(`    3. Rajal Kry PG : ${fmtKunj(form.briRajalKry)}`);
+    lines.push(`    4. Rajal Kel  PG : ${fmtKunj(form.briRajalKel)}`);
+    lines.push(`    5. Rawin Kry PG : ${fmtKunj(form.briRawinKry)}`);
+    lines.push(`    6. Rawin Kel PG : ${fmtKunj(form.briRawinKel)}`);
     lines.push(`▪️Pasien AS Morula `);
-    lines.push(`1. Terjadwal hari ini : ${fmtKunj(form.morullaTerjadwal)}`);
-    lines.push(`2. Hadir hari ini : ${fmtKunj(form.morullaHadir)}`);
+    lines.push(`    1. Terjadwal hari ini : ${fmtKunj(form.morullaTerjadwal)}`);
+    lines.push(`    2. Hadir hari ini : ${fmtKunj(form.morullaHadir)}`);
     lines.push(SEP);
-    lines.push(`================`);
     // 4. Capaian Bulan
-    lines.push(` *CAPAIAN*`);
+    lines.push(`*CAPAIAN*`);
     if (isSiang) {
       lines.push(` 01 ${namaBulan} ${tahun}`);
     } else {
@@ -441,12 +454,12 @@ export default function LaporanTab() {
     lines.push(`  └ Kunjungan MCU : ${fmtKunj(kumKunjMCUTotal)}`);
     lines.push(`  └ Kunjungan Non MCU : ${fmtKunj(kumKunjNonMCU)}`);
     lines.push(SEP);
-    lines.push(`Data`);
-    lines.push(`Target ${namaBulan} ${tahun}`);
+    lines.push(`*Data*`);
+    lines.push(`*Target ${namaBulan} ${tahun}* `);
     lines.push(`* Kunjungan : ${fmtKunjTarget(form.targetKunjBulan)}`);
     lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
     return lines.join('\n');
-  }, [form, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
+  }, [form, rjDisplay, mcuDisplay, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanBPJS, pendapatanSelainMCUdanBPJS, pctKumOmzet, pctKumKunj,
       kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
       kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
