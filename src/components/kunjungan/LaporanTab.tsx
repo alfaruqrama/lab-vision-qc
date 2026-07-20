@@ -120,12 +120,13 @@ function readInputHarianDraft(tanggal: string) {
   } catch { return null; }
 }
 
-function NumInput({ value, onChange, label, auto, gsAutoFill, manual }: {
+function NumInput({ value, onChange, label, auto, gsAutoFill, manual, indent }: {
   value: number; onChange: (v: number) => void; label: string;
   auto?: boolean; gsAutoFill?: boolean; manual?: boolean;
+  indent?: 1 | 2;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("flex items-center gap-2", indent === 1 && "pl-4", indent === 2 && "pl-8")}>
       <label className="text-xs text-muted-foreground flex-1 min-w-0">
         {label}
         {auto      && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
@@ -513,19 +514,23 @@ export default function LaporanTab() {
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <p className="text-[9px] text-muted-foreground pb-1">Field bertanda <span className="text-green-600 font-medium">(auto)</span> diisi dari Tab Input Harian.</p>
-              <NumInput label="Rawat Jalan (Total)"  value={form.rj}  onChange={v => set('rj', v)}  auto={isAuto('rj')} />
-              <NumInput label="  └ Non BPJS RJ"      value={form.nonBpjsRJ}  onChange={v => set('nonBpjsRJ', v)}  auto={isAuto('nonBpjsRJ')} />
-              <NumInput label="Rawat Inap (Total)"   value={form.ri}  onChange={v => set('ri', v)}  auto={isAuto('ri')} />
-              <NumInput label="  └ Non BPJS RI"      value={form.nonBpjsRI}  onChange={v => set('nonBpjsRI', v)}  auto={isAuto('nonBpjsRI')} />
-              <NumInput label="IGD (Total)"          value={form.igd} onChange={v => set('igd', v)} auto={isAuto('igd')} />
-              <NumInput label="  └ Non BPJS IGD"     value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', v)} auto={isAuto('nonBpjsIGD')} />
-              <NumInput label="MCU"                  value={form.mcu} onChange={v => set('mcu', v)} auto={isAuto('mcu')} />
+              <NumInput label="Rawat Jalan — Basic (rjYani)" value={form.rj} onChange={v => set('rj', v)} auto={isAuto('rj')} />
+              <NumInput label="└ Non BPJS RJ"       value={form.nonBpjsRJ} onChange={v => set('nonBpjsRJ', v)} auto={isAuto('nonBpjsRJ')} indent={1} />
+              <NumInput label="└ Poli Exclusive"     value={form.poliExclusive} onChange={v => set('poliExclusive', v)} auto={isAuto('poliExclusive')} indent={2} />
+              <NumInput label="└ Poli Prioritas"     value={form.poliPrioritas} onChange={v => set('poliPrioritas', v)} auto={isAuto('poliPrioritas')} indent={2} />
+              <div className="flex justify-between items-center pt-1 border-t border-dashed border-border/50">
+                <span className="text-[10px] text-muted-foreground">Total Rawat Jalan (Basic + Eks + Prio)</span>
+                <span className="text-xs font-bold">{fmtKunj(rjDisplay)}</span>
+              </div>
+              <NumInput label="Rawat Inap (Total)" value={form.ri} onChange={v => set('ri', v)} auto={isAuto('ri')} />
+              <NumInput label="└ Non BPJS RI"   value={form.nonBpjsRI} onChange={v => set('nonBpjsRI', v)} auto={isAuto('nonBpjsRI')} indent={1} />
+              <NumInput label="IGD (Total)"      value={form.igd} onChange={v => set('igd', v)} auto={isAuto('igd')} />
+              <NumInput label="└ Non BPJS IGD"   value={form.nonBpjsIGD} onChange={v => set('nonBpjsIGD', v)} auto={isAuto('nonBpjsIGD')} indent={1} />
+              <NumInput label="MCU (Total)"          value={form.mcu} onChange={v => set('mcu', v)} auto={isAuto('mcu')} />
               <NumInput label="Rujukan SBU/Grahu"    value={form.rujukanGrahu}      onChange={v => set('rujukanGrahu', v)}      auto={isAuto('rujukanGrahu')} />
               <NumInput label="Rujukan SBU/PPK1"     value={form.rujukanPPK1}       onChange={v => set('rujukanPPK1', v)}       auto={isAuto('rujukanPPK1')} />
               <NumInput label="Rujukan SBU/Satkal"   value={form.rujukanSatkal}     onChange={v => set('rujukanSatkal', v)}     auto={isAuto('rujukanSatkal')} />
               <NumInput label="Rujukan Dokter Luar"  value={form.rujukanDokterLuar} onChange={v => set('rujukanDokterLuar', v)} auto={isAuto('rujukanDokterLuar')} />
-              <NumInput label="Poli Exclusive"       value={form.poliExclusive}     onChange={v => set('poliExclusive', v)}     auto={isAuto('poliExclusive')} />
-              <NumInput label="Poli Prioritas"       value={form.poliPrioritas}     onChange={v => set('poliPrioritas', v)}     auto={isAuto('poliPrioritas')} />
             </AccordionContent>
           </AccordionItem>
 
