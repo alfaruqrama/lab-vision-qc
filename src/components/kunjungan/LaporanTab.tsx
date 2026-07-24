@@ -101,8 +101,8 @@ function readInputHarianDraft(tanggal: string) {
       rujukanPPK1:       sum('ppk1'),
       rujukanSatkal:     sum('sat'),
       rujukanDokterLuar: sum('dokter'),
-      poliExclusive:     sum('exc'),
-      poliPrioritas:     sum('prior'),
+      poliExclusive:     sum('exc')   - sumBpjs('exc'),
+      poliPrioritas:     sum('prior') - sumBpjs('prior'),
       pendapatanMCU,
       grandTotal,
       // Pasien PG (auto dari baris 1-4)
