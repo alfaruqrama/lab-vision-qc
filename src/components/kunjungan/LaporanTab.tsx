@@ -101,8 +101,8 @@ function readInputHarianDraft(tanggal: string) {
       rujukanPPK1:       sum('ppk1'),
       rujukanSatkal:     sum('sat'),
       rujukanDokterLuar: sum('dokter'),
-      poliExclusive:     sum('exc'),
-      poliPrioritas:     sum('prior'),
+      poliExclusive:     sum('exc')   - sumBpjs('exc'),
+      poliPrioritas:     sum('prior') - sumBpjs('prior'),
       pendapatanMCU,
       grandTotal,
       // Pasien PG (auto dari baris 1-4)
@@ -337,6 +337,8 @@ export default function LaporanTab() {
   const totalPromoLab = form.promoItems.reduce((s, p) => s + p.value, 0);
   // RJ display = basic RJ + Exclusive + Prioritas (supaya 100% dari total kunjungan)
   const rjDisplay = form.rj + form.poliExclusive + form.poliPrioritas;
+  // Non BPJS RJ display = basic non-BPJS + Eks + Prio (semua komponen non-BPJS)
+  const nonBpjsRJDisplay = form.nonBpjsRJ + form.poliExclusive + form.poliPrioritas;
   // MCU display = basic MCU + promo items (supaya 100% dari total kunjungan)
   const mcuDisplay = form.mcu + totalPromoLab;
   const totalKunjungan = rjDisplay + form.ri + form.igd + mcuDisplay
@@ -405,7 +407,7 @@ export default function LaporanTab() {
     const mcuPerusahaan = Math.max(0, mcuDisplay - mcuPaketPromo);
     lines.push(`*Rincian* `);
     lines.push(`▪️Rawat Jalan : ${fmtKunj(rjDisplay)}`);
-    lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRJ)} (Eks : ${fmtKunj(form.poliExclusive)}, Prio : ${fmtKunj(form.poliPrioritas)})`);
+    lines.push(`    * Non BPJS : ${fmtKunj(nonBpjsRJDisplay)} (Eks : ${fmtKunj(form.poliExclusive)}, Prio : ${fmtKunj(form.poliPrioritas)})`);
     lines.push(`    * BPJS : ${fmtKunj(bpjsRJ)}`);
     lines.push(`▪️Rawat Inap : ${fmtKunj(form.ri)}`);
     lines.push(`    * Non BPJS : ${fmtKunj(form.nonBpjsRI)}`);
@@ -460,7 +462,7 @@ export default function LaporanTab() {
     lines.push(`* Kunjungan : ${fmtKunjTarget(form.targetKunjBulan)}`);
     lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
     return lines.join('\n');
-  }, [form, rjDisplay, mcuDisplay, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
+  }, [form, rjDisplay, nonBpjsRJDisplay, mcuDisplay, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanBPJS, pendapatanSelainMCUdanBPJS, pctKumOmzet, pctKumKunj,
       kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
       kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
@@ -519,6 +521,10 @@ export default function LaporanTab() {
               <NumInput label="└ Poli Exclusive"     value={form.poliExclusive} onChange={v => set('poliExclusive', v)} auto={isAuto('poliExclusive')} indent={2} />
               <NumInput label="└ Poli Prioritas"     value={form.poliPrioritas} onChange={v => set('poliPrioritas', v)} auto={isAuto('poliPrioritas')} indent={2} />
               <div className="flex justify-between items-center pt-1 border-t border-dashed border-border/50">
+                <span className="text-[10px] text-muted-foreground">Total Non BPJS RJ (Basic + Eks + Prio)</span>
+                <span className="text-xs font-bold">{fmtKunj(nonBpjsRJDisplay)}</span>
+              </div>
+              <div className="flex justify-between items-center">
                 <span className="text-[10px] text-muted-foreground">Total Rawat Jalan (Basic + Eks + Prio)</span>
                 <span className="text-xs font-bold">{fmtKunj(rjDisplay)}</span>
               </div>
