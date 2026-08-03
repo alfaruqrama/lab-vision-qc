@@ -387,6 +387,7 @@ export default function AdminUserPanel() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="petugas">Petugas</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -448,6 +449,7 @@ export default function AdminUserPanel() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="petugas">Petugas</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
                 </SelectContent>
               </Select>
             </div>

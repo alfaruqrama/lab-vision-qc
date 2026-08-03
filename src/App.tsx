@@ -65,11 +65,11 @@ const App = () => (
                 <Route path="/suhu" element={<ProtectedRoute><PortalLayout><SuhuProvider><MonitorSuhu /></SuhuProvider></PortalLayout></ProtectedRoute>} />
 
                 {/* Protected routes - B3 module (admin only) */}
-                <Route path="/b3" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Dashboard /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/inventory" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Inventory /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/pemakaian" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Pemakaian /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/limbah" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Limbah /></B3Layout></ProtectedRoute>} />
-                <Route path="/b3/report" element={<ProtectedRoute allowedRoles={['admin']}><B3Layout><B3Report /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><B3Layout><B3Dashboard /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/inventory" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><B3Layout><B3Inventory /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/pemakaian" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><B3Layout><B3Pemakaian /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/limbah" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><B3Layout><B3Limbah /></B3Layout></ProtectedRoute>} />
+                <Route path="/b3/report" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><B3Layout><B3Report /></B3Layout></ProtectedRoute>} />
 
                 {/* Protected routes - Transfusi module */}
                 <Route path="/transfusi" element={<ProtectedRoute><TransfusiLayout><TransfusiDashboard /></TransfusiLayout></ProtectedRoute>} />
@@ -84,7 +84,7 @@ const App = () => (
                 <Route path="/qc/config" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><LotConfig /></AppLayout></ProtectedRoute>} />
 
                 {/* Admin only routes */}
-                <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
+                <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
 
                 {/* Maintenance module with sidebar/bottom nav */}
                 <Route path="/maintenance" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceDashboard /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
