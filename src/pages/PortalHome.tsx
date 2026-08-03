@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard, Wrench } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard, Wrench, Droplets } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
@@ -67,6 +67,17 @@ export default function PortalHome() {
       badge: isB3Connected() ? { label: 'LIVE · Google Sheets', live: true } : { label: 'BELUM KONFIGURASI', live: false },
       chips: ['Inventaris', 'Pemakaian', 'Limbah', 'Neraca B3'],
       visible: canAccess('b3'),
+      wip: true,
+    },
+    {
+      title: 'Transfusi Darah',
+      desc: 'Digitalisasi pemberkasan dokumen transfusi — scan, upload, arsip',
+      icon: Droplets,
+      path: '/transfusi',
+      colorClass: 'bg-red-50 text-red-700',
+      badge: { label: 'BARU · BETA', live: true },
+      chips: ['Scan Dokumen', 'Upload Drive', 'Arsip Digital'],
+      visible: canAccess('suhu') || user?.role === 'admin' || user?.role === 'petugas',
       wip: true,
     },
     {
