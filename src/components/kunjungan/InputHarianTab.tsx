@@ -515,7 +515,6 @@ function numericKeyDown(e: React.KeyboardEvent) {
 function usePenjaminList() {
   const { user } = useAuth();
   const { data: rows = [] } = usePenjaminOverrides();
-  useEffect(() => { console.log('[penjamin] usePenjaminList rows:', rows.length, 'custom:', rows.filter(r => r.is_custom).length); }, [rows]);
   const saveMutation = useSavePenjaminOverride();
   const deleteMutation = useDeletePenjaminOverride();
 

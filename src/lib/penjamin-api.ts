@@ -19,15 +19,11 @@ const MIGRATION_FLAG = 'penjamin-migrated-v1';
 
 export async function fetchPenjaminOverrides(): Promise<PenjaminOverrideRow[]> {
   if (!isConnected()) {
-    console.warn('[penjamin] Not connected, using localStorage');
     return localToRows();
   }
 
   const auth = getStoredAuth();
-  if (!auth) {
-    console.warn('[penjamin] No auth, using localStorage');
-    return localToRows();
-  }
+  if (!auth) return localToRows();
 
   const client = createSupabaseClient(auth.token);
 
@@ -37,11 +33,10 @@ export async function fetchPenjaminOverrides(): Promise<PenjaminOverrideRow[]> {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[penjamin] Fetch error:', error);
+    console.error('Fetch penjamin overrides error:', error);
     return localToRows();
   }
 
-  console.log('[penjamin] Fetched', (data || []).length, 'rows from Supabase');
   return (data || []) as PenjaminOverrideRow[];
 }
 
