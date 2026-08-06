@@ -234,12 +234,14 @@ export default function AdminUserPanel() {
       admin: 'bg-red-50 text-red-700 hover:bg-red-50',
       petugas: 'bg-blue-50 text-blue-700 hover:bg-blue-50',
       viewer: 'bg-teal-50 text-teal-700 hover:bg-teal-50',
+      developer: 'bg-purple-50 text-purple-700 hover:bg-purple-50',
     };
-    
+
     const labels = {
       admin: 'Admin',
       petugas: 'Petugas',
       viewer: 'Viewer',
+      developer: 'Developer',
     };
 
     return (
