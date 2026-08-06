@@ -515,6 +515,7 @@ function numericKeyDown(e: React.KeyboardEvent) {
 function usePenjaminList() {
   const { user } = useAuth();
   const { data: rows = [] } = usePenjaminOverrides();
+  useEffect(() => { console.log('[penjamin] usePenjaminList rows:', rows.length, 'custom:', rows.filter(r => r.is_custom).length); }, [rows]);
   const saveMutation = useSavePenjaminOverride();
   const deleteMutation = useDeletePenjaminOverride();
 
@@ -994,7 +995,7 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
           {filtered.map(p => {
             const isUsed = usedNames.includes(p.nama);
             return (
-              <button key={p.nama}
+              <button key={p.badge + '-' + p.nama}
                 className={`w-full flex items-center gap-2 px-2 py-1 text-[10px] text-left transition-colors
                   ${isUsed ? 'opacity-40 cursor-not-allowed bg-muted' : 'hover:bg-muted'}`}
                 onMouseDown={() => {
@@ -1189,8 +1190,8 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
 
         {/* List */}
         <div className="overflow-y-auto flex-1 px-2 py-1">
-          {filtered.map(p => (
-            <div key={p.nama}
+          {filtered.map((p, i) => (
+            <div key={p.badge + '-' + p.nama + '-' + i}
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
               <select
                 value={p.badge}
