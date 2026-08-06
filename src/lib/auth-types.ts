@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'petugas' | 'viewer';
+export type UserRole = 'admin' | 'petugas' | 'viewer' | 'developer';
 
 export interface AuthUser {
   id: string;        // uuid from profiles table
