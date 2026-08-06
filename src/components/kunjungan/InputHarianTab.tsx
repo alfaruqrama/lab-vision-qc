@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import * as XLSX from 'xlsx';
+import { PENJAMIN_KEY, BADGE_OVERRIDE_KEY, NAME_OVERRIDE_KEY, migrateLocalPenjaminData } from '@/lib/penjamin-api';
+import { usePenjaminOverrides, useSavePenjaminOverride, useDeletePenjaminOverride } from '@/features/kunjungan/hooks/usePenjaminOverrides';
+import type { PenjaminOverrideRow } from '@/lib/penjamin-types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,10 +39,7 @@ export interface InputHarianDraft {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DRAFT_KEY         = 'input-harian-draft';
-const PENJAMIN_KEY      = 'penjamin-list-custom';
-const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
-const NAME_OVERRIDE_KEY  = 'penjamin-name-overrides';
+const DRAFT_KEY = 'input-harian-draft';
 
 export const KUNJUNGAN_COLS: { k: string; l: string; readOnly?: boolean }[] = [
   { k: 'rjYani',  l: 'RJ YANI' },
@@ -513,81 +513,176 @@ function numericKeyDown(e: React.KeyboardEvent) {
 // ─── usePenjaminList hook ─────────────────────────────────────────────────────
 
 function usePenjaminList() {
-  const [custom, setCustom] = useState<PenjaminEntry[]>(() => {
-    try { return JSON.parse(localStorage.getItem(PENJAMIN_KEY) || '[]'); } catch { return []; }
-  });
-  const [badgeOverrides, setBadgeOverrides] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem(BADGE_OVERRIDE_KEY) || '{}'); } catch { return {}; }
-  });
-  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem(NAME_OVERRIDE_KEY) || '{}'); } catch { return {}; }
-  });
+  const { user } = useAuth();
+  const { data: rows = [] } = usePenjaminOverrides();
+  const saveMutation = useSavePenjaminOverride();
+  const deleteMutation = useDeletePenjaminOverride();
 
-  const allList: PenjaminEntry[] = [
-    ...BUILTIN_PENJAMIN.map(p => ({ nama: nameOverrides[p.nama] ?? p.nama, badge: badgeOverrides[p.nama] ?? p.badge })),
+  // Permission: hanya developer yang bisa manage (edit/delete) penjamin
+  const canManage = user?.role === 'developer';
+
+  // Migration: pindahkan localStorage → Supabase sekali saat mount
+  useEffect(() => {
+    migrateLocalPenjaminData();
+  }, []);
+
+  // Derive dari rows (memoized)
+  const { badgeOverrides, nameOverrides, custom } = useMemo(() => {
+    const badgeOv: Record<string, string> = {};
+    const nameOv: Record<string, string> = {};
+    const cust: PenjaminEntry[] = [];
+
+    for (const r of rows) {
+      if (r.is_custom) {
+        cust.push({ nama: r.new_name || '', badge: r.badge || 'NPG' });
+      } else if (r.original_name) {
+        if (r.badge) badgeOv[r.original_name] = r.badge;
+        if (r.new_name) nameOv[r.original_name] = r.new_name;
+      }
+    }
+
+    return { badgeOverrides: badgeOv, nameOverrides: nameOv, custom: cust };
+  }, [rows]);
+
+  const allList: PenjaminEntry[] = useMemo(() => [
+    ...BUILTIN_PENJAMIN
+      .filter(p => badgeOverrides[p.nama] !== '__hidden__')
+      .map(p => ({
+        nama: nameOverrides[p.nama] ?? p.nama,
+        badge: badgeOverrides[p.nama] ?? p.badge,
+      })),
     ...custom
       .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
       .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
-  ];
+  ], [custom, badgeOverrides, nameOverrides]);
 
   const addPenjamin = (entry: PenjaminEntry) => {
     if (allList.some(p => p.nama.toLowerCase() === entry.nama.toLowerCase())) return false;
-    const next = [...custom, entry];
-    setCustom(next);
-    localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
+    const id = `cu-${entry.nama}`;
+    const row: PenjaminOverrideRow = {
+      id,
+      original_name: null,
+      new_name: entry.nama,
+      badge: entry.badge,
+      is_custom: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    saveMutation.mutate(row);
     return true;
   };
 
   const removePenjamin = (nama: string) => {
-    const next = custom.filter(p => p.nama !== nama);
-    setCustom(next);
-    localStorage.setItem(PENJAMIN_KEY, JSON.stringify(next));
+    if (!canManage) {
+      toast.error('Hanya developer yang bisa menghapus penjamin');
+      return;
+    }
+    // Custom entry: delete langsung
+    const customRow = rows.find(r => r.is_custom && r.new_name === nama);
+    if (customRow) {
+      deleteMutation.mutate(customRow.id);
+      return;
+    }
+    // Builtin entry: simpan sebagai hide override (badge = '__hidden__')
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
+    if (BUILTIN_PENJAMIN.some(p => p.nama === origKey)) {
+      const id = `ov-${origKey}`;
+      const existing = rows.find(r => r.id === id);
+      const row: PenjaminOverrideRow = {
+        id,
+        original_name: origKey,
+        new_name: existing?.new_name || null,
+        badge: '__hidden__',
+        is_custom: false,
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      saveMutation.mutate(row);
+    }
   };
 
   const editBadge = (nama: string, badge: string) => {
-    // Untuk builtin, gunakan original key (bukan overridden name)
-    const origKey = Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
-    const nextOv = { ...badgeOverrides, [origKey]: badge };
-    setBadgeOverrides(nextOv);
-    localStorage.setItem(BADGE_OVERRIDE_KEY, JSON.stringify(nextOv));
-    if (custom.some(c => c.nama === nama)) {
-      const nextC = custom.map(c => c.nama === nama ? { ...c, badge } : c);
-      setCustom(nextC);
-      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+    if (!canManage) return;
+
+    // Resolve original key (bisa builtin name atau overridden name)
+    const origKey =
+      Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
+    const isBuiltin = BUILTIN_PENJAMIN.some(p => p.nama === origKey);
+
+    if (isBuiltin) {
+      // Builtin: upsert override row
+      const id = `ov-${origKey}`;
+      const existing = rows.find(r => r.id === id);
+      const row: PenjaminOverrideRow = {
+        id,
+        original_name: origKey,
+        new_name: existing?.new_name || null,
+        badge,
+        is_custom: false,
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      saveMutation.mutate(row);
+    } else {
+      // Custom: update langsung
+      const id = `cu-${nama}`;
+      const existing = rows.find(r => r.id === id);
+      if (existing) {
+        saveMutation.mutate({ ...existing, badge, updated_at: new Date().toISOString() });
+      }
     }
   };
 
   const editNama = (oldNama: string, newNama: string) => {
+    if (!canManage) return false;
+
     const trimmed = newNama.trim().toUpperCase();
     if (!trimmed || trimmed === oldNama) return false;
     if (allList.some(p => p.nama.toUpperCase() === trimmed && p.nama !== oldNama)) return false;
 
-    // Cek apakah ini builtin (cari original key)
     const builtinEntry = BUILTIN_PENJAMIN.find(p => p.nama === oldNama);
     const origKey = Object.entries(nameOverrides).find(([, v]) => v === oldNama)?.[0];
 
     if (builtinEntry || origKey) {
       // Builtin: simpan sebagai name override
       const key = origKey || oldNama;
-      const nextOv = { ...nameOverrides, [key]: trimmed };
-      setNameOverrides(nextOv);
-      localStorage.setItem(NAME_OVERRIDE_KEY, JSON.stringify(nextOv));
+      const id = `ov-${key}`;
+      const existing = rows.find(r => r.id === id);
+      const row: PenjaminOverrideRow = {
+        id,
+        original_name: key,
+        new_name: trimmed,
+        badge: existing?.badge || null,
+        is_custom: false,
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      saveMutation.mutate(row);
     } else {
-      // Custom: edit langsung di custom list
-      const nextC = custom.map(c => c.nama === oldNama ? { ...c, nama: trimmed } : c);
-      setCustom(nextC);
-      localStorage.setItem(PENJAMIN_KEY, JSON.stringify(nextC));
+      // Custom: rename
+      const id = `cu-${oldNama}`;
+      const existing = rows.find(r => r.id === id);
+      if (existing) {
+        // Delete old, insert new (karena id berubah)
+        deleteMutation.mutate(id);
+        const newRow: PenjaminOverrideRow = {
+          ...existing,
+          id: `cu-${trimmed}`,
+          new_name: trimmed,
+          updated_at: new Date().toISOString(),
+        };
+        saveMutation.mutate(newRow);
+      }
     }
     return true;
   };
 
   const isBuiltin = (nama: string) => {
     if (BUILTIN_PENJAMIN.some(p => p.nama === nama)) return true;
-    // Juga cek jika nama adalah override dari builtin
     return Object.values(nameOverrides).includes(nama);
   };
 
-  return { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin };
+  return { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin, canManage };
 }
 
 // ─── Export Excel ─────────────────────────────────────────────────────────────
@@ -1017,7 +1112,7 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
-function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin }: {
+function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin, canManage }: {
   list: PenjaminEntry[];
   custom: PenjaminEntry[];
   onAdd: (e: PenjaminEntry) => boolean;
@@ -1026,6 +1121,7 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
   onEditNama: (oldNama: string, newNama: string) => boolean;
   onClose: () => void;
   isBuiltin: (nama: string) => boolean;
+  canManage: boolean;
 }) {
   const [newNama,  setNewNama]  = useState('');
   const [newBadge, setNewBadge] = useState('NPG');
@@ -1098,8 +1194,9 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50 group">
               <select
                 value={p.badge}
+                disabled={!canManage}
                 onChange={e => { onEditBadge(p.nama, e.target.value); toast.success(`Label ${p.nama} diubah ke ${e.target.value}`); }}
-                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-pointer ${labelClass(p.badge)}`}>
+                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${canManage ? 'cursor-pointer' : 'cursor-default opacity-70'} ${labelClass(p.badge)}`}>
                 {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
               {editingNama === p.nama ? (
@@ -1127,21 +1224,21 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
                 />
               ) : (
                 <span
-                  className="text-[11px] flex-1 truncate cursor-pointer hover:underline hover:text-primary"
-                  onClick={() => { setEditingNama(p.nama); setEditNamaValue(p.nama); }}
-                  title="Klik untuk edit nama"
+                  className={`text-[11px] flex-1 truncate ${canManage ? 'cursor-pointer hover:underline hover:text-primary' : ''}`}
+                  onClick={() => { if (canManage) { setEditingNama(p.nama); setEditNamaValue(p.nama); } }}
+                  title={canManage ? 'Klik untuk edit nama' : p.nama}
                 >{p.nama}</span>
               )}
-              {isBuiltin(p.nama)
-                ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
-                : (
-                  <Button variant="ghost" size="icon"
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
-                    onClick={() => { onRemove(p.nama); toast.success(`${p.nama} dihapus dari list`); }}>
-                    <Trash2 className="w-2.5 h-2.5" />
-                  </Button>
-                )
-              }
+              {isBuiltin(p.nama) && (
+                <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
+              )}
+              {canManage && (
+                <Button variant="ghost" size="icon"
+                  className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
+                  onClick={() => { onRemove(p.nama); toast.success(`${p.nama} dihapus dari list`); }}>
+                  <Trash2 className="w-2.5 h-2.5" />
+                </Button>
+              )}
             </div>
           ))}
           {filtered.length === 0 && (
@@ -1172,9 +1269,9 @@ function SummaryCard({ label, value, color, sub }: { label: string; value: numbe
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
-  const { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin } = usePenjaminList();
+  const { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin, canManage } = usePenjaminList();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isElevated = user?.role === 'admin' || user?.role === 'developer';
 
   // Lazy initializers — read draft from localStorage on mount so auto-save
   // never overwrites the saved draft with empty defaults during tab switches.
@@ -1199,11 +1296,12 @@ export default function InputHarianTab() {
   const [lapCheckStatus, setLapCheckStatus] = useState<CheckStatus>('idle');
   const [lapCheckData, setLapCheckData] = useState<CheckData>(null);
   const openAdminSettings = () => setShowSettings(true);
+const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
 
   // Tanggal validation
   const isToday = tanggal === todayISO();
   const isFuture = tanggal > todayISO();
-  const canSubmitDate = !isFuture || isAdmin; // hanya admin bisa submit tanggal masa depan
+  const canSubmitDate = !isFuture || isElevated; // admin/developer bisa submit tanggal masa depan
 
   // Auto-save (draft is loaded via lazy useState initializers above)
   useEffect(() => {
@@ -1542,10 +1640,12 @@ export default function InputHarianTab() {
 
   const ActionButtons = () => (
     <div className="flex gap-1.5">
-      <Button variant="outline" size="sm" className="h-7 text-xs px-2"
-        onClick={openAdminSettings}>
-        <Lock className="w-3 h-3 mr-1" /> Penjamin
-      </Button>
+      {user?.role !== 'viewer' && (
+        <Button variant="outline" size="sm" className="h-7 text-xs px-2"
+          onClick={openAdminSettings}>
+          <Lock className="w-3 h-3 mr-1" /> Penjamin
+        </Button>
+      )}
       <Button variant="outline" size="sm" className="h-7 text-xs px-2"
         onClick={() => exportToExcel(tanggal, kunjungan, mcu)}>
         <Download className="w-3 h-3 mr-1" /> Export Excel
@@ -1568,6 +1668,7 @@ export default function InputHarianTab() {
           onAdd={addPenjamin} onRemove={removePenjamin}
           onEditBadge={editBadge} onEditNama={editNama}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
+          canManage={canManage}
         />
       )}
 
@@ -1800,7 +1901,7 @@ export default function InputHarianTab() {
             <label className="text-xs text-muted-foreground">Tanggal</label>
             <div className="relative">
               <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
-                className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isAdmin ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
+                className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isElevated ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
             </div>
           </div>
           {!isToday && !isFuture && (
@@ -1809,8 +1910,8 @@ export default function InputHarianTab() {
             </span>
           )}
           {isFuture && (
-            <span className={`text-[9px] flex items-center gap-0.5 font-semibold ${isAdmin ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
-              <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isAdmin ? ' (admin override)' : ' — tidak bisa submit'}
+            <span className={`text-[9px] flex items-center gap-0.5 font-semibold ${isElevated ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+              <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isElevated ? ' (admin override)' : ' — tidak bisa submit'}
             </span>
           )}
           <span className="text-[9px] text-muted-foreground flex items-center gap-1">
@@ -1909,7 +2010,7 @@ export default function InputHarianTab() {
                           isDefault={DEFAULT_PENJAMIN_NAMES.has(row.namaPenjamin)}
                           isInvalid={!isValid && !isEmpty}
                           onSelect={(nama,badge) => selectPenjamin(row.id,nama,badge)}
-                          onOpenSettings={openAdminSettings}
+                          onOpenSettings={settingsOpener}
                         />
                       </td>
                       {KUNJUNGAN_COLS.map((c, ci)=>{
@@ -2011,7 +2112,7 @@ export default function InputHarianTab() {
                           value={row.namaPenjamin} badge={''}
                           list={allList}
                           onSelect={(nama) => selectMcuPenjamin(row.id, nama)}
-                          onOpenSettings={openAdminSettings}
+                          onOpenSettings={settingsOpener}
                         />
                       </td>
                       <td className="px-0.5 py-0.5">

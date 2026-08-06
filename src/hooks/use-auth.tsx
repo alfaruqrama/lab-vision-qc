@@ -103,16 +103,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return false;
 
     const accessMap: Record<string, UserRole[]> = {
-      'dashboard': ['admin', 'petugas', 'viewer'],
-      'input-harian': ['admin', 'petugas'],
-      'suhu': ['admin'],
-      'qc': ['admin', 'petugas', 'viewer'],
-      'input-qc': ['admin', 'petugas'],
-      'admin-users': ['admin'],
-      'b3': ['admin'],
-      'b3-input': ['admin', 'petugas'],
-      'maintenance': ['admin', 'petugas', 'viewer'],
-      'maintenance-input': ['admin', 'petugas'],
+      'dashboard': ['admin', 'petugas', 'viewer', 'developer'],
+      'input-harian': ['admin', 'petugas', 'developer'],
+      'suhu': ['admin', 'developer'],
+      'qc': ['admin', 'petugas', 'viewer', 'developer'],
+      'input-qc': ['admin', 'petugas', 'developer'],
+      'admin-users': ['admin', 'developer'],
+      'b3': ['admin', 'developer'],
+      'b3-input': ['admin', 'petugas', 'developer'],
+      'maintenance': ['admin', 'petugas', 'viewer', 'developer'],
+      'maintenance-input': ['admin', 'petugas', 'developer'],
     };
 
     const allowedRoles = accessMap[feature];

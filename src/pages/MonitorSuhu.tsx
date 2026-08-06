@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from 'react';
-import { Settings, Camera, Download, Printer, BarChart3, FileText, Thermometer } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Settings, Download, Printer, Thermometer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,11 +7,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useSuhuStore, type SuhuEntry } from '@/hooks/use-suhu-store';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 
 const ROOMS = [
@@ -65,126 +65,91 @@ const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli'
 export default function MonitorSuhu() {
   const store = useSuhuStore();
   const { sessionData, sessionLog, petugas, setPetugas, saveEntry, clearSession } = store;
+  const { user } = useAuth();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [activeRoom, setActiveRoom] = useState<typeof ROOMS[0] | null>(null);
-  const [previewImg, setPreviewImg] = useState('');
-  const [aiResult, setAiResult] = useState<{ suhu: number; rh: number | null; confidence: number } | null>(null);
-  const [confirmSuhu, setConfirmSuhu] = useState('');
-  const [confirmRh, setConfirmRh] = useState('');
-  const [confirmCatatan, setConfirmCatatan] = useState('');
-  const [loadingRoom, setLoadingRoom] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<'suhu' | 'rh'>('suhu');
 
+  // Auto-fill petugas from logged-in user
+  const [petugasManual, setPetugasManual] = useState(false);
+  const displayPetugas = petugas || (user?.nama ?? '');
+
+  // Form values for manual input: keyed by room.id
+  const [formValues, setFormValues] = useState<Record<string, { suhu: string; rh: string; catatan: string }>>({});
+
   // Settings state
-  const [sGasAi, setSGasAi] = useState(() => localStorage.getItem('suhu_gas_ai') || '');
   const [sGasSave, setSGasSave] = useState(() => localStorage.getItem('suhu_gas_save') || '');
   const [sBatasRuang, setSBatasRuang] = useState(() => localStorage.getItem('suhu_batas_ruang') || '18-28');
   const [sBatasKulkas, setSBatasKulkas] = useState(() => localStorage.getItem('suhu_batas_kulkas') || '2-8');
 
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
   const doneCount = useMemo(() => Object.keys(sessionData).length, [sessionData]);
 
-  const handleCardClick = (room: typeof ROOMS[0]) => {
-    const ref = fileRefs.current[room.id];
-    if (ref) ref.click();
+  const getFormValue = (roomId: string, field: 'suhu' | 'rh' | 'catatan') => {
+    return formValues[roomId]?.[field] ?? '';
   };
 
-  const handleFileChange = async (room: typeof ROOMS[0], e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setPreviewImg(dataUrl);
-      setActiveRoom(room);
-
-      const gasUrl = localStorage.getItem('suhu_gas_ai') || '';
-      if (!gasUrl) {
-        // No AI URL - open dialog with empty fields
-        setAiResult(null);
-        setConfirmSuhu('');
-        setConfirmRh('');
-        setConfirmCatatan('');
-        setConfirmOpen(true);
-        toast.error('GAS URL AI belum diset — input manual');
-        return;
-      }
-
-      setLoadingRoom(room.id);
-      toast.loading('Membaca foto...', { id: 'ai-read' });
-
-      try {
-        const response = await fetch(gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'readThermometer',
-            image: dataUrl,
-            hasHumidity: room.hasHumidity,
-            roomLabel: room.label,
-          }),
-        });
-        const text = await response.text();
-        const match = text.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error('Response bukan JSON');
-        const result = JSON.parse(match[0]);
-        if (result.error) throw new Error(result.error);
-
-        setAiResult({ suhu: result.suhu ?? result.temperature ?? 0, rh: result.rh ?? result.humidity ?? null, confidence: result.confidence ?? 0.8 });
-        setConfirmSuhu(String(result.suhu ?? result.temperature ?? ''));
-        setConfirmRh(room.hasHumidity ? String(result.rh ?? result.humidity ?? '') : '');
-        setConfirmCatatan('');
-        toast.dismiss('ai-read');
-        toast.success('Foto terbaca AI');
-      } catch (err: any) {
-        toast.dismiss('ai-read');
-        toast.error('Gagal baca AI: ' + (err.message || 'Unknown'));
-        setAiResult(null);
-        setConfirmSuhu('');
-        setConfirmRh('');
-        setConfirmCatatan('');
-      } finally {
-        setLoadingRoom(null);
-        setConfirmOpen(true);
-      }
-    };
-    reader.readAsDataURL(file);
+  const setFormValue = (roomId: string, field: 'suhu' | 'rh' | 'catatan', value: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      [roomId]: { ...prev[roomId], suhu: prev[roomId]?.suhu ?? '', rh: prev[roomId]?.rh ?? '', catatan: prev[roomId]?.catatan ?? '', [field]: value },
+    }));
   };
 
-  const handleConfirmSave = async () => {
-    if (!activeRoom) return;
-    const suhu = parseFloat(confirmSuhu);
-    if (isNaN(suhu)) { toast.error('Suhu wajib diisi'); return; }
-    const rh = activeRoom.hasHumidity && confirmRh ? parseFloat(confirmRh) : null;
-    const entry: SuhuEntry = { suhu, rh, timestamp: new Date().toISOString(), catatan: confirmCatatan };
+  const handleSaveRoom = async (room: typeof ROOMS[0]) => {
+    const vals = formValues[room.id];
+    const suhuStr = vals?.suhu ?? '';
+    const suhu = parseFloat(suhuStr);
+    if (isNaN(suhu)) { toast.error(`Suhu ${room.label} wajib diisi`); return; }
+    const rh = room.hasHumidity && vals?.rh ? parseFloat(vals.rh) : null;
+    const entry: SuhuEntry = { suhu, rh, timestamp: new Date().toISOString(), catatan: vals?.catatan ?? '' };
 
-    // Save to GAS
-    const gasSaveUrl = localStorage.getItem('suhu_gas_save') || '';
-    if (gasSaveUrl) {
+    // Save to GAS if URL set
+    if (sGasSave) {
       try {
-        await fetch(gasSaveUrl, {
+        await fetch(sGasSave, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'saveData', roomId: activeRoom.id, roomLabel: activeRoom.label, code: activeRoom.code, suhu, rh, petugas, catatan: confirmCatatan }),
+          body: JSON.stringify({ action: 'saveData', roomId: room.id, roomLabel: room.label, code: room.code, suhu, rh, petugas, catatan: entry.catatan }),
         });
-      } catch { /* no-cors won't throw normally */ }
-      toast.success(`✓ ${activeRoom.label} tersimpan`);
-    } else {
-      toast.warning('✓ Lokal · GAS Save URL belum diset');
+      } catch { /* no-cors won't throw */ }
     }
 
-    saveEntry(activeRoom.id, entry, activeRoom.label, activeRoom.code);
-    setConfirmOpen(false);
+    saveEntry(room.id, entry, room.label, room.code);
+    toast.success(`✓ ${room.label} tersimpan`);
+  };
+
+  const handleSaveAll = async () => {
+    let saved = 0;
+    for (const room of ROOMS) {
+      const vals = formValues[room.id];
+      const suhu = parseFloat(vals?.suhu ?? '');
+      if (isNaN(suhu)) continue;
+      const rh = room.hasHumidity && vals?.rh ? parseFloat(vals.rh) : null;
+      const entry: SuhuEntry = { suhu, rh, timestamp: new Date().toISOString(), catatan: vals?.catatan ?? '' };
+
+      if (sGasSave) {
+        try {
+          await fetch(sGasSave, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'saveData', roomId: room.id, roomLabel: room.label, code: room.code, suhu, rh, petugas, catatan: entry.catatan }),
+          });
+        } catch { /* no-cors */ }
+      }
+
+      saveEntry(room.id, entry, room.label, room.code);
+      saved++;
+    }
+    if (saved > 0) {
+      toast.success(`✓ ${saved} lokasi tersimpan`);
+    } else {
+      toast.error('Tidak ada data suhu yang diisi');
+    }
   };
 
   const saveSettings = () => {
-    localStorage.setItem('suhu_gas_ai', sGasAi);
     localStorage.setItem('suhu_gas_save', sGasSave);
     localStorage.setItem('suhu_batas_ruang', sBatasRuang);
     localStorage.setItem('suhu_batas_kulkas', sBatasKulkas);
@@ -213,7 +178,6 @@ export default function MonitorSuhu() {
 
   const today = new Date();
   const todayStr = `${HARI_ID[today.getDay()]}, ${today.getDate()} ${BULAN_ID[today.getMonth()]} ${today.getFullYear()}`;
-  const noGasAi = !localStorage.getItem('suhu_gas_ai');
 
   return (
     <div className="space-y-4">
@@ -226,15 +190,9 @@ export default function MonitorSuhu() {
         <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)}><Settings size={18} /></Button>
       </div>
 
-      {noGasAi && (
-        <div className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-2 text-sm text-warning flex items-center gap-2">
-          ⚠ GAS URL AI belum diset — buka ⚙ Pengaturan untuk konfigurasi.
-        </div>
-      )}
-
       <Tabs defaultValue="input">
         <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="input">📷 Input</TabsTrigger>
+          <TabsTrigger value="input">✏️ Input</TabsTrigger>
           <TabsTrigger value="grafik">📊 Grafik</TabsTrigger>
           <TabsTrigger value="laporan">📄 Laporan</TabsTrigger>
         </TabsList>
@@ -247,7 +205,12 @@ export default function MonitorSuhu() {
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                 <div className="flex-1 w-full">
                   <Label className="text-xs text-muted-foreground">Nama Petugas</Label>
-                  <Input placeholder="Nama petugas..." value={petugas} onChange={e => setPetugas(e.target.value)} className="mt-1" />
+                  <Input
+                    placeholder="Nama petugas..."
+                    value={displayPetugas}
+                    onChange={e => { setPetugas(e.target.value); setPetugasManual(true); }}
+                    className="mt-1"
+                  />
                 </div>
                 <div className="text-right whitespace-nowrap">
                   <span className="text-sm font-semibold">{doneCount} / 6 selesai</span>
@@ -257,94 +220,145 @@ export default function MonitorSuhu() {
             </CardContent>
           </Card>
 
-          {/* Room cards */}
+          {/* Ruangan */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Ruangan</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {ROOMS.filter(r => r.type === 'room').map(room => {
                 const d = sessionData[room.id];
-                const loading = loadingRoom === room.id;
+                const saved = !!d;
+                const ok = d ? isNormal(d.suhu, room.type) : null;
                 return (
                   <Card
                     key={room.id}
-                    className={`cursor-pointer transition-all hover:shadow-md border-t-[3px] border-t-emerald-500 ${d ? 'bg-emerald-500/5' : ''}`}
-                    onClick={() => handleCardClick(room)}
+                    className={`border-t-[3px] ${saved ? 'border-t-emerald-500 bg-emerald-500/5' : 'border-t-muted'}`}
                   >
-                    <CardContent className="pt-4 pb-4 text-center space-y-1">
-                      <div className="text-2xl">{room.icon}</div>
-                      <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
-                      <p className="text-xs font-semibold truncate">{room.label}</p>
-                      {loading ? (
-                        <Badge variant="outline" className="text-[10px] animate-pulse">Membaca...</Badge>
-                      ) : d ? (
-                        <>
-                          <p className="text-lg font-mono font-bold">{d.suhu}°C</p>
-                          {d.rh != null && <p className="text-[10px] text-muted-foreground">RH {d.rh}%</p>}
-                          <Badge className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0">✓ Done</Badge>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-muted-foreground">Tap untuk foto</p>
-                          <Badge variant="outline" className="text-[10px]">Belum</Badge>
-                        </>
+                    <CardContent className="pt-3 pb-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{room.icon}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{room.label}</p>
+                          <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
+                        </div>
+                        {saved && (
+                          <Badge className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0 ml-auto shrink-0">✓ Tersimpan</Badge>
+                        )}
+                      </div>
+                      {saved && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-mono font-semibold text-foreground">{d!.suhu}°C</span>
+                          {d!.rh != null && <span className="font-mono">RH {d!.rh}%</span>}
+                          {ok !== null && (
+                            <Badge variant={ok ? 'default' : 'outline'} className={`text-[10px] ${ok ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'border-amber-500 text-amber-600'}`}>
+                              {ok ? 'Normal' : '⚠ Cek'}
+                            </Badge>
+                          )}
+                        </div>
                       )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Suhu (°C)</Label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.1"
+                            placeholder={saved ? `${d!.suhu}` : "0.0"}
+                            value={getFormValue(room.id, 'suhu')}
+                            onChange={e => setFormValue(room.id, 'suhu', e.target.value)}
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                        {room.hasHumidity && (
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">RH (%)</Label>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.1"
+                              placeholder={saved && d!.rh != null ? `${d!.rh}` : "0"}
+                              value={getFormValue(room.id, 'rh')}
+                              onChange={e => setFormValue(room.id, 'rh', e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <Button size="sm" className="w-full h-7 text-xs" onClick={() => handleSaveRoom(room)}>
+                        {saved ? '🔄 Update' : '💾 Simpan'}
+                      </Button>
                     </CardContent>
-                    <input
-                      ref={el => { fileRefs.current[room.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={e => handleFileChange(room, e)}
-                    />
                   </Card>
                 );
               })}
             </div>
           </div>
 
+          {/* Kulkas */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Kulkas</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {ROOMS.filter(r => r.type === 'fridge').map(room => {
                 const d = sessionData[room.id];
-                const loading = loadingRoom === room.id;
+                const saved = !!d;
+                const ok = d ? isNormal(d.suhu, room.type) : null;
                 return (
                   <Card
                     key={room.id}
-                    className={`cursor-pointer transition-all hover:shadow-md border-t-[3px] border-t-blue-500 ${d ? 'bg-blue-500/5' : ''}`}
-                    onClick={() => handleCardClick(room)}
+                    className={`border-t-[3px] ${saved ? 'border-t-blue-500 bg-blue-500/5' : 'border-t-muted'}`}
                   >
-                    <CardContent className="pt-4 pb-4 text-center space-y-1">
-                      <div className="text-2xl">{room.icon}</div>
-                      <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
-                      <p className="text-xs font-semibold truncate">{room.label}</p>
-                      {loading ? (
-                        <Badge variant="outline" className="text-[10px] animate-pulse">Membaca...</Badge>
-                      ) : d ? (
-                        <>
-                          <p className="text-lg font-mono font-bold">{d.suhu}°C</p>
-                          <Badge className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-400 border-0">✓ Done</Badge>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-muted-foreground">Tap untuk foto</p>
-                          <Badge variant="outline" className="text-[10px]">Belum</Badge>
-                        </>
+                    <CardContent className="pt-3 pb-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{room.icon}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{room.label}</p>
+                          <p className="text-[10px] font-mono text-muted-foreground">{room.code}</p>
+                        </div>
+                        {saved && (
+                          <Badge className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-400 border-0 ml-auto shrink-0">✓ Tersimpan</Badge>
+                        )}
+                      </div>
+                      {saved && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-mono font-semibold text-foreground">{d!.suhu}°C</span>
+                          {ok !== null && (
+                            <Badge variant={ok ? 'default' : 'outline'} className={`text-[10px] ${ok ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'border-amber-500 text-amber-600'}`}>
+                              {ok ? 'Normal' : '⚠ Cek'}
+                            </Badge>
+                          )}
+                        </div>
                       )}
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Suhu (°C)</Label>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.1"
+                          placeholder={saved ? `${d!.suhu}` : "0.0"}
+                          value={getFormValue(room.id, 'suhu')}
+                          onChange={e => setFormValue(room.id, 'suhu', e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <Button size="sm" className="w-full h-7 text-xs" onClick={() => handleSaveRoom(room)}>
+                        {saved ? '🔄 Update' : '💾 Simpan'}
+                      </Button>
                     </CardContent>
-                    <input
-                      ref={el => { fileRefs.current[room.id] = el; }}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={e => handleFileChange(room, e)}
-                    />
                   </Card>
                 );
               })}
             </div>
+          </div>
+
+          {/* Bulk actions */}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSaveAll} className="flex-1">
+              💾 Simpan Semua
+            </Button>
+            {doneCount > 0 && (
+              <Button variant="outline" size="sm" className="text-destructive" onClick={() => { clearSession(); setFormValues({}); toast.success('Sesi direset'); }}>
+                🗑 Reset Sesi
+              </Button>
+            )}
           </div>
 
           {/* Session log */}
@@ -389,20 +403,14 @@ export default function MonitorSuhu() {
               </CardContent>
             </Card>
           )}
-
-          {doneCount > 0 && (
-            <Button variant="outline" size="sm" className="text-destructive" onClick={() => { clearSession(); toast.success('Sesi direset'); }}>
-              🗑 Reset Sesi
-            </Button>
-          )}
         </TabsContent>
 
         {/* TAB GRAFIK */}
         <TabsContent value="grafik" className="space-y-4">
           {doneCount === 0 ? (
             <Card className="p-12 text-center">
-              <Camera size={40} className="mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">📷 Input data di tab Input dulu</p>
+              <Thermometer size={40} className="mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">✏️ Isi data suhu di tab Input dulu</p>
             </Card>
           ) : (
             <>
@@ -540,42 +548,6 @@ export default function MonitorSuhu() {
         </TabsContent>
       </Tabs>
 
-      {/* CONFIRM DIALOG */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base">{activeRoom?.icon} {activeRoom?.label}</DialogTitle>
-            <DialogDescription className="text-xs">Konfirmasi hasil pembacaan</DialogDescription>
-          </DialogHeader>
-          {previewImg && <img src={previewImg} alt="preview" className="rounded-lg max-h-[200px] w-full object-contain bg-muted" />}
-          {aiResult && (
-            <Badge className={`text-[10px] w-fit ${aiResult.confidence >= 0.7 ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-0' : 'bg-amber-500/20 text-amber-600 border-0'}`}>
-              {aiResult.confidence >= 0.7 ? '✦ Terbaca AI — periksa sebelum simpan' : '⚠ Kepercayaan rendah'}
-            </Badge>
-          )}
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Suhu (°C) *</Label>
-              <Input type="number" inputMode="decimal" step="0.1" value={confirmSuhu} onChange={e => setConfirmSuhu(e.target.value)} placeholder="Contoh: 24.5" className="font-mono mt-1" />
-            </div>
-            {activeRoom?.hasHumidity && (
-              <div>
-                <Label className="text-xs">Kelembapan / RH (%)</Label>
-                <Input type="number" inputMode="decimal" step="0.1" value={confirmRh} onChange={e => setConfirmRh(e.target.value)} placeholder="Contoh: 55" className="font-mono mt-1" />
-              </div>
-            )}
-            <div>
-              <Label className="text-xs">Catatan (opsional)</Label>
-              <Textarea value={confirmCatatan} onChange={e => setConfirmCatatan(e.target.value)} placeholder="Catatan tambahan..." className="mt-1" rows={2} />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Batal</Button>
-            <Button onClick={handleConfirmSave}>Simpan ✓</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* SETTINGS DIALOG */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-sm">
@@ -584,11 +556,6 @@ export default function MonitorSuhu() {
             <DialogDescription className="text-xs">Konfigurasi endpoint dan batas normal</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label className="text-xs">GAS URL — AI Vision</Label>
-              <Input value={sGasAi} onChange={e => setSGasAi(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" className="mt-1 text-xs" />
-              <p className="text-[10px] text-muted-foreground mt-1">Endpoint GAS foto → Gemini Flash 2.5</p>
-            </div>
             <div>
               <Label className="text-xs">GAS URL — Simpan Data</Label>
               <Input value={sGasSave} onChange={e => setSGasSave(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" className="mt-1 text-xs" />
