@@ -545,10 +545,12 @@ function usePenjaminList() {
   }, [rows]);
 
   const allList: PenjaminEntry[] = useMemo(() => [
-    ...BUILTIN_PENJAMIN.map(p => ({
-      nama: nameOverrides[p.nama] ?? p.nama,
-      badge: badgeOverrides[p.nama] ?? p.badge,
-    })),
+    ...BUILTIN_PENJAMIN
+      .filter(p => badgeOverrides[p.nama] !== '__hidden__')
+      .map(p => ({
+        nama: nameOverrides[p.nama] ?? p.nama,
+        badge: badgeOverrides[p.nama] ?? p.badge,
+      })),
     ...custom
       .filter(c => !BUILTIN_PENJAMIN.some(b => b.nama === c.nama))
       .map(c => ({ ...c, badge: badgeOverrides[c.nama] ?? c.badge })),
@@ -575,8 +577,28 @@ function usePenjaminList() {
       toast.error('Hanya developer yang bisa menghapus penjamin');
       return;
     }
-    const row = rows.find(r => r.is_custom && r.new_name === nama);
-    if (row) deleteMutation.mutate(row.id);
+    // Custom entry: delete langsung
+    const customRow = rows.find(r => r.is_custom && r.new_name === nama);
+    if (customRow) {
+      deleteMutation.mutate(customRow.id);
+      return;
+    }
+    // Builtin entry: simpan sebagai hide override (badge = '__hidden__')
+    const origKey = Object.entries(nameOverrides).find(([, v]) => v === nama)?.[0] || nama;
+    if (BUILTIN_PENJAMIN.some(p => p.nama === origKey)) {
+      const id = `ov-${origKey}`;
+      const existing = rows.find(r => r.id === id);
+      const row: PenjaminOverrideRow = {
+        id,
+        original_name: origKey,
+        new_name: existing?.new_name || null,
+        badge: '__hidden__',
+        is_custom: false,
+        created_at: existing?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      saveMutation.mutate(row);
+    }
   };
 
   const editBadge = (nama: string, badge: string) => {
@@ -1207,16 +1229,16 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
                   title={canManage ? 'Klik untuk edit nama' : p.nama}
                 >{p.nama}</span>
               )}
-              {isBuiltin(p.nama)
-                ? <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
-                : canManage ? (
-                  <Button variant="ghost" size="icon"
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
-                    onClick={() => { onRemove(p.nama); toast.success(`${p.nama} dihapus dari list`); }}>
-                    <Trash2 className="w-2.5 h-2.5" />
-                  </Button>
-                ) : null
-              }
+              {isBuiltin(p.nama) && (
+                <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
+              )}
+              {canManage && (
+                <Button variant="ghost" size="icon"
+                  className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 shrink-0"
+                  onClick={() => { onRemove(p.nama); toast.success(`${p.nama} dihapus dari list`); }}>
+                  <Trash2 className="w-2.5 h-2.5" />
+                </Button>
+              )}
             </div>
           ))}
           {filtered.length === 0 && (
