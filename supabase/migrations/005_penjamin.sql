@@ -16,7 +16,7 @@ update profiles set role = 'developer' where username = 'rama';
 
 -- ─── Penjamin Overrides Table ────────────────────────────────────────────────
 
-create table penjamin_overrides (
+create table if not exists penjamin_overrides (
   id text primary key,                    -- client-generated: 'ov-{original_name}' or 'cu-{new_name}'
   original_name text,                     -- builtin name; NULL for custom entries
   new_name text,                          -- display name; NULL if not renamed
@@ -31,11 +31,11 @@ comment on table penjamin_overrides is
   'Custom penjamin entries and overrides (rename/badge) for built-in penjamin list';
 
 -- One override row per builtin name (prevent duplicate override rows)
-create unique index idx_po_original on penjamin_overrides(original_name)
+create unique index if not exists idx_po_original on penjamin_overrides(original_name)
   where is_custom = false;
 
 -- Custom display names must be unique (mirrors addPenjamin dedup)
-create unique index idx_po_custom_name on penjamin_overrides(new_name)
+create unique index if not exists idx_po_custom_name on penjamin_overrides(new_name)
   where is_custom = true;
 
-create index idx_po_is_custom on penjamin_overrides(is_custom);
+create index if not exists idx_po_is_custom on penjamin_overrides(is_custom);
