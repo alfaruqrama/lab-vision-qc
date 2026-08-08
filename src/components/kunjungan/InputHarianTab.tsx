@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import * as XLSX from 'xlsx';
 import { PENJAMIN_KEY, BADGE_OVERRIDE_KEY, NAME_OVERRIDE_KEY, migrateLocalPenjaminData } from '@/lib/penjamin-api';
 import { usePenjaminOverrides, useSavePenjaminOverride, useDeletePenjaminOverride } from '@/features/kunjungan/hooks/usePenjaminOverrides';
+import { useDraft, useSaveDraft, useDeleteDraft, useAllDrafts } from '@/features/kunjungan/hooks/useDraft';
 import type { PenjaminOverrideRow } from '@/lib/penjamin-types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1110,6 +1111,121 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
   );
 }
 
+// ─── Load Draft Modal ─────────────────────────────────────────────────────────
+
+function LoadDraftModal({ drafts, isLoading, currentTanggal, hasCurrentData, onLoad, onDelete, onClose }: {
+  drafts: Array<{ id: string; tanggal: string; kunjungan: any[]; mcu: any[]; updated_at: string }>;
+  isLoading: boolean;
+  currentTanggal: string;
+  hasCurrentData: boolean;
+  onLoad: (d: { tanggal: string; kunjungan: any[]; mcu: any[] }) => void;
+  onDelete: (tanggal: string) => void;
+  onClose: () => void;
+}) {
+  const formatTgl = (iso: string) => {
+    try {
+      const [y, m, d] = iso.split('-');
+      return `${parseInt(d)}/${parseInt(m)}/${y}`;
+    } catch { return iso; }
+  };
+
+  const formatTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+    } catch { return iso; }
+  };
+
+  const handleLoad = (draft: typeof drafts[0]) => {
+    if (hasCurrentData && draft.tanggal !== currentTanggal) {
+      if (!confirm('Data saat ini belum disimpan. Muat draft dan timpa data yang ada?')) return;
+    }
+    onLoad(draft);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-bold flex items-center gap-2">
+            <Download className="w-4 h-4" /> Load Draft
+          </h2>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : drafts.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <p className="text-sm text-muted-foreground">Belum ada draft tersimpan</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Simpan draft dengan tombol "Save Draft" terlebih dahulu
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {drafts.map((draft) => {
+                const kunjTotal = (draft.kunjungan || []).reduce(
+                  (s: number, r: any) => s + (r.total || 0), 0,
+                );
+                const mcuTotal = (draft.mcu || []).reduce(
+                  (s: number, r: any) => s + (r.peserta || 0), 0,
+                );
+                const isCurrent = draft.tanggal === currentTanggal;
+
+                return (
+                  <div key={draft.id}
+                    className={`flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors ${isCurrent ? 'bg-accent/5' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold">
+                          {formatTgl(draft.tanggal)}
+                        </p>
+                        {isCurrent && (
+                          <span className="text-[8px] px-1 py-0.5 rounded bg-accent/10 text-accent font-medium">
+                            saat ini
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {kunjTotal} kunjungan · {mcuTotal} MCU · {formatTime(draft.updated_at)}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost" size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => onDelete(draft.tanggal)}
+                        title="Hapus draft">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      <Button size="sm" className="h-7 text-xs"
+                        onClick={() => handleLoad(draft)}>
+                        Muat
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="px-4 py-2 border-t border-border text-[9px] text-muted-foreground">
+          {drafts.length} draft tersimpan
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
 function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin, canManage }: {
@@ -1297,6 +1413,64 @@ export default function InputHarianTab() {
   const [lapCheckData, setLapCheckData] = useState<CheckData>(null);
   const openAdminSettings = () => setShowSettings(true);
 const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
+
+  // ── Draft Supabase ──────────────────────────────────────────────────────────
+  const draftQuery = useDraft(tanggal);
+  const allDraftsQuery = useAllDrafts();
+  const saveDraftMutation = useSaveDraft();
+  const deleteDraftMutation = useDeleteDraft();
+  const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
+  const [showLoadDraft, setShowLoadDraft] = useState(false);
+  const draftLoadedFromServer = useRef(false); // cegah banner muncul lagi setelah load
+
+  // Cek draft dari server saat tanggal berubah
+  useEffect(() => {
+    setDraftBannerDismissed(false);
+    draftLoadedFromServer.current = false;
+  }, [tanggal]);
+
+  // Tawarkan load draft jika ada di server & state masih default
+  const hasUserData = useMemo(
+    () => hasData(kunjungan, mcu),
+    [kunjungan, mcu],
+  );
+  const serverDraftAvailable =
+    !draftBannerDismissed &&
+    !draftLoadedFromServer.current &&
+    draftQuery.data &&
+    (draftQuery.data.kunjungan?.length > 0 || draftQuery.data.mcu?.length > 0) &&
+    !hasUserData;
+
+  const handleLoadServerDraft = () => {
+    if (!draftQuery.data) return;
+    const { kunjungan: dKunjungan, mcu: dMcu } = draftQuery.data;
+    // Merge: server draft sebagai base, tapi pertahankan struktur default rows
+    // Replace seluruh state dengan server draft
+    if (dKunjungan?.length) setKunjungan(dKunjungan);
+    if (dMcu?.length) setMcu(dMcu);
+    draftLoadedFromServer.current = true;
+    setDraftBannerDismissed(true);
+    toast.success('Draft dari server dimuat');
+  };
+
+  const handleDismissBanner = () => {
+    setDraftBannerDismissed(true);
+  };
+
+  const handleSaveDraft = () => {
+    saveDraftMutation.mutate({ tanggal, kunjungan, mcu });
+  };
+
+  // Indikator sync: apakah data saat ini sudah disimpan ke server?
+  const isDraftSynced = useMemo(() => {
+    if (!draftQuery.data) return false;
+    const server = draftQuery.data;
+    const kunjunganMatch =
+      JSON.stringify(server.kunjungan) === JSON.stringify(kunjungan);
+    const mcuMatch =
+      JSON.stringify(server.mcu) === JSON.stringify(mcu);
+    return kunjunganMatch && mcuMatch;
+  }, [draftQuery.data, kunjungan, mcu]);
 
   // Tanggal validation
   const isToday = tanggal === todayISO();
@@ -1596,6 +1770,8 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
       toast.error('Tidak ada GAS URL yang diset (VITE_GAS_INPUT_URL / VITE_GAS_LAPORAN_URL)');
     } else if (failCount === 0) {
       const unverified = results.filter(r => !r.verified).map(r => r.label);
+      // Hapus draft dari Supabase setelah submit sukses
+      deleteDraftMutation.mutate(tanggal);
       if (unverified.length > 0) {
         toast.warning(`⚠️ Data terkirim tapi verifikasi gagal untuk: ${unverified.join(', ')}. Cek sheet manual.`, { duration: 8000 });
       } else {
@@ -1669,6 +1845,31 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
           onEditBadge={editBadge} onEditNama={editNama}
           onClose={() => setShowSettings(false)} isBuiltin={isBuiltin}
           canManage={canManage}
+        />
+      )}
+
+      {/* Load Draft Modal */}
+      {showLoadDraft && (
+        <LoadDraftModal
+          drafts={allDraftsQuery.data || []}
+          isLoading={allDraftsQuery.isLoading}
+          currentTanggal={tanggal}
+          hasCurrentData={hasUserData}
+          onLoad={({ tanggal: tgl, kunjungan: dKunj, mcu: dMcu }) => {
+            setTanggal(tgl);
+            if (dKunj?.length) setKunjungan(dKunj);
+            if (dMcu?.length) setMcu(dMcu);
+            draftLoadedFromServer.current = true;
+            setDraftBannerDismissed(true);
+            setShowLoadDraft(false);
+            toast.success(`Draft ${tgl} dimuat`);
+          }}
+          onDelete={(tgl) => {
+            if (confirm(`Hapus draft tanggal ${tgl}?`)) {
+              deleteDraftMutation.mutate(tgl);
+            }
+          }}
+          onClose={() => setShowLoadDraft(false)}
         />
       )}
 
@@ -1895,13 +2096,55 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
 
       <div className="space-y-3 page-transition">
 
+        {/* Server Draft Banner */}
+        {serverDraftAvailable && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
+            <div className="flex items-center gap-2">
+              <Save className="w-4 h-4 text-amber-600" />
+              <div>
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                  Draft tersimpan ditemukan untuk tanggal {tanggal}
+                </p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Data dari shift sebelumnya tersedia. Muat untuk melanjutkan.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <Button variant="outline" size="sm" className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
+                onClick={handleDismissBanner}>
+                Abaikan
+              </Button>
+              <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleLoadServerDraft}>
+                Muat Draft
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Topbar */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs text-muted-foreground">Tanggal</label>
-            <div className="relative">
-              <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
-                className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isElevated ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground">Tanggal</label>
+              <div className="relative">
+                <Input type="date" value={tanggal} onChange={e=>setTanggal(e.target.value)}
+                  className={`w-36 text-xs h-7 ${!isToday ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-600' : ''} ${isFuture && !isElevated ? 'border-red-400 bg-red-50 dark:bg-red-950/30 dark:border-red-600' : ''}`} />
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2"
+                onClick={handleSaveDraft} disabled={saveDraftMutation.isPending}>
+                <Save className="w-3 h-3 mr-1" />
+                {saveDraftMutation.isPending ? '...' : 'Save'}
+              </Button>
+              {user?.role !== 'viewer' && (
+                <Button variant="outline" size="sm" className="h-6 text-[10px] px-2"
+                  onClick={() => setShowLoadDraft(true)}>
+                  <Download className="w-3 h-3 mr-1" /> Load
+                </Button>
+              )}
             </div>
           </div>
           {!isToday && !isFuture && (
@@ -1914,8 +2157,11 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
               <ShieldAlert className="w-2.5 h-2.5" /> Tanggal masa depan{isElevated ? ' (admin override)' : ' — tidak bisa submit'}
             </span>
           )}
-          <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-            <Save className="w-2.5 h-2.5" /> Draft tersimpan otomatis
+          <span className="text-[9px] flex items-center gap-1">
+            <Save className="w-2.5 h-2.5" />
+            {isDraftSynced
+              ? <span className="text-emerald-600">Tersimpan di server</span>
+              : <span className="text-muted-foreground">Draft tersimpan otomatis</span>}
           </span>
           <div className="ml-auto"><ActionButtons /></div>
         </div>

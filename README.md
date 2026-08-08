@@ -10,11 +10,12 @@ Sistem informasi laboratorium terintegrasi untuk Pemantapan Mutu Internal (PMI),
 |-------|-----------|--------|
 | **QC / PMI** | Input kontrol harian, grafik Levey-Jennings, laporan bulanan | ✅ Production Ready |
 | **Monitor Suhu** | Pemantauan suhu peralatan laboratorium | ✅ Production Ready |
-| **Kunjungan** | Dashboard statistik kunjungan pasien | ✅ Production Ready |
+| **Kunjungan** | Input harian, laporan WA, draft save/load (Supabase), export Excel | ✅ Production Ready |
 | **TCM Form** | Formulir pengiriman spesimen (akses publik) | ✅ Production Ready |
 | **Maintenance** | Checklist harian/berkala alat lab, Uji Fungsi, riwayat | ✅ Production Ready |
 | **B3** | Manajemen Bahan Berbahaya dan Beracun (inventory, pemakaian, limbah) | ✅ Production Ready |
 | **Admin** | Manajemen user & role-based access | ✅ Production Ready |
+| **Penjamin** | Manajemen penjamin via Supabase (CRUD, badge override, rename) | ✅ Production Ready |
 | **AI Extraction** | Scan struk QC otomatis via Gemini AI | ⚠️ In Progress |
 
 ---
@@ -23,13 +24,14 @@ Sistem informasi laboratorium terintegrasi untuk Pemantapan Mutu Internal (PMI),
 
 | Layer | Teknologi |
 |-------|-----------|
-| Frontend | React 18 · TypeScript · Vite |
+| Frontend | React 18 · TypeScript · Vite · React Query |
 | UI | Tailwind CSS · shadcn/ui · Recharts |
 | Backend | Supabase (PostgreSQL + Edge Functions) |
 | AI | Google Gemini 2.5 Flash Lite |
 | Auth | Custom (bcrypt + UUID session tokens) |
 | Deploy | Vercel (frontend) · Supabase (backend) |
 | Export | XLSX · DOCX |
+| GAS | Google Apps Script (kunjungan & laporan harian) |
 
 ---
 
@@ -86,12 +88,14 @@ src/
 │   │   ├── components/ # QCRecordCard, LotExpiryBanner, dll
 │   │   ├── hooks/      # useAIExtraction, useQCRecords, useQCConfig
 │   │   └── lib/        # constants (instrument labels, icons, colors)
+│   ├── kunjungan/
+│   │   └── hooks/      # usePenjaminOverrides, useDraft
 │   ├── maintenance/
 │   │   ├── components/ # ChecklistForm, UjiFungsiForm, HistoryTable, dll
 │   │   ├── hooks/      # useMaintenanceRecords
 │   │   └── lib/        # constants (alat labels, templates checklist)
 ├── hooks/              # use-auth, use-qc-store, use-suhu-store
-├── lib/                # api, auth-api, types, lot-expiry, westgard
+├── lib/                # api, auth-api, penjamin-api, draft-api, types
 ├── pages/
 │   ├── InputQC/        # Multi-step QC input form
 │   ├── Dashboard.tsx   # QC dashboard
@@ -117,7 +121,11 @@ supabase/
 │   └── extract-qc/     # AI extraction Edge Function (Gemini)
 ├── migrations/
 │   ├── 001_initial.sql
-│   └── 002_qc_ai_logs.sql
+│   ├── 002_qc_ai_logs.sql
+│   ├── 003_maintenance.sql
+│   ├── 004_transfusi_documents.sql
+│   ├── 005_penjamin.sql
+│   └── 006_input_drafts.sql
 └── config.toml
 ```
 
@@ -136,6 +144,7 @@ supabase/
 | `/qc/report` | Auth | Laporan bulanan |
 | `/qc/config` | admin, petugas | Konfigurasi lot |
 | `/kunjungan` | Auth | Dashboard kunjungan |
+| `/kunjungan/input` | admin, petugas, developer | Input harian & laporan |
 | `/suhu` | Auth | Monitor suhu |
 | `/maintenance` | Auth | Dashboard maintenance |
 | `/maintenance/harian` | admin, petugas | Checklist harian alat |
@@ -160,22 +169,25 @@ Sistem menggunakan **custom auth** (bukan Supabase Auth bawaan):
 - Session token berupa **UUID** disimpan di tabel `sessions`
 - Token disimpan di `localStorage` dengan key `lab-portal-auth`
 - Session duration: **4 jam**
-- Role: `admin` · `petugas` · `viewer`
+- Role: `admin` · `petugas` · `viewer` · `developer`
 
 ---
 
 ## Database Schema
 
 ```sql
-profiles     -- User accounts
-sessions     -- Auth tokens (UUID, expires_at)
-qc_records   -- QC data harian (params & status sebagai JSONB)
-lot_config   -- Konfigurasi lot kontrol per instrumen
-qc_ai_logs   -- AI extraction logs + rate limiting (20/user/hari)
+profiles           -- User accounts (role: admin, petugas, viewer, developer)
+sessions           -- Auth tokens (UUID, expires_at)
+qc_records         -- QC data harian (params & status sebagai JSONB)
+lot_config         -- Konfigurasi lot kontrol per instrumen
+qc_ai_logs         -- AI extraction logs + rate limiting (20/user/hari)
 maintenance_records -- Data checklist maintenance alat lab
-b3_inventory -- Inventori B3
-b3_pemakaian -- Log pemakaian B3
-b3_limbah    -- Log pembuangan limbah B3
+penjamin_overrides -- Custom penjamin entries & overrides (badge, rename)
+input_drafts       -- Draft input harian (Supabase) untuk shift handoff
+transfusion_documents -- Dokumen transfusi (drive file ID, metadata)
+b3_inventory       -- Inventori B3
+b3_pemakaian       -- Log pemakaian B3
+b3_limbah          -- Log pembuangan limbah B3
 ```
 
 ---

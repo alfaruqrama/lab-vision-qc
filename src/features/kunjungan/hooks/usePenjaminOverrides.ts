@@ -32,9 +32,10 @@ export function usePenjaminOverrides() {
     queryKey: penjaminKeys.all,
     queryFn: fetchPenjaminOverrides,
     initialData: loadLocalRowsSafe,
-    staleTime: 30_000,
+    staleTime: 0, // selalu refetch agar data antar device sinkron
     gcTime: 5 * 60_000,
-    refetchOnWindowFocus: isConnected(),
+    refetchOnWindowFocus: true,
+    refetchInterval: 15_000, // polling tiap 15 detik untuk sinkronisasi antar device
   });
 }
 
