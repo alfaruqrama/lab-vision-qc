@@ -3,14 +3,12 @@ import { isConnected } from '@/lib/api';
 import { saveDraft, fetchDraft, fetchAllDrafts, deleteDraft } from '@/lib/draft-api';
 import { toast } from 'sonner';
 
-// ─── Query Keys ──────────────────────────────────────────────────────────────
 
 export const draftKeys = {
   all: ['input-drafts'] as const,
   byTanggal: (tanggal: string) => ['input-draft', tanggal] as const,
 };
 
-// ─── Query ───────────────────────────────────────────────────────────────────
 
 export function useDraft(tanggal: string) {
   return useQuery({
@@ -21,7 +19,6 @@ export function useDraft(tanggal: string) {
   });
 }
 
-// ─── Mutations ───────────────────────────────────────────────────────────────
 
 export function useSaveDraft() {
   const queryClient = useQueryClient();

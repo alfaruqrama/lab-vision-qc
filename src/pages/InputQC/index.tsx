@@ -9,13 +9,6 @@ import { StepIndicator } from './StepIndicator';
 import { StepLevel } from './StepLevel';
 import { StepForm } from './StepForm';
 
-/**
- * InputQC page — Multi-step wizard for entering daily QC data.
- * 
- * Step 1: Select instrument
- * Step 2: Select control level (skipped for CA660 & EASYLITE)
- * Step 3: Enter parameter values + optional AI photo extraction
- */
 export default function InputQC() {
   const navigate = useNavigate();
   const { canAccess } = useAuth();

@@ -102,13 +102,11 @@ async function saveConfig(config: LotConfig): Promise<LotConfig> {
   }
 }
 
-// ─── Query Keys ──────────────────────────────────────────────────────────────
 
 export const qcConfigKeys = {
   all: ['qc-config'] as const,
 };
 
-// ─── Hooks ───────────────────────────────────────────────────────────────────
 
 /**
  * Fetch lot configuration with React Query caching.

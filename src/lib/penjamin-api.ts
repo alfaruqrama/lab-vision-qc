@@ -8,14 +8,12 @@ import type { PenjaminOverrideRow } from './penjamin-types';
  * Migrates from browser-only localStorage to shared Supabase storage.
  */
 
-// ─── localStorage Keys (moved from InputHarianTab) ─────────────────────────
 
 export const PENJAMIN_KEY = 'penjamin-list-custom';
 export const BADGE_OVERRIDE_KEY = 'penjamin-badge-overrides';
 export const NAME_OVERRIDE_KEY = 'penjamin-name-overrides';
 const MIGRATION_FLAG = 'penjamin-migrated-v1';
 
-// ─── Supabase API ──────────────────────────────────────────────────────────
 
 export async function fetchPenjaminOverrides(): Promise<PenjaminOverrideRow[]> {
   if (!isConnected()) {
@@ -125,7 +123,6 @@ export async function savePenjaminOverrideBulk(
   }
 }
 
-// ─── localStorage ↔ Rows Transform ─────────────────────────────────────────
 
 export function localToRows(): PenjaminOverrideRow[] {
   const rows: PenjaminOverrideRow[] = [];
@@ -211,7 +208,6 @@ export function rowsToLocal(rows: PenjaminOverrideRow[]): void {
   localStorage.setItem(PENJAMIN_KEY, JSON.stringify(custom));
 }
 
-// ─── One-time Migration ────────────────────────────────────────────────────
 
 export async function migrateLocalPenjaminData(): Promise<void> {
   if (!isConnected()) return;

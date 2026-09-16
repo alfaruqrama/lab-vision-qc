@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Settings, Download, Printer, Thermometer } from 'lucide-react';
+import { Settings, Download, Printer, Thermometer, LineChart, PenLine, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +56,7 @@ function exportCSV(sessionData: Record<string, SuhuEntry>, petugas: string) {
   const a = Object.assign(document.createElement('a'), { href: url, download: `Suhu_${dd}-${mm}-${yyyy}.csv` });
   a.click();
   URL.revokeObjectURL(url);
-  toast.success('CSV berhasil diunduh ✓');
+  toast.success('CSV berhasil diunduh');
 }
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -116,7 +116,7 @@ export default function MonitorSuhu() {
     }
 
     saveEntry(room.id, entry, room.label, room.code);
-    toast.success(`✓ ${room.label} tersimpan`);
+    toast.success(`${room.label} tersimpan`);
   };
 
   const handleSaveAll = async () => {
@@ -143,7 +143,7 @@ export default function MonitorSuhu() {
       saved++;
     }
     if (saved > 0) {
-      toast.success(`✓ ${saved} lokasi tersimpan`);
+      toast.success(`${saved} lokasi tersimpan`);
     } else {
       toast.error('Tidak ada data suhu yang diisi');
     }
@@ -153,7 +153,7 @@ export default function MonitorSuhu() {
     localStorage.setItem('suhu_gas_save', sGasSave);
     localStorage.setItem('suhu_batas_ruang', sBatasRuang);
     localStorage.setItem('suhu_batas_kulkas', sBatasKulkas);
-    toast.success('Pengaturan disimpan ✓');
+    toast.success('Pengaturan disimpan');
     setSettingsOpen(false);
   };
 
@@ -192,8 +192,8 @@ export default function MonitorSuhu() {
 
       <Tabs defaultValue="input">
         <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="input">✏️ Input</TabsTrigger>
-          <TabsTrigger value="grafik">📊 Grafik</TabsTrigger>
+          <TabsTrigger value="input" className="gap-1.5"><Pencil className="w-3 h-3" /> Input</TabsTrigger>
+          <TabsTrigger value="grafik" className="gap-1.5"><LineChart className="w-3 h-3" /> Grafik</TabsTrigger>
           <TabsTrigger value="laporan">📄 Laporan</TabsTrigger>
         </TabsList>
 
@@ -410,7 +410,7 @@ export default function MonitorSuhu() {
           {doneCount === 0 ? (
             <Card className="p-12 text-center">
               <Thermometer size={40} className="mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">✏️ Isi data suhu di tab Input dulu</p>
+              <p className="text-sm text-muted-foreground">Isi data suhu di tab Input dulu</p>
             </Card>
           ) : (
             <>

@@ -1,7 +1,6 @@
 import type { ZScorePoint } from './zscore';
 import type { ControlLevel } from './types';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type RuleStatus = 'ok' | 'warning' | 'oos';
 
@@ -34,14 +33,12 @@ export interface MultiLevelAnalysis {
   timestamp: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const SHIFT_THRESHOLD = 6;  // consecutive points on one side → shift
 const TREND_THRESHOLD = 7;  // monotonic points → trend
 const BIAS_TOTAL = 10;      // min total points for bias detection
 const BIAS_RATIO = 0.8;     // 8+ out of 10 on one side → bias
 
-// ─── Core Analysis ────────────────────────────────────────────────────────────
 
 /**
  * Full multi-level QC analysis — generalized for 2 or 3 levels.
@@ -89,7 +86,6 @@ export function analyzeMultiLevel(
   };
 }
 
-// ─── Rule Scanning ────────────────────────────────────────────────────────────
 
 function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   const rules: RuleViolation[] = [];
@@ -186,7 +182,6 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   return rules;
 }
 
-// ─── R-4s Cross-Level Rule (generalized for N levels) ─────────────────────────
 
 export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): RuleViolation[] {
   const levels = Object.keys(levelPoints) as ControlLevel[];
@@ -227,7 +222,6 @@ export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): Rul
   return violations;
 }
 
-// ─── Pattern Detection ────────────────────────────────────────────────────────
 
 function detectPatterns(points: ZScorePoint[], level: string): PatternResult[] {
   const patterns: PatternResult[] = [];
@@ -317,7 +311,6 @@ function detectPatterns(points: ZScorePoint[], level: string): PatternResult[] {
   return patterns;
 }
 
-// ─── Cross-Level Analysis (generalized for N levels) ──────────────────────────
 
 function analyzeCrossLevel(
   levelPoints: Record<ControlLevel, ZScorePoint[]>,
@@ -403,7 +396,6 @@ function analyzeCrossLevel(
   return { type, summary, details };
 }
 
-// ─── Recommendation Generator ─────────────────────────────────────────────────
 
 function generateRecommendation(
   rules: RuleViolation[],

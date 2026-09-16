@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { getExpiryStatus, EXPIRY_LABELS, EXPIRY_COLORS, parseHazardClasses, HAZARD_CONFIG } from '@/lib/b3-types';
 import type { B3Material, B3Stock, B3Pemakaian, B3Limbah } from '@/lib/b3-types';
 
-// ─── Stat Card ───
 function StatCard({ label, value, sub, icon: Icon, color, onClick }: {
   label: string; value: string | number; sub?: string; icon: any; color: string; onClick?: () => void;
 }) {
@@ -30,7 +29,6 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick }: {
   );
 }
 
-// ─── Alert Item ───
 function AlertItem({ icon: Icon, title, desc, color, onClick }: {
   icon: any; title: string; desc: string; color: string; onClick?: () => void;
 }) {
@@ -74,7 +72,6 @@ export default function B3Dashboard() {
     );
   }
 
-  // ─── Compute alerts ───
   const lowStockItems: { mat: B3Material; stock: number }[] = [];
   materials.forEach(m => {
     const total = stockEntries

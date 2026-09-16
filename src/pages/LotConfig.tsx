@@ -33,7 +33,6 @@ type ParamConfigExt = ParamConfig & {
   cv?: number;
 };
 
-// ─── Reusable ParamRow ───────────────────────────────────────────────────────
 
 function ParamRow({
   label,
@@ -134,7 +133,6 @@ function ParamRow({
   );
 }
 
-// ─── Generic Lot Card ────────────────────────────────────────────────────────
 
 interface LotCardProps {
   instrument: InstrumentType;
@@ -222,7 +220,6 @@ function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onD
   );
 }
 
-// ─── Param Table ─────────────────────────────────────────────────────────────
 
 const MODE_LABELS: Record<InputMode, string> = {
   mean: 'Mean + SD',
@@ -284,7 +281,6 @@ function ParamTable({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function LotConfigPage() {
   const { config, updateConfig } = useQCStore();

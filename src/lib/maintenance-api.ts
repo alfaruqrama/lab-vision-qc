@@ -8,7 +8,6 @@ import type { MaintenanceRecord, UjiFungsiRecord, LaporanValidasi } from './main
  * Replaces the Google Sheets (GAS) API layer.
  */
 
-// ─── Maintenance Records ─────────────────────────────────────────────────
 
 export async function fetchRecords(
   alat?: string,
@@ -88,7 +87,6 @@ export async function deleteRecord(id: string): Promise<void> {
   }
 }
 
-// ─── Uji Fungsi Records ──────────────────────────────────────────────────
 
 export async function fetchUjiFungsi(
   alat: string,
@@ -189,7 +187,6 @@ export async function deleteUjiFungsi(id: string): Promise<void> {
   }
 }
 
-// ─── Laporan Validasi ────────────────────────────────────────────────────
 
 export async function fetchLaporanValidasi(
   alat: string,

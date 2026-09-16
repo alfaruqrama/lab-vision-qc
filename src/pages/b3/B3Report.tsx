@@ -7,7 +7,6 @@ import * as XLSX from 'xlsx';
 
 type TabType = 'stock' | 'pemakaian' | 'limbah' | 'rekapan';
 
-// ─── Month options ───
 function useMonthOptions() {
   return useMemo(() => {
     const options = [];
@@ -22,7 +21,6 @@ function useMonthOptions() {
   }, []);
 }
 
-// ─── Stat Card ───
 function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
     <div className="card-clinical p-4 relative overflow-hidden">
@@ -33,7 +31,6 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
   );
 }
 
-// ─── Tab button ───
 function TabBtn({ active, label, icon: Icon, onClick }: { active: boolean; label: string; icon: any; onClick: () => void }) {
   return (
     <button
@@ -48,7 +45,6 @@ function TabBtn({ active, label, icon: Icon, onClick }: { active: boolean; label
   );
 }
 
-// ─── Export Helpers ───
 function exportExcel(data: any[][], sheetName: string, fileName: string) {
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
@@ -92,7 +88,6 @@ export default function B3Report() {
   const [showReport, setShowReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // ─── Filter helpers ───
   const byMonth = (date: string) => (date || '').startsWith(month);
 
   if (!connected) {
@@ -178,7 +173,6 @@ export default function B3Report() {
   );
 }
 
-// ─── STOCK REPORT ───
 function StockReport({ materials, stockEntries }: { materials: any[]; stockEntries: any[] }) {
   const expired = stockEntries.filter((s: any) => getExpiryStatus(s.expiry_date) === 'expired').length;
   const expiringSoon = stockEntries.filter((s: any) => getExpiryStatus(s.expiry_date) === 'expiring-soon').length;
@@ -258,7 +252,6 @@ function StockReport({ materials, stockEntries }: { materials: any[]; stockEntri
   );
 }
 
-// ─── PEMAKAIAN REPORT ───
 function PemakaianReport({ records, month, materials }: { records: any[]; month: string; materials: any[] }) {
   const filtered = records.filter((r: any) => (r.tanggal || '').startsWith(month));
   const totalQty = filtered.reduce((s: number, r: any) => s + r.qty, 0);
@@ -344,7 +337,6 @@ function PemakaianReport({ records, month, materials }: { records: any[]; month:
 // Export references for buttons
 let exportStockFn: any, exportPemakaianFn: any, exportLimbahFn: any, exportRekapanFn: any;
 
-// ─── LIMBAH REPORT (NERACA B3) ───
 function LimbahReport({ records, month, materials }: { records: any[]; month: string; materials: any[] }) {
   const filtered = records.filter((r: any) => (r.tanggal_generasi || '').startsWith(month));
   const totalQty = filtered.reduce((s: number, r: any) => s + r.qty, 0);
@@ -457,7 +449,6 @@ function LimbahReport({ records, month, materials }: { records: any[]; month: st
   );
 }
 
-// ─── REKAPAN REPORT ───
 function RekapanReport({ materials, stockEntries, pemakaianRecords, limbahRecords, month, monthLabel }: {
   materials: any[]; stockEntries: any[]; pemakaianRecords: any[]; limbahRecords: any[]; month: string; monthLabel: string;
 }) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Copy, MessageCircle, Trash2, Plus, Minus, RefreshCw, AlertTriangle, ClipboardList, Smartphone, Sunrise, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -467,7 +467,7 @@ export default function LaporanTab() {
       kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
       kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
 
-  const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('✅ Teks berhasil disalin'); };
+  const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
   const handleClear = () => { localStorage.removeItem(LS_KEY); setForm(defaultForm()); setDraftTime(null); setAutoFields(new Set()); toast.success('Draft dihapus'); };
 
@@ -476,7 +476,7 @@ export default function LaporanTab() {
       {/* LEFT: Form */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold">📋 Input Laporan Harian</h2>
+          <h2 className="text-sm font-bold flex items-center gap-1.5"><ClipboardList className="w-4 h-4" /> Input Laporan Harian</h2>
           <div className="flex items-center gap-2">
             {draftTime && <span className="text-[9px] text-muted-foreground">Draft: {draftTime}</span>}
             <Button variant="ghost" size="sm" onClick={handleClear} className="h-7 px-2 text-[10px]">
@@ -684,23 +684,23 @@ export default function LaporanTab() {
       {/* RIGHT: Preview */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold">📱 Preview Teks WhatsApp</h2>
+          <h2 className="text-sm font-bold flex items-center gap-1.5"><Smartphone className="w-4 h-4" /> Preview Teks WhatsApp</h2>
           <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
             <button
               onClick={() => setReportType('pagi')}
-              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all inline-flex items-center gap-1 ${
                 reportType === 'pagi' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              🌅 Pagi
+              <Sunrise className="w-3 h-3" /> Pagi
             </button>
             <button
               onClick={() => setReportType('siang')}
-              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${
+              className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all inline-flex items-center gap-1 ${
                 reportType === 'siang' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              ☀️ Siang
+              <Sun className="w-3 h-3" /> Siang
             </button>
           </div>
         </div>

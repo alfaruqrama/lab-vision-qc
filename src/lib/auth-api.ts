@@ -11,7 +11,6 @@ import {
 } from './auth-types';
 import { supabase, createSupabaseClient, isSupabaseConfigured } from './supabase';
 
-// ─── Storage ─────────────────────────────────────────────────────────────────
 
 export function storeAuth(user: AuthUser): void {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
@@ -37,7 +36,6 @@ export function isSessionTimeValid(): boolean {
   return (Date.now() - auth.loginAt) < SESSION_DURATION;
 }
 
-// ─── Auth Actions ────────────────────────────────────────────────────────────
 
 /**
  * Login: verify username + password, create session token.
@@ -165,7 +163,6 @@ export async function validateToken(token: string): Promise<AuthUser | null> {
   }
 }
 
-// ─── User Management (Admin) ─────────────────────────────────────────────────
 
 /**
  * Get all users (admin only).
