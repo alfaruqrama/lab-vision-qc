@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 const STORAGE_KEY = 'lab_maintenance_records';
 const STORAGE_KEY_UF = 'lab_uji_fungsi_records';
 
-// ─── LocalStorage helpers ────────────────────────────────────────────────
 
 function loadLocal<T>(key: string, fallback: T): T {
   try {
@@ -29,7 +28,6 @@ function saveLocal<T>(key: string, data: T) {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
-// ─── Maintenance Records ─────────────────────────────────────────────────
 
 function loadLocalRecords(): MaintenanceRecord[] {
   return loadLocal<MaintenanceRecord[]>(STORAGE_KEY, []);
@@ -152,7 +150,6 @@ export function useDeleteMaintenanceRecord() {
   });
 }
 
-// ─── Uji Fungsi Records ──────────────────────────────────────────────────
 
 function loadLocalUjiFungsi(): UjiFungsiRecord[] {
   return loadLocal<UjiFungsiRecord[]>(STORAGE_KEY_UF, []);

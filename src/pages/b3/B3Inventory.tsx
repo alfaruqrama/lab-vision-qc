@@ -4,13 +4,13 @@ import { useB3Store } from '@/hooks/use-b3-store';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   type B3Material, type B3Stock,
   B3_KATEGORI, HAZARD_CLASSES, STORAGE_LOCATIONS, SATUAN_LIST,
   HAZARD_CONFIG, getExpiryStatus, EXPIRY_LABELS, EXPIRY_COLORS,
 } from '@/lib/b3-types';
 
-// ─── Hazard Badge ───
 function HazardBadge({ hazardClass }: { hazardClass: string }) {
   const c = HAZARD_CONFIG[hazardClass as keyof typeof HAZARD_CONFIG];
   if (!c) return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">{hazardClass}</span>;
@@ -21,7 +21,6 @@ function HazardBadge({ hazardClass }: { hazardClass: string }) {
   );
 }
 
-// ─── Material Form Dialog ───
 function MaterialFormDialog({
   open, onClose, material, onSave
 }: {
@@ -62,12 +61,13 @@ function MaterialFormDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">{material ? 'Edit Material' : 'Tambah Material B3'}</h2>
-        </div>
-        <div className="p-6 space-y-4">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{material ? 'Edit Material' : 'Tambah Material B3'}</DialogTitle>
+          <DialogDescription className="sr-only">Form data material Bahan Berbahaya dan Beracun</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1">
               <span className="text-xs font-medium">Kode *</span>
@@ -99,7 +99,6 @@ function MaterialFormDialog({
               </select>
             </label>
           </div>
-          {/* Hazard Class */}
           <div className="space-y-1">
             <span className="text-xs font-medium">Kelas Bahaya</span>
             <div className="flex flex-wrap gap-1.5">
@@ -126,18 +125,17 @@ function MaterialFormDialog({
             <input type="number" value={form.low_stock_threshold} onChange={e => setForm({ ...form, low_stock_threshold: parseFloat(e.target.value) || 0 })} min="0" step="0.1" className="w-full px-3 py-2 border rounded-lg text-sm" />
           </label>
         </div>
-        <div className="p-6 border-t flex justify-end gap-2">
+        <DialogFooter>
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border hover:bg-muted">Batal</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50">
             {saving ? 'Menyimpan...' : 'Simpan'}
           </button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── Stock In Dialog ───
 function StockInDialog({
   open, onClose, material, onSave
 }: {
@@ -172,13 +170,13 @@ function StockInDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Tambah Stok — {material.nama}</h2>
-          <p className="text-xs text-muted-foreground mt-1">Kode: {material.kode}</p>
-        </div>
-        <div className="p-6 space-y-4">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Tambah Stok — {material.nama}</DialogTitle>
+          <DialogDescription>Kode: {material.kode}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
           <label className="space-y-1 block">
             <span className="text-xs font-medium">Batch / Lot *</span>
             <input value={form.batch_lot} onChange={e => setForm({ ...form, batch_lot: e.target.value })} placeholder="EL-2026-05" className="w-full px-3 py-2 border rounded-lg text-sm" />
@@ -210,18 +208,17 @@ function StockInDialog({
             <input value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} placeholder="Merck" className="w-full px-3 py-2 border rounded-lg text-sm" />
           </label>
         </div>
-        <div className="p-6 border-t flex justify-end gap-2">
+        <DialogFooter>
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border hover:bg-muted">Batal</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50">
             {saving ? 'Menyimpan...' : 'Tambah Stok'}
           </button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── Main Page ───
 export default function B3Inventory() {
   const { materials, stockEntries, addMaterial, editMaterial, toggleMaterial, removeMaterial, addStock, refreshStock, connected } = useB3Store();
   const { user } = useAuth();

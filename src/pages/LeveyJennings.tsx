@@ -100,7 +100,6 @@ const LEVEL_LABELS: Record<ControlLevel, string> = {
 
 type ChartMode = 'single' | 'multi';
 
-// ─── Custom Dot (Single Mode) ─────────────────────────────────────────────────
 
 function CustomDot(props: any) {
   const { cx, cy, payload } = props;
@@ -130,7 +129,6 @@ function CustomDot(props: any) {
   );
 }
 
-// ─── Multi Mode Dot ───────────────────────────────────────────────────────────
 
 function MultiDot(props: any) {
   const { cx, cy, payload } = props;
@@ -159,7 +157,6 @@ function MultiDot(props: any) {
   return <Dot cx={cx} cy={cy} r={4} fill={color} stroke="none" />;
 }
 
-// ─── Control Summary Card ─────────────────────────────────────────────────────
 
 interface ControlSummaryProps {
   total: number;
@@ -213,7 +210,6 @@ function ControlSummary({ total, inControl, outOfControl, inControlPct, levelLab
   );
 }
 
-// ─── Westgard Analysis Card ───────────────────────────────────────────────────
 
 function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysis }) {
   const { rules, patterns, crossLevel, recommendation } = analysis;
@@ -319,7 +315,6 @@ function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysis }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function LeveyJennings() {
   const { records, config, deleteRecord } = useQCStore();
@@ -355,7 +350,6 @@ export default function LeveyJennings() {
   const isMultiLevelInstrument = ['EASYLITE', 'ONCALL1', 'ONCALL2'].includes(selected.alat);
   const supportsMultiLevel = isMultiLevelInstrument && mode === 'multi';
 
-  // ── Single Mode ─────────────────────────────────────────────────────────────
 
   const filteredRecords = useMemo(() => {
     const lvl = supportsMultiLevel ? 'NORMAL' : selected.levels.length === 1 ? selected.levels[0] : selectedLevel;
@@ -440,7 +434,6 @@ export default function LeveyJennings() {
   const inControl = chartData.filter((d) => d.status === 'ok').length;
   const inControlPct = chartData.length ? (inControl / chartData.length) * 100 : 0;
 
-  // ── Multi Mode ──────────────────────────────────────────────────────────────
 
   const multiModeRecords = useMemo(() => {
     if (!supportsMultiLevel) return [];
@@ -542,7 +535,6 @@ export default function LeveyJennings() {
     return d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
   }, [selectedMonth]);
 
-  // ── Download handlers ─────────────────────────────────────────────────────────
 
   /** Capture chart and open preview dialog */
   async function handleOpenPreview() {

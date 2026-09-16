@@ -1,6 +1,5 @@
 // B3 (Bahan Berbahaya dan Beracun) — domain types & constants
 
-// ─── Enums ───
 
 export type B3Kategori =
   | 'Reagen'
@@ -36,7 +35,6 @@ export type DisposalMethod =
 
 export type MovementType = 'masuk' | 'keluar';
 
-// ─── Data types ───
 
 export interface B3Material {
   id: string;
@@ -116,7 +114,6 @@ export interface B3Dashboard {
   recent_waste: B3Limbah[];
 }
 
-// ─── Constants ───
 
 export const B3_KATEGORI: B3Kategori[] = [
   'Reagen',
@@ -172,7 +169,6 @@ export const TUJUAN_LIST = [
   'Lainnya',
 ];
 
-// ─── Hazard display config ───
 
 export const HAZARD_CONFIG: Record<HazardClass, { bg: string; text: string; border: string; icon: string }> = {
   'Mudah Terbakar': { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-700 dark:text-red-400', border: 'border-red-200 dark:border-red-800', icon: '🔥' },

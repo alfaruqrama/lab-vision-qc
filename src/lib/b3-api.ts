@@ -7,7 +7,6 @@ export function isB3Connected(): boolean {
   return GS_URL.length > 0;
 }
 
-// ─── Generic fetch ───
 
 async function gsGet(action: string, params?: Record<string, string>): Promise<any> {
   const url = new URL(GS_URL);
@@ -38,7 +37,6 @@ async function gsPost(action: string, body: Record<string, any>): Promise<any> {
   return data;
 }
 
-// ─── Ping ───
 
 export async function pingB3(): Promise<boolean> {
   try {
@@ -49,7 +47,6 @@ export async function pingB3(): Promise<boolean> {
   }
 }
 
-// ─── Materials ───
 
 export async function fetchMaterials(): Promise<B3Material[]> {
   const result = await gsGet('getMaterials');
@@ -75,7 +72,6 @@ export async function deleteMaterial(id: string): Promise<void> {
   await gsPost('deleteMaterial', { id });
 }
 
-// ─── Stock ───
 
 export async function fetchStock(materialId?: string): Promise<B3Stock[]> {
   const params: Record<string, string> = {};
@@ -89,7 +85,6 @@ export async function createStock(data: Partial<B3Stock>): Promise<B3Stock> {
   return result.data;
 }
 
-// ─── Pemakaian ───
 
 export async function fetchPemakaian(filters?: {
   tglMulai?: string;
@@ -123,7 +118,6 @@ export async function deletePemakaian(id: string): Promise<void> {
   await gsPost('deletePemakaian', { id });
 }
 
-// ─── Limbah ───
 
 export async function fetchLimbah(filters?: {
   tglMulai?: string;
@@ -147,7 +141,6 @@ export async function deleteLimbah(id: string): Promise<void> {
   await gsPost('deleteLimbah', { id });
 }
 
-// ─── Dashboard ───
 
 export async function fetchDashboard(): Promise<B3Dashboard> {
   const result = await gsGet('getDashboard');

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Send, RotateCcw, Save, Download, Settings, X, Search, Lock, AlertTriangle, ShieldAlert, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/use-auth';
 import * as XLSX from 'xlsx';
 import { PENJAMIN_KEY, BADGE_OVERRIDE_KEY, NAME_OVERRIDE_KEY, migrateLocalPenjaminData } from '@/lib/penjamin-api';
@@ -11,7 +12,6 @@ import { usePenjaminOverrides, useSavePenjaminOverride, useDeletePenjaminOverrid
 import { useDraft, useSaveDraft, useDeleteDraft, useAllDrafts } from '@/features/kunjungan/hooks/useDraft';
 import type { PenjaminOverrideRow } from '@/lib/penjamin-types';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PenjaminEntry { nama: string; badge: string; }
 
@@ -38,7 +38,6 @@ export interface InputHarianDraft {
   mcu: McuInputRow[];
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DRAFT_KEY = 'input-harian-draft';
 
@@ -76,7 +75,6 @@ function labelClass(badge: string) {
   return `${s.bg} ${s.text} ${s.border}`;
 }
 
-// ─── Default penjamin list (built-in, tidak bisa dihapus) ─────────────────────
 const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'KARYAWAN PG', badge: 'PG' },
   { nama: 'KELUARGA PG', badge: 'PG' },
@@ -185,11 +183,9 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'PAKET SEHAT BUGAR', badge: 'UMUM' },
   { nama: 'PAKET NARKOBA (UMUM)', badge: 'UMUM' },
   { nama: 'PAKET BASIC PEKERJA (UMUM)', badge: 'UMUM' },
-  // ─── PG (tambahan) ────────────────────────────────────────────────────────
   { nama: 'CALON KARYAWAN PT PGM',                             badge: 'PG' },
   { nama: 'ANTIGEN PG',                                        badge: 'PG' },
   { nama: 'KOPERASI KONSUMEN KLG PG (K3PG)',                   badge: 'PG' },
-  // ─── AS — Asuransi (tambahan) ─────────────────────────────────────────────
   { nama: 'ADMEDIKA HEALTHCARE SOLUTION',                      badge: 'AS' },
   { nama: 'ASTRA AVIVA LIFE, PT',                              badge: 'AS' },
   { nama: 'ASURANSI ADMEDIKA ( PT. BANK CENTRAL ASIA)',        badge: 'AS' },
@@ -251,7 +247,6 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'OWLEXA',                                            badge: 'AS' },
   { nama: 'HIKARI',                                            badge: 'AS' },
   { nama: 'PLN INSURANCE, PT',                                 badge: 'AS' },
-  // ─── UMUM (tambahan) ──────────────────────────────────────────────────────
   { nama: 'PAKET PEJUANG (UMUM)',                              badge: 'UMUM' },
   { nama: 'PAKET PRE MARITAL SILVER',                          badge: 'UMUM' },
   { nama: 'PAKET PRE MARITAL GOLD',                            badge: 'UMUM' },
@@ -271,7 +266,6 @@ const BUILTIN_PENJAMIN: PenjaminEntry[] = [
   { nama: 'PAKET PUTIH (UMUM)',                                badge: 'UMUM' },
   { nama: 'PAKET MERAH (UMUM)',                                badge: 'UMUM' },
   { nama: 'PAKET IGE ATOPY',                                   badge: 'UMUM' },
-  // ─── NPG (tambahan) ───────────────────────────────────────────────────────
   { nama: 'ABYAKTA NASTARI TRANSINDO, PT',                     badge: 'NPG' },
   { nama: 'ADVANTIS AKAZA INDONESIA, PT',                      badge: 'NPG' },
   { nama: 'AHMAD PUTRA INDO KARYA, PT',                        badge: 'NPG' },
@@ -498,7 +492,6 @@ function isPenjaminValid(nama: string, builtinList: PenjaminEntry[], customList:
   return allList.some(p => p.nama.toUpperCase() === nama.toUpperCase());
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function nanoid()   { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
@@ -511,7 +504,6 @@ function numericKeyDown(e: React.KeyboardEvent) {
   if (!/^\d$/.test(e.key)) e.preventDefault();
 }
 
-// ─── usePenjaminList hook ─────────────────────────────────────────────────────
 
 function usePenjaminList() {
   const { user } = useAuth();
@@ -686,7 +678,6 @@ function usePenjaminList() {
   return { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin, canManage };
 }
 
-// ─── Export Excel ─────────────────────────────────────────────────────────────
 
 // Mapping badge → nama kolom di format OMZET KUNJUNGAN
 const REKAP_LABEL_MAP: Record<string, string> = {
@@ -790,7 +781,6 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   ws2['!cols'] = [{ wch:5 },{ wch:40 },{ wch:10 },{ wch:20 },{ wch:16 },{ wch:14 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'MCU Harian');
 
-  // ── Sheet KUNJUNGAN 2026 ──────────────────────────────────────────────────
   // Format: 12 blok bulan, tiap blok punya header + 31 baris hari + TOTAL + Sub Total + separator
   const BULAN_NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
   // 9 payer untuk RJ/RI/IGD
@@ -927,7 +917,6 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
   XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);
 }
 
-// ─── PenjaminCombobox ─────────────────────────────────────────────────────────
 
 function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = false, isInvalid = false, onSelect, onOpenSettings }: {
   value: string; badge: string;
@@ -982,7 +971,7 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
         title={isDefault ? 'Nama penjamin default tidak bisa diubah' : (isInvalid ? 'Nama penjamin tidak sesuai dengan list' : 'Cari penjamin...')}
       />
       {badge && (
-        <span className={`text-[8px] font-bold px-1 py-0.5 rounded border whitespace-nowrap shrink-0 ${labelClass(badge)}`}>
+        <span className={`text-[10px] font-bold px-1 py-0.5 rounded border whitespace-nowrap shrink-0 ${labelClass(badge)}`}>
           {badge}
         </span>
       )}
@@ -1004,9 +993,9 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
                   setQuery(p.nama);
                   setOpen(false);
                 }}>
-                <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>{p.badge}</span>
+                <span className={`text-[10px] font-bold px-1 py-0.5 rounded border shrink-0 ${labelClass(p.badge)}`}>{p.badge}</span>
                 <span className="truncate">{p.nama}</span>
-                {isUsed && <span className="ml-auto text-[8px] text-muted-foreground shrink-0">sudah ada</span>}
+                {isUsed && <span className="ml-auto text-[10px] text-muted-foreground shrink-0">sudah ada</span>}
               </button>
             );
           })}
@@ -1029,7 +1018,6 @@ function PenjaminCombobox({ value, badge, list, usedNames = [], isDefault = fals
   );
 }
 
-// ─── Admin PIN ────────────────────────────────────────────────────────────────
 
 const ADMIN_PIN = '112231';
 
@@ -1111,7 +1099,6 @@ function PinModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () =
   );
 }
 
-// ─── Load Draft Modal ─────────────────────────────────────────────────────────
 
 function LoadDraftModal({ drafts, isLoading, currentTanggal, hasCurrentData, onLoad, onDelete, onClose }: {
   drafts: Array<{ id: string; tanggal: string; kunjungan: any[]; mcu: any[]; updated_at: string }>;
@@ -1144,16 +1131,15 @@ function LoadDraftModal({ drafts, isLoading, currentTanggal, hasCurrentData, onL
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md p-0 gap-0 max-h-[80vh] flex flex-col">
+        <DialogTitle className="sr-only">Load Draft</DialogTitle>
+        <DialogDescription className="sr-only">Muat draft input harian yang tersimpan</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-bold flex items-center gap-2">
             <Download className="w-4 h-4" /> Load Draft
           </h2>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
-          </Button>
         </div>
 
         {/* List */}
@@ -1189,7 +1175,7 @@ function LoadDraftModal({ drafts, isLoading, currentTanggal, hasCurrentData, onL
                           {formatTgl(draft.tanggal)}
                         </p>
                         {isCurrent && (
-                          <span className="text-[8px] px-1 py-0.5 rounded bg-accent/10 text-accent font-medium">
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-accent/10 text-accent font-medium">
                             saat ini
                           </span>
                         )}
@@ -1221,12 +1207,11 @@ function LoadDraftModal({ drafts, isLoading, currentTanggal, hasCurrentData, onL
         <div className="px-4 py-2 border-t border-border text-[9px] text-muted-foreground">
           {drafts.length} draft tersimpan
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── Settings Modal ───────────────────────────────────────────────────────────
 
 function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama, onClose, isBuiltin, canManage }: {
   list: PenjaminEntry[];
@@ -1259,16 +1244,15 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg p-0 gap-0 max-h-[85vh] flex flex-col">
+        <DialogTitle className="sr-only">Manajemen List Penjamin</DialogTitle>
+        <DialogDescription className="sr-only">Tambah, edit, atau hapus penjamin</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-bold flex items-center gap-2">
             <Settings className="w-4 h-4" /> Manajemen List Penjamin
           </h2>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
-          </Button>
         </div>
 
         {/* Add new */}
@@ -1312,7 +1296,7 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
                 value={p.badge}
                 disabled={!canManage}
                 onChange={e => { onEditBadge(p.nama, e.target.value); toast.success(`Label ${p.nama} diubah ke ${e.target.value}`); }}
-                className={`text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${canManage ? 'cursor-pointer' : 'cursor-default opacity-70'} ${labelClass(p.badge)}`}>
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${canManage ? 'cursor-pointer' : 'cursor-default opacity-70'} ${labelClass(p.badge)}`}>
                 {ALL_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
               {editingNama === p.nama ? (
@@ -1346,7 +1330,7 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
                 >{p.nama}</span>
               )}
               {isBuiltin(p.nama) && (
-                <span className="text-[8px] text-muted-foreground shrink-0">bawaan</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">bawaan</span>
               )}
               {canManage && (
                 <Button variant="ghost" size="icon"
@@ -1365,24 +1349,22 @@ function SettingsModal({ list, custom, onAdd, onRemove, onEditBadge, onEditNama,
         <div className="px-4 py-2 border-t border-border text-[9px] text-muted-foreground">
           {list.length} total · {custom.length} ditambahkan · {BUILTIN_PENJAMIN.length} bawaan
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── SummaryCard ──────────────────────────────────────────────────────────────
 
 function SummaryCard({ label, value, color, sub }: { label: string; value: number; color: string; sub?: string }) {
   return (
     <div className="card-clinical px-2.5 py-1.5 flex flex-col min-w-[80px]">
-      <p className="text-[8px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground font-mono-data">{label}</p>
       <p className="text-base font-bold font-display leading-tight" style={{ color }}>{value}</p>
-      {sub && <p className="text-[8px] text-muted-foreground">{sub}</p>}
+      {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function InputHarianTab() {
   const { allList, custom, addPenjamin, removePenjamin, editBadge, editNama, isBuiltin, canManage } = usePenjaminList();
@@ -1414,7 +1396,6 @@ export default function InputHarianTab() {
   const openAdminSettings = () => setShowSettings(true);
 const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
 
-  // ── Draft Supabase ──────────────────────────────────────────────────────────
   const draftQuery = useDraft(tanggal);
   const allDraftsQuery = useAllDrafts();
   const saveDraftMutation = useSaveDraft();
@@ -1491,7 +1472,6 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
     return () => window.removeEventListener('beforeunload', h);
   }, [kunjungan, mcu]);
 
-  // ── MCU → aggregate by NAMA PENJAMIN ──────────────────────────────────────
   // Jika nama mengandung "PAKET" atau "PROMO" → masuk kolom promo
   // Selain itu → masuk kolom mcuAuto
   const isPromoName = (nama: string) => /PAKET|PROMO/i.test(nama);
@@ -1542,7 +1522,6 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
     });
   }, [mcu]);
 
-  // ── Kunjungan handlers ────────────────────────────────────────────────────
   const updateKunjungan = useCallback((id: string, field: string, val: string) => {
     setKunjungan(prev => prev.map(row => {
       if (row.id !== id) return row;
@@ -1578,7 +1557,6 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
   // Names already used in tabel utama (for showing "sudah ada" in dropdown)
   const usedNames = kunjungan.map(r => r.namaPenjamin).filter(Boolean);
 
-  // ── MCU handlers ──────────────────────────────────────────────────────────
   const updateMcu = useCallback((id: string, field: string, val: string) => {
     setMcu(prev => prev.map(row => {
       if (row.id !== id) return row;
@@ -1596,7 +1574,6 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
   const addMcuRow    = () => setMcu(prev => [...prev, { id: nanoid(), namaPenjamin:'', paket:'', peserta:0, nominal:0, total:0 }]);
   const removeMcuRow = (id: string) => setMcu(prev => prev.filter(r => r.id !== id));
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
   const handleReset = () => {
     if (hasData(kunjungan, mcu) && !confirm('Reset semua data yang sudah diisi?')) return;
     setTanggal(todayISO());
@@ -1606,7 +1583,6 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
     toast.success('Form direset');
   };
 
-  // ── fetchWithRetry helper ──────────────────────────────────────────────────
   const fetchWithRetry = useCallback(async (
     url: string,
     body: object,
@@ -1646,10 +1622,8 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
     return { ok: false, error: lastError };
   }, []);
 
-  // ── Snapshot refs — cegah race condition ──────────────────────────────────
   const submitSnapshotRef = useRef<{ kunjungan: KunjunganInputRow[]; mcu: McuInputRow[] } | null>(null);
 
-  // ── Submit (2-step: preview → confirm → kirim) ─────────────────────────────
   const handleSubmitClick = async () => {
     // Validasi dasar
     const empty = kunjungan.filter(r => r.total>0 && !r.namaPenjamin.trim());
@@ -1773,24 +1747,23 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
       // Hapus draft dari Supabase setelah submit sukses
       deleteDraftMutation.mutate(tanggal);
       if (unverified.length > 0) {
-        toast.warning(`⚠️ Data terkirim tapi verifikasi gagal untuk: ${unverified.join(', ')}. Cek sheet manual.`, { duration: 8000 });
+        toast.warning(`Data terkirim tapi verifikasi gagal untuk: ${unverified.join(', ')}. Cek sheet manual.`, { duration: 8000 });
       } else {
-        toast.success(`✅ ${grandTotal} kunjungan tersimpan di ${okCount} sheet`);
+        toast.success(`${grandTotal} kunjungan tersimpan di ${okCount} sheet`);
       }
     } else if (okCount === 0) {
       const errors = results.map(r => `${r.label}: ${r.error}`).join('; ');
-      toast.error(`❌ Gagal mengirim ke ${failCount} sheet. Draft tetap tersimpan — coba lagi.\n${errors}`, { duration: 10000 });
+      toast.error(`Gagal mengirim ke ${failCount} sheet. Draft tetap tersimpan — coba lagi.\n${errors}`, { duration: 10000 });
     } else {
       // Partial success
       const okLabels = results.filter(r => r.ok).map(r => r.label).join(', ');
       const failLabels = results.filter(r => !r.ok).map(r => `${r.label}: ${r.error}`).join('; ');
-      toast.warning(`⚠️ ${okCount}/${totalEndpoints} berhasil (${okLabels}). Gagal: ${failLabels}`, { duration: 10000 });
+      toast.warning(`${okCount}/${totalEndpoints} berhasil (${okLabels}). Gagal: ${failLabels}`, { duration: 10000 });
     }
 
     setSubmitting(false);
   };
 
-  // ── Computed ───────────────────────────────────────────────────────────────
   const colTotals   = KUNJUNGAN_COLS.map(c => ({ k:c.k, total: kunjungan.reduce((s,r)=>s+(r as any)[c.k],0) }));
   const grandTotal  = kunjungan.reduce((s,r)=>s+r.total,0);
   const unitSummary = {
@@ -1952,7 +1925,7 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
                     </div>
                   )}
                   {status === 'ok' && data?.debug && (
-                    <p className="text-[8px] text-muted-foreground/50 font-mono">
+                    <p className="text-[10px] text-muted-foreground/50 font-mono">
                       {label}: {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
                     </p>
                   )}
@@ -1965,7 +1938,7 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
                         Data <strong>mungkin sudah ada</strong> dan akan tertimpa.
                       </p>
                       {data?.debug && (
-                        <p className="text-[8px] text-amber-500/70 mt-0.5 ml-4 font-mono">
+                        <p className="text-[10px] text-amber-500/70 mt-0.5 ml-4 font-mono">
                           {typeof data.debug === 'string' ? data.debug : JSON.stringify(data.debug)}
                         </p>
                       )}
@@ -2373,7 +2346,7 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
                             if(e.key==='Enter'){e.preventDefault();document.getElementById(`mv-${i+1}-0`)?.focus();return;}
                             numericKeyDown(e);
                           }}
-                          className="h-6 text-[8px] text-center w-full" placeholder="0"/>
+                          className="h-6 text-[10px] text-center w-full" placeholder="0"/>
                       </td>
                       <td className="px-0.5 py-0.5">
                         <Input type="text" inputMode="numeric"
@@ -2392,8 +2365,8 @@ const settingsOpener = user?.role !== 'viewer' ? openAdminSettings : undefined;
                       <td className="px-1 py-0.5 text-center">
                         {row.namaPenjamin && (
                           isLinked
-                            ? <span className="text-[8px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded whitespace-nowrap">✓ linked</span>
-                            : <span className="text-[8px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded whitespace-nowrap">not in tabel</span>
+                            ? <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded whitespace-nowrap">✓ linked</span>
+                            : <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded whitespace-nowrap">not in tabel</span>
                         )}
                       </td>
                       <td className="px-0.5 py-0.5">

@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       return (
         <div className="card-clinical p-10 text-center space-y-3">
-          <p className="text-2xl">⚠️</p>
+          <AlertTriangle className="w-6 h-6 text-destructive mx-auto" />
           <p className="font-semibold text-sm">Terjadi kesalahan saat memuat data</p>
           <p className="text-xs text-muted-foreground font-mono-data">
             {this.state.error?.message || 'Unknown error'}

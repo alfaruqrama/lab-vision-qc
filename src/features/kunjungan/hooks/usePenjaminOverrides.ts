@@ -9,13 +9,11 @@ import {
 import type { PenjaminOverrideRow } from '@/lib/penjamin-types';
 import { toast } from 'sonner';
 
-// ─── Query Keys ────────────────────────────────────────────────────────────
 
 export const penjaminKeys = {
   all: ['penjamin-overrides'] as const,
 };
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function loadLocalRowsSafe(): PenjaminOverrideRow[] {
   try {
@@ -25,7 +23,6 @@ function loadLocalRowsSafe(): PenjaminOverrideRow[] {
   }
 }
 
-// ─── Query ─────────────────────────────────────────────────────────────────
 
 export function usePenjaminOverrides() {
   return useQuery({
@@ -39,7 +36,6 @@ export function usePenjaminOverrides() {
   });
 }
 
-// ─── Mutations ─────────────────────────────────────────────────────────────
 
 export function useSavePenjaminOverride() {
   const queryClient = useQueryClient();
