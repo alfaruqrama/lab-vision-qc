@@ -6,6 +6,7 @@ import { QCProvider } from "@/hooks/use-qc-store";
 import { MaintenanceProvider } from "@/hooks/use-maintenance-store";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/hooks/use-auth";
+import { ModuleConfigProvider } from "@/hooks/use-module-config";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import MaintenanceLayout from "@/components/layout/MaintenanceLayout";
@@ -50,6 +51,7 @@ const App = () => (
       <Sonner position="top-center" />
       <ThemeProvider>
         <AuthProvider>
+          <ModuleConfigProvider>
           <QCProvider>
             <BrowserRouter>
               <Routes>
@@ -99,6 +101,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </QCProvider>
+          </ModuleConfigProvider>
         </AuthProvider>
       </ThemeProvider>
     </TooltipProvider>

@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard, Wrench, Droplets } from 'lucide-react';
+import { BarChart3, Thermometer, FlaskConical, Shield, Users, Construction, Biohazard, Wrench, Droplets, EyeOff } from 'lucide-react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import { useAuth } from '@/hooks/use-auth';
+import { useModuleConfig } from '@/hooks/use-module-config';
 import { useMemo } from 'react';
 import { getOverallStatus } from '@/lib/westgard';
 import type { WestgardStatus } from '@/lib/types';
 import { isB3Connected } from '@/lib/b3-api';
+import { DevModulePanel, type BaseModule } from '@/components/DevModulePanel';
 
 const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -19,6 +21,9 @@ export default function PortalHome() {
   const navigate = useNavigate();
   const { records, connected } = useQCStore();
   const { user, canAccess } = useAuth();
+  const { config } = useModuleConfig();
+
+  const isDeveloper = user?.role === 'developer';
 
   const todayKey = useMemo(() => {
     const d = new Date();
@@ -32,7 +37,7 @@ export default function PortalHome() {
     return getOverallStatus(Object.values(last.status).filter(Boolean) as WestgardStatus[]);
   }, [records]);
 
-  const modules = [
+  const baseModules = [
     {
       title: 'Dashboard Kunjungan',
       desc: 'Omzet harian, kunjungan RJ/RI/IGD/MCU, dan laporan bulanan',
@@ -50,10 +55,10 @@ export default function PortalHome() {
       icon: FlaskConical,
       path: '/qc',
       colorClass: 'bg-accent text-accent-foreground',
-      badge: connected ? { label: 'LIVE · Google Sheets', live: true } : { label: 'OFFLINE', live: false },
+      badge: connected ? { label: 'LIVE', live: true } : { label: 'OFFLINE', live: false },
       chips: [
         `${qcToday.length} run hari ini`,
-        lastStatus ? (lastStatus === 'ok' ? '✓ Pass' : lastStatus === 'warning' ? '⚠ Warning' : '✕ Fail') : 'Belum ada data',
+        lastStatus ? (lastStatus === 'ok' ? 'Pass' : lastStatus === 'warning' ? 'Warning' : 'Fail') : 'Belum ada data',
       ],
       visible: canAccess('qc'),
       wip: false,
@@ -75,9 +80,9 @@ export default function PortalHome() {
       icon: Droplets,
       path: '/transfusi',
       colorClass: 'bg-red-50 text-red-700',
-      badge: { label: 'BARU · BETA', live: true },
+      badge: { label: 'AKTIF', live: true },
       chips: ['Scan Dokumen', 'Upload Drive', 'Arsip Digital'],
-      visible: canAccess('suhu') || user?.role === 'admin' || user?.role === 'petugas',
+      visible: canAccess('suhu') || user?.role === 'admin' || user?.role === 'petugas' || user?.role === 'developer',
       wip: true,
     },
     {
@@ -87,7 +92,7 @@ export default function PortalHome() {
       path: '/suhu',
       colorClass: 'bg-accent2 text-accent2-foreground',
       badge: { label: 'ADMIN ONLY', live: false },
-      chips: ['6 Ruangan', '1 Alert'],
+      chips: [],
       visible: canAccess('suhu'),
       wip: true,
     },
@@ -109,30 +114,76 @@ export default function PortalHome() {
       path: '/admin/users',
       colorClass: 'bg-red-50 text-red-700',
       badge: { label: 'ADMIN ONLY', live: false },
-      chips: ['User Management', 'Role & Access'],
+      chips: [],
       visible: canAccess('admin-users'),
       wip: false,
       lastRow: true,
     },
-  ].filter(mod => mod.visible);
+  ];
 
-  // Separate "Kelola User" to its own row at the bottom
+  // Apply config overrides per-module
+  const modules = baseModules
+    .map((mod) => {
+      const ov = config[mod.path];
+      const hidden = ov?.hidden === true;
+      return {
+        ...mod,
+        wip: ov?.wip ?? mod.wip,
+        desc: ov?.desc_override ?? mod.desc,
+        chips: ov?.chips_override ?? mod.chips,
+        badge: {
+          label: ov?.badge_label ?? mod.badge.label,
+          live: ov?.badge_live ?? mod.badge.live,
+        },
+        hidden,
+      };
+    })
+    .filter((mod) => {
+      if (!mod.visible) return false;
+      if (mod.hidden && !isDeveloper) return false;
+      return true;
+    });
+
+  // Separate "Kelola User" to its own row at the bottom, dan urutkan hidden ke akhir
   const lastRowMod = modules.find(m => (m as any).lastRow);
-  const mainMods = modules.filter(m => !(m as any).lastRow);
+  const mainMods = modules
+    .filter(m => !(m as any).lastRow)
+    .sort((a, b) => Number(!!a.hidden) - Number(!!b.hidden));
+
+  // Base info for DevModulePanel — semua modul yang secara akses visible untuk dev (dev bisa akses semua)
+  const devPanelModules: BaseModule[] = isDeveloper
+    ? baseModules.map((mod) => ({
+        key: mod.path,
+        title: mod.title,
+        descDefault: mod.desc,
+        badgeLabelDefault: mod.badge.label,
+        badgeLiveDefault: mod.badge.live,
+        chipsDefault: mod.chips,
+        wipDefault: mod.wip,
+      }))
+    : [];
 
   function ModCard({ mod, onClick }: { mod: typeof modules[number]; onClick: () => void }) {
     return (
       <button
         onClick={onClick}
-        className="card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01] relative overflow-hidden"
+        className={`card-clinical p-5 text-left group hover:shadow-md hover:ring-1 hover:ring-accent transition-all duration-200 hover:scale-[1.01] relative overflow-hidden ${
+          mod.hidden ? 'opacity-60 ring-1 ring-red-300' : ''
+        }`}
       >
-        {mod.wip && (
+        {mod.hidden && isDeveloper && (
+          <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-red-50 border-b border-red-200 px-3 py-1.5 z-10">
+            <EyeOff size={11} className="text-red-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-red-700 tracking-wide">HIDDEN — DEV ONLY</span>
+          </div>
+        )}
+        {mod.wip && !mod.hidden && (
           <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-amber-50 border-b border-amber-200 px-3 py-1.5">
             <Construction size={11} className="text-amber-600 shrink-0" />
             <span className="text-[10px] font-semibold text-amber-700 tracking-wide">WIP — DALAM PENGEMBANGAN</span>
           </div>
         )}
-        <div className={`flex items-start gap-3 mb-3 ${mod.wip ? 'mt-7' : ''}`}>
+        <div className={`flex items-start gap-3 mb-3 ${mod.wip || mod.hidden ? 'mt-7' : ''}`}>
           <div className={`w-10 h-10 rounded-xl ${mod.colorClass} flex items-center justify-center shrink-0`}>
             <mod.icon size={20} />
           </div>
@@ -177,6 +228,9 @@ export default function PortalHome() {
             <ModCard mod={lastRowMod} onClick={() => navigate(lastRowMod.path)} />
           </div>
         )}
+
+        {/* Dev-only panel */}
+        {isDeveloper && <DevModulePanel modules={devPanelModules} />}
 
         {/* Footer */}
         <div className="card-clinical p-4 flex items-center gap-3 text-xs text-muted-foreground">
