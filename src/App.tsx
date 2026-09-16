@@ -73,26 +73,26 @@ const App = () => (
 
                 {/* Protected routes - Transfusi module */}
                 <Route path="/transfusi" element={<ProtectedRoute><TransfusiLayout><TransfusiDashboard /></TransfusiLayout></ProtectedRoute>} />
-                <Route path="/transfusi/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><TransfusiLayout><TransfusiInput /></TransfusiLayout></ProtectedRoute>} />
+                <Route path="/transfusi/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><TransfusiLayout><TransfusiInput /></TransfusiLayout></ProtectedRoute>} />
                 <Route path="/transfusi/:id" element={<ProtectedRoute><TransfusiLayout><TransfusiDetail /></TransfusiLayout></ProtectedRoute>} />
 
                 {/* Protected routes - QC module with sidebar/bottom nav */}
                 <Route path="/qc" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><InputQC /></AppLayout></ProtectedRoute>} />
+                <Route path="/qc/input" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><AppLayout><InputQC /></AppLayout></ProtectedRoute>} />
                 <Route path="/qc/chart" element={<ProtectedRoute><AppLayout><LeveyJennings /></AppLayout></ProtectedRoute>} />
                 <Route path="/qc/report" element={<ProtectedRoute><AppLayout><MonthlyReport /></AppLayout></ProtectedRoute>} />
-                <Route path="/qc/config" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><AppLayout><LotConfig /></AppLayout></ProtectedRoute>} />
+                <Route path="/qc/config" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><AppLayout><LotConfig /></AppLayout></ProtectedRoute>} />
 
                 {/* Admin only routes */}
                 <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
 
                 {/* Maintenance module with sidebar/bottom nav */}
                 <Route path="/maintenance" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceDashboard /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/harian" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistHarian /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/berkala" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistBerkala /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/harian" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistHarian /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/berkala" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistBerkala /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/history" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceHistory /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/schedule" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceSchedule /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/uji-fungsi" element={<ProtectedRoute allowedRoles={['admin', 'petugas']}><MaintenanceProvider><MaintenanceLayout><MaintenanceUjiFungsi /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/uji-fungsi" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceUjiFungsi /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/laporan" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceLaporan /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
 
                 <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />
