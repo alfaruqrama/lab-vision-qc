@@ -86,14 +86,12 @@ async function saveRecord(record: QCRecord): Promise<QCRecord> {
   }
 }
 
-// ─── Query Keys ──────────────────────────────────────────────────────────────
 
 export const qcRecordKeys = {
   all: ['qc-records'] as const,
   byMonth: (month: string) => ['qc-records', 'month', month] as const,
 };
 
-// ─── Hooks ───────────────────────────────────────────────────────────────────
 
 /**
  * Fetch all QC records with React Query caching.

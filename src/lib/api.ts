@@ -9,7 +9,6 @@ export function isConnected(): boolean {
   return isSupabaseConfigured();
 }
 
-// ─── AI Extraction (Supabase Edge Function + Gemini 2.5 Flash Lite) ─────────
 
 export interface ReadStrukResult {
   alat?: string;

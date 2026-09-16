@@ -109,7 +109,6 @@ export function useB3Data() {
     }
   }, [connected, limbahFilters]);
 
-  // ─── Mutations ───
 
   const addMaterial = useCallback(async (data: Partial<B3Material>) => {
     if (!connected) throw new Error('Tidak terhubung');

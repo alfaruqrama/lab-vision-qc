@@ -69,7 +69,6 @@ export function computeZScores(
   return result;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
 
 interface LotLike {
   lot: string;

@@ -3,7 +3,7 @@ import type { InstrumentType, ParamName } from '@/lib/types';
 import { PARAM_UNITS } from '@/lib/types';
 import type { ReadStrukResult } from '@/lib/api';
 import { Card } from '@/components/ui/card';
-import { Sparkles } from 'lucide-react';
+import { ScanLine } from 'lucide-react';
 
 interface AIResultPanelProps {
   result: ReadStrukResult;
@@ -69,13 +69,12 @@ export function AIResultPanel({ result, instrument, confidence, className }: AIR
   return null;
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Header({ confidence }: { confidence: number | null }) {
   return (
     <div className="flex items-center justify-between">
       <span className="inline-flex items-center gap-1 text-xs font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
-        <Sparkles size={10} /> AI Vision
+        <ScanLine size={10} /> Hasil ekstraksi foto
       </span>
       {confidence !== null && (
         <span className="text-xs text-muted-foreground">

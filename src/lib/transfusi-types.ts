@@ -1,4 +1,3 @@
-// ─── Main Document Type ─────────────────────────────────────────────────────
 
 export interface TransfusiDocument {
   id: string;
@@ -12,7 +11,6 @@ export interface TransfusiDocument {
   created_at: string;
 }
 
-// ─── API Request / Response ─────────────────────────────────────────────────
 
 export interface UploadTransfusiRequest {
   pdfBase64: string;
@@ -30,7 +28,6 @@ export interface UploadTransfusiResponse {
   error?: string;
 }
 
-// ─── Search / Filter Types ──────────────────────────────────────────────────
 
 export interface TransfusiFilters {
   search?: string;

@@ -6,7 +6,6 @@ import type { InputDraft } from './draft-types';
 
 const DRAFT_KEY = 'input-harian-draft';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function draftId(tanggal: string): string {
   return `draft-${tanggal}`;
@@ -30,7 +29,6 @@ function localToDraft(tanggal: string): InputDraft | null {
   }
 }
 
-// ─── Supabase API ────────────────────────────────────────────────────────────
 
 export async function saveDraft(
   tanggal: string,

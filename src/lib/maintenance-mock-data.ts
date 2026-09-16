@@ -65,7 +65,6 @@ export function generateMaintenanceRecords(): MaintenanceRecord[] {
     // Uji fungsi template
     const ufTemplate = MAINTENANCE_TEMPLATES.find((t) => t.alat === alat && t.tipe === 'uji_fungsi');
 
-    // ── Daily ──
     if (dailyTemplate) {
       for (const tanggal of allDays) {
         const aktivitas: Record<string, boolean> = {};
@@ -83,7 +82,6 @@ export function generateMaintenanceRecords(): MaintenanceRecord[] {
       }
     }
 
-    // ── Uji Fungsi ──
     if (ufTemplate) {
       for (const tanggal of allDays) {
         const aktivitas: Record<string, boolean> = {};
@@ -102,7 +100,6 @@ export function generateMaintenanceRecords(): MaintenanceRecord[] {
     }
   }
 
-  // ── Weekly (BC6800 only) ──
   const weeklyTemplate = MAINTENANCE_TEMPLATES.find((t) => t.alat === 'BC6800' && t.tipe === 'weekly');
   if (weeklyTemplate) {
     for (const tanggal of mondays) {
@@ -121,7 +118,6 @@ export function generateMaintenanceRecords(): MaintenanceRecord[] {
     }
   }
 
-  // ── Monthly (BC6800 only) ──
   const monthlyTemplate = MAINTENANCE_TEMPLATES.find((t) => t.alat === 'BC6800' && t.tipe === 'monthly');
   if (monthlyTemplate) {
     for (const tanggal of firstOfMonths) {

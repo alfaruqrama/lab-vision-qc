@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line
 } from 'recharts';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
@@ -19,7 +19,6 @@ type TabType = 'omzet' | 'kunjungan' | 'mcu' | 'laporan' | 'input';
 
 const CURRENT_MONTH_NAME = BULAN_ORDER[new Date().getMonth()];
 
-// ─── KPI Card ───
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
     <div className="card-clinical flex-shrink-0 min-w-[150px] p-4 relative overflow-hidden">
@@ -31,7 +30,6 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
   );
 }
 
-// ─── Badge ───
 function PctBadge({ pct }: { pct: number }) {
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass(pct)}`}>
@@ -40,7 +38,6 @@ function PctBadge({ pct }: { pct: number }) {
   );
 }
 
-// ─── TAB: OMZET ───
 function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
   if (!data.length) return <EmptyState text="Belum ada data omzet" />;
 
@@ -177,7 +174,6 @@ function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
   );
 }
 
-// ─── TAB: KUNJUNGAN ───
 function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) {
   if (!data.length) return <EmptyState text="Belum ada data kunjungan" />;
 
@@ -314,7 +310,6 @@ function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) 
   );
 }
 
-// ─── TAB: MCU ───
 function McuTab({ month, data }: { month: string; data: McuRow[] }) {
   const rows = data.filter(r => r.omzet > 0);
   if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} />;
@@ -406,14 +401,13 @@ function McuTab({ month, data }: { month: string; data: McuRow[] }) {
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="card-clinical p-12 text-center text-muted-foreground">
-      <p className="text-3xl mb-3">📊</p>
+      <BarChart3 className="w-8 h-8 mx-auto mb-3 opacity-40" />
       <p className="font-semibold">{text}</p>
       <p className="text-xs mt-1">Pastikan koneksi aktif dan refresh untuk memuat data terbaru.</p>
     </div>
   );
 }
 
-// ─── Connection Status Badge ───
 function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
   status: ConnectionStatus; lastUpdated: string | null; onRefresh: () => void; refreshing: boolean;
 }) {
@@ -445,7 +439,6 @@ function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
 }
 
 
-// ─── MAIN PAGE ───
 export default function KunjunganDashboard() {
   const navigate = useNavigate();
   const { data, status, lastUpdated, error, refresh, availableMonths, kumulatif } = useKunjunganData();
@@ -479,12 +472,12 @@ export default function KunjunganDashboard() {
 
   const { canAccess } = useAuth();
 
-  const tabs: { key: TabType; label: string; emoji: string }[] = [
-    { key: 'omzet', label: 'Omzet', emoji: '💰' },
-    { key: 'kunjungan', label: 'Kunjungan', emoji: '👥' },
-    { key: 'mcu', label: 'Omzet MCU', emoji: '🔬' },
-    { key: 'laporan', label: 'Laporan', emoji: '📋' },
-    ...(canAccess('input-harian') ? [{ key: 'input' as TabType, label: 'Input Harian', emoji: '✏️' }] : []),
+  const tabs: { key: TabType; label: string }[] = [
+    { key: 'omzet', label: 'Omzet' },
+    { key: 'kunjungan', label: 'Kunjungan' },
+    { key: 'mcu', label: 'Omzet MCU' },
+    { key: 'laporan', label: 'Laporan' },
+    ...(canAccess('input-harian') ? [{ key: 'input' as TabType, label: 'Input Harian' }] : []),
   ];
 
   return (
@@ -546,7 +539,7 @@ export default function KunjunganDashboard() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t.emoji} {t.label}
+            {t.label}
           </button>
         ))}
 

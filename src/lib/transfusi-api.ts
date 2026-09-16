@@ -3,7 +3,6 @@ import { createSupabaseClient } from './supabase';
 import { isConnected } from './api';
 import type { TransfusiDocument, TransfusiFilters, UploadTransfusiResponse } from './transfusi-types';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function loadLocalDocuments(): TransfusiDocument[] {
   try {
@@ -18,7 +17,6 @@ function saveLocalDocuments(docs: TransfusiDocument[]) {
   localStorage.setItem('lab_transfusi_documents', JSON.stringify(docs));
 }
 
-// ─── Fetch Documents ────────────────────────────────────────────────────────
 
 export async function fetchDocuments(filters?: TransfusiFilters): Promise<TransfusiDocument[]> {
   if (!isConnected()) {
@@ -69,7 +67,6 @@ export async function fetchDocumentById(id: string): Promise<TransfusiDocument |
   return data as TransfusiDocument;
 }
 
-// ─── Upload to Drive (via Edge Function) ────────────────────────────────────
 
 export async function uploadToDrive(
   pdfBase64: string,
@@ -119,7 +116,6 @@ export async function uploadToDrive(
   return result;
 }
 
-// ─── Delete Document ────────────────────────────────────────────────────────
 
 export async function deleteDocument(id: string): Promise<void> {
   if (!isConnected()) {
