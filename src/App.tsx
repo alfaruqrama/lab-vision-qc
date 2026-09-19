@@ -7,6 +7,7 @@ import { MaintenanceProvider } from "@/hooks/use-maintenance-store";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ModuleConfigProvider } from "@/hooks/use-module-config";
+import { LaporanLayoutProvider } from "@/hooks/use-laporan-layout";
 import PortalLayout from "@/components/layout/PortalLayout";
 import AppLayout from "@/components/layout/AppLayout";
 import MaintenanceLayout from "@/components/layout/MaintenanceLayout";
@@ -52,6 +53,7 @@ const App = () => (
       <ThemeProvider>
         <AuthProvider>
           <ModuleConfigProvider>
+          <LaporanLayoutProvider>
           <QCProvider>
             <BrowserRouter>
               <Routes>
@@ -101,6 +103,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </QCProvider>
+          </LaporanLayoutProvider>
           </ModuleConfigProvider>
         </AuthProvider>
       </ThemeProvider>
