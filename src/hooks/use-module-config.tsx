@@ -41,6 +41,7 @@ export function ModuleConfigProvider({ children }: { children: React.ReactNode }
             badge_live: patch.badge_live ?? prev[key]?.badge_live ?? null,
             desc_override: patch.desc_override ?? prev[key]?.desc_override ?? null,
             chips_override: patch.chips_override ?? prev[key]?.chips_override ?? null,
+            extra: (patch.extra as Record<string, unknown> | undefined) ?? prev[key]?.extra ?? null,
           },
         }));
       }

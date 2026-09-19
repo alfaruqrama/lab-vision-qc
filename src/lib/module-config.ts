@@ -8,6 +8,7 @@ export interface ModuleOverride {
   badge_live: boolean | null;
   desc_override: string | null;
   chips_override: string[] | null;
+  extra: Record<string, unknown> | null;
 }
 
 export type ModuleConfigMap = Record<string, ModuleOverride>;
@@ -15,7 +16,7 @@ export type ModuleConfigMap = Record<string, ModuleOverride>;
 export async function fetchModuleConfig(): Promise<ModuleConfigMap> {
   const { data, error } = await supabase
     .from('module_config')
-    .select('key, wip, hidden, badge_label, badge_live, desc_override, chips_override');
+    .select('key, wip, hidden, badge_label, badge_live, desc_override, chips_override, extra');
 
   if (error) {
     console.warn('fetchModuleConfig error:', error.message);

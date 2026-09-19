@@ -5,12 +5,17 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useLaporanLayout } from '@/hooks/use-laporan-layout';
+import { DevLaporanPanel } from './DevLaporanPanel';
+import { CustomSectionForm } from './CustomSectionForm';
+import { EXISTING_SECTIONS, type CustomFieldDef } from '@/lib/laporan-sections';
 
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const LS_KEY = 'laporan-draft';
 const INPUT_HARIAN_KEY = 'input-harian-draft';
+const CUSTOM_VALUES_KEY = 'laporan-draft-custom';
 
 const fmtRpWA = (n: number) => Math.round(n).toLocaleString('id-ID');
 const fmtKunj = (n: number) => Math.round(n).toLocaleString('id-ID');
@@ -174,12 +179,20 @@ function RpInput({ value, onChange, label, auto, gsAutoFill, manual }: { value: 
 }
 
 export default function LaporanTab() {
+  const { layout, saveLayout } = useLaporanLayout();
   const [form, setForm] = useState<FormData>(() => {
     try {
       const saved = localStorage.getItem(LS_KEY);
       if (saved) return { ...defaultForm(), ...JSON.parse(saved).data };
     } catch {}
     return defaultForm();
+  });
+  const [customValues, setCustomValues] = useState<Record<string, Record<string, string>>>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_VALUES_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
   });
   const [draftTime, setDraftTime] = useState<string | null>(() => {
     try {
@@ -315,6 +328,13 @@ export default function LaporanTab() {
     setDraftTime(time);
   }, [form]);
 
+  // Auto-save custom values
+  useEffect(() => {
+    if (Object.keys(customValues).length > 0) {
+      localStorage.setItem(CUSTOM_VALUES_KEY, JSON.stringify(customValues));
+    }
+  }, [customValues]);
+
   const set = useCallback(<K extends keyof FormData>(key: K, val: FormData[K]) => {
     setForm(prev => ({ ...prev, [key]: val }));
     setAutoFields(prev => { const s = new Set(prev); s.delete(key as string); return s; });
@@ -331,6 +351,14 @@ export default function LaporanTab() {
   }, []);
   const setPromoLabel = useCallback((idx: number, label: string) => {
     setForm(prev => { const items = [...prev.promoItems]; items[idx] = { ...items[idx], label }; return { ...prev, promoItems: items }; });
+  }, []);
+
+  // Custom section value handler
+  const setCustomValue = useCallback((sectionId: string, fieldId: string, value: string) => {
+    setCustomValues(prev => ({
+      ...prev,
+      [sectionId]: { ...(prev[sectionId] || {}), [fieldId]: value },
+    }));
   }, []);
 
   // Calculations
@@ -461,15 +489,43 @@ export default function LaporanTab() {
     lines.push(`*Target ${namaBulan} ${tahun}* `);
     lines.push(`* Kunjungan : ${fmtKunjTarget(form.targetKunjBulan)}`);
     lines.push(`* Omzet : Rp. ${fmtRpWA(form.targetOmzetBulan)}`);
+
+    // 5. Custom Sections (generik)
+    layout.customSections
+      .filter(cs => !layout.sectionHidden.includes(cs.id))
+      .forEach(cs => {
+        lines.push(``);
+        lines.push(`*${layout.sectionLabels[cs.id] || cs.label}*`);
+        cs.fields.forEach(f => {
+          const v = customValues[cs.id]?.[f.id] ?? '';
+          const formatted = f.type === 'number' ? fmtKunj(Number(v) || 0) : (v || '-');
+          lines.push(`▪️${f.label} : ${formatted}`);
+        });
+      });
+
     return lines.join('\n');
   }, [form, rjDisplay, nonBpjsRJDisplay, mcuDisplay, totalKunjungan, pctKunjungan, totalPendapatan, pctPendapatan, rerataPerPasien,
       namaHari, namaBulan, tahun, tgl, tglAkhir, pendapatanBPJS, pendapatanSelainMCUdanBPJS, pctKumOmzet, pctKumKunj,
       kumOmzetTotal, kumKunjTotal, kumOmzetMCUTotal, kumKunjMCUTotal,
-      kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang]);
+      kumOmzetNonMCU, kumKunjNonMCU, bpjsRJ, bpjsRI, bpjsIGD, totalPromoLab, isSiang,
+      layout, customValues]);
 
   const handleCopy  = async () => { await navigator.clipboard.writeText(outputTeks); toast.success('Teks berhasil disalin'); };
   const handleWA    = () => window.open('https://wa.me/?text=' + encodeURIComponent(outputTeks), '_blank');
-  const handleClear = () => { localStorage.removeItem(LS_KEY); setForm(defaultForm()); setDraftTime(null); setAutoFields(new Set()); toast.success('Draft dihapus'); };
+  const handleClear = () => { localStorage.removeItem(LS_KEY); localStorage.removeItem(CUSTOM_VALUES_KEY); setForm(defaultForm()); setCustomValues({}); setDraftTime(null); setAutoFields(new Set()); toast.success('Draft dihapus'); };
+
+  // Determine if user is developer (for showing dev panel)
+  // We check via a simple heuristic — useLaporanLayout always loads,
+  // but we only show panel when user has developer context.
+  // For now, always show; the component itself checks role internally.
+  // Actually let's pass it through — we need auth context here.
+  // Simplification: show DevLaporanPanel unconditionally — it's only
+  // meaningful for devs and harmless for others. Or better: check a prop.
+  // Let's just render it — it's a collapsible banner, non-intrusive.
+
+  // Build ordered section list from layout
+  const visibleSections = layout.sectionOrder.filter(key => !layout.sectionHidden.includes(key));
+  const isCustomSection = (key: string) => !EXISTING_SECTIONS.some(s => s.key === key);
 
   return (
     <div className="grid lg:grid-cols-2 gap-4 page-transition">
@@ -485,11 +541,17 @@ export default function LaporanTab() {
           </div>
         </div>
 
-        <Accordion type="multiple" defaultValue={[]} className="space-y-2">
+        {/* Dev Panel — hanya meaningful untuk role developer, collapsible */}
+        <DevLaporanPanel />
 
-          {/* A: Tanggal */}
+        <Accordion type="multiple" defaultValue={['a']} className="space-y-2">
+
+          {/* ── Section A: Tanggal ── */}
+          {!layout.sectionHidden.includes('a') && (
           <AccordionItem value="a" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">A — Tanggal</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              {layout.sectionLabels['a'] || 'A — Tanggal'}
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-2">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-muted-foreground flex-1">Tanggal</label>
@@ -502,11 +564,13 @@ export default function LaporanTab() {
               </div>
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* B: Kunjungan */}
+          {/* ── Section B: Kunjungan ── */}
+          {!layout.sectionHidden.includes('b') && (
           <AccordionItem value="b" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              B — Kunjungan
+              {layout.sectionLabels['b'] || 'B — Kunjungan'}
               <Button
                 variant="outline" size="sm"
                 className="ml-auto mr-2 h-6 px-2 text-[10px] text-green-700 border-green-400 hover:bg-green-50"
@@ -539,10 +603,14 @@ export default function LaporanTab() {
               <NumInput label="Rujukan Dokter Luar"  value={form.rujukanDokterLuar} onChange={v => set('rujukanDokterLuar', v)} auto={isAuto('rujukanDokterLuar')} />
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* C: Inhealth PG */}
+          {/* ── Section C: Pasien PG ── */}
+          {!layout.sectionHidden.includes('c') && (
           <AccordionItem value="c" className="card-clinical border rounded-lg overflow-hidden">
-            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">C — Pasien PG</AccordionTrigger>
+            <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
+              {layout.sectionLabels['c'] || 'C — Pasien PG'}
+            </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
               <NumInput label="IGD Kry PG"    value={form.briIgdKry}   onChange={v => set('briIgdKry', v)}   auto={isAuto('briIgdKry')} />
               <NumInput label="IGD Kel PG"    value={form.briIgdKel}   onChange={v => set('briIgdKel', v)}   auto={isAuto('briIgdKel')} />
@@ -552,11 +620,13 @@ export default function LaporanTab() {
               <NumInput label="Rawin Kel PG"  value={form.briRawinKel} onChange={v => set('briRawinKel', v)} auto={isAuto('briRawinKel')} />
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* D: Promo Lab */}
+          {/* ── Section D: Promo Lab ── */}
+          {!layout.sectionHidden.includes('d') && (
           <AccordionItem value="d" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              D — Promo Lab
+              {layout.sectionLabels['d'] || 'D — Promo Lab'}
               {isAuto('promoItems') && <span className="text-[9px] ml-1 text-green-600 font-medium">(auto)</span>}
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
@@ -582,11 +652,13 @@ export default function LaporanTab() {
               )}
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* E: Morula */}
+          {/* ── Section E: Morula ── */}
+          {!layout.sectionHidden.includes('e') && (
           <AccordionItem value="e" className="card-clinical border rounded-lg overflow-hidden border-l-2 border-l-red-400">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              E — Pasien AS Morula
+              {layout.sectionLabels['e'] || 'E — Pasien AS Morula'}
               <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 border border-red-200">✎ Manual</span>
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
@@ -594,11 +666,13 @@ export default function LaporanTab() {
               <NumInput label="Hadir Hari Ini"     value={form.morullaHadir}     onChange={v => set('morullaHadir', v)} manual />
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* F: Capaian */}
+          {/* ── Section F: Capaian ── */}
+          {!layout.sectionHidden.includes('f') && (
           <AccordionItem value="f" className="card-clinical border rounded-lg overflow-hidden border-l-2 border-l-red-400">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              F — Capaian Harian
+              {layout.sectionLabels['f'] || 'F — Capaian Harian'}
               <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 border border-red-200">✎ Manual</span>
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
@@ -627,11 +701,13 @@ export default function LaporanTab() {
               </div>
             </AccordionContent>
           </AccordionItem>
+          )}
 
-          {/* G: Kumulatif */}
+          {/* ── Section G: Kumulatif ── */}
+          {!layout.sectionHidden.includes('g') && (
           <AccordionItem value="g" className="card-clinical border rounded-lg overflow-hidden">
             <AccordionTrigger className="px-4 py-2 text-xs font-semibold hover:no-underline">
-              G — Kumulatif Bulan
+              {layout.sectionLabels['g'] || 'G — Kumulatif Bulan'}
               {(isAuto('kumOmzet') || isAuto('kumKunj')) && <span className="text-accent ml-1 text-[9px]">(dari Sheets)</span>}
             </AccordionTrigger>
             <AccordionContent className="px-4 space-y-1.5">
@@ -677,6 +753,23 @@ export default function LaporanTab() {
               </div>
             </AccordionContent>
           </AccordionItem>
+          )}
+
+          {/* ── Custom Sections ── */}
+          {layout.customSections
+            .filter(cs => !layout.sectionHidden.includes(cs.id))
+            .map((cs, idx) => {
+              const letter = String.fromCharCode(72 + idx); // H, I, J, ...
+              return (
+                <CustomSectionForm
+                  key={cs.id}
+                  section={cs}
+                  values={customValues[cs.id] || {}}
+                  onChange={setCustomValue}
+                  letter={letter}
+                />
+              );
+            })}
 
         </Accordion>
       </div>
