@@ -2,14 +2,18 @@ import React, { createContext, useContext } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isConnected } from '@/lib/api';
 import { useTransfusiDocuments, useUploadTransfusi, useDeleteTransfusiDocument, transfusiKeys } from '@/features/transfusi/hooks/useTransfusiRecords';
-import type { TransfusiDocument, TransfusiFilters } from '@/lib/transfusi-types';
+import type {
+  TransfusiDocument,
+  UploadTransfusiMetadata,
+  UploadTransfusiResponse,
+} from '@/lib/transfusi-types';
 
 interface TransfusiStore {
   connected: boolean;
   documents: TransfusiDocument[];
   loading: boolean;
   refresh: () => Promise<void>;
-  uploadDocument: (pdfBase64: string, metadata: { patientName?: string; medicalRecordNumber?: string; notes?: string }) => Promise<any>;
+  uploadDocument: (pdfBase64: string, metadata: UploadTransfusiMetadata) => Promise<UploadTransfusiResponse>;
   deleteDocument: (id: string) => Promise<void>;
 }
 
@@ -24,7 +28,7 @@ export function TransfusiProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = async () => { await queryClient.invalidateQueries({ queryKey: transfusiKeys.all }); };
 
-  const uploadDocument = async (pdfBase64: string, metadata: { patientName?: string; medicalRecordNumber?: string; notes?: string }) => {
+  const uploadDocument = async (pdfBase64: string, metadata: UploadTransfusiMetadata) => {
     return uploadMutation.mutateAsync({ pdfBase64, metadata });
   };
 

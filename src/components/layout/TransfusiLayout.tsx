@@ -15,7 +15,7 @@ function TransfusiNav() {
   const { connected, documents } = useTransfusiStore();
 
   const todayCount = documents.filter(
-    (d) => d.upload_date === new Date().toISOString().split('T')[0],
+    (d) => d.request_date === new Date().toISOString().split('T')[0],
   ).length;
 
   return (

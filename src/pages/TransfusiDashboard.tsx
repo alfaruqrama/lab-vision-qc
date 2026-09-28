@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, PlusCircle, Droplets } from 'lucide-react';
+import { FileText, PlusCircle, Droplets, type LucideIcon } from 'lucide-react';
 import { useTransfusiStore } from '@/hooks/use-transfusi-store';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import TransfusiCard from '@/features/transfusi/components/TransfusiCard';
 import TransfusiSearch from '@/features/transfusi/components/TransfusiSearch';
 import type { TransfusiFilters } from '@/lib/transfusi-types';
 
-function StatCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: any; color: string }) {
+function StatCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: LucideIcon; color: string }) {
   return (
     <div className="card-clinical p-4 relative overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl" style={{ background: color }} />
@@ -29,20 +29,23 @@ export default function TransfusiDashboard() {
   const navigate = useNavigate();
   const { documents, loading } = useTransfusiStore();
   const { user } = useAuth();
-  const canInput = user?.role === 'admin' || user?.role === 'petugas';
+  const canInput = user?.role === 'admin' || user?.role === 'petugas' || user?.role === 'developer';
   const [filters, setFilters] = useState<TransfusiFilters>({});
 
   const filteredDocs = useMemo(() => {
     let result = documents;
     if (filters.search) {
       const q = filters.search.toLowerCase();
-      result = result.filter((d) =>
-        (d.patient_name || '').toLowerCase().includes(q) ||
-        (d.medical_record_number || '').toLowerCase().includes(q)
+      result = result.filter(
+        (d) =>
+          (d.patient_name || '').toLowerCase().includes(q) ||
+          (d.medical_record_number || '').toLowerCase().includes(q) ||
+          (d.bag_number || '').toLowerCase().includes(q),
       );
     }
     if (filters.dateFrom) result = result.filter((d) => d.request_date >= filters.dateFrom!);
     if (filters.dateTo) result = result.filter((d) => d.request_date <= filters.dateTo!);
+    if (filters.bloodProduct) result = result.filter((d) => d.blood_product === filters.bloodProduct);
     return result;
   }, [documents, filters]);
 

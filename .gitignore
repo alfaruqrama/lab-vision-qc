@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+gdrive-oauth.env
+*-oauth-client.json
+*-credentials.json
 
 # Editor directories and files
 .vscode/*
@@ -28,3 +31,7 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Claude Code — worktrees lokal adalah salinan penuh repo,
+# jangan pernah di-commit (juga bikin lint/glob kacau)
+.claude/worktrees/

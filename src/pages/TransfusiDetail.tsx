@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DocumentPreview from '@/features/transfusi/components/DocumentPreview';
 import { useTransfusiDocument, useDeleteTransfusiDocument } from '@/features/transfusi/hooks/useTransfusiRecords';
+import { bloodProductLabel } from '@/lib/transfusi-types';
 import { useAuth } from '@/hooks/use-auth';
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -75,6 +76,31 @@ export default function TransfusiDetail() {
         </Card>
 
         <Card>
+          <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Data Kantong Darah</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Produk Darah</span><span className="font-medium">{bloodProductLabel(doc.blood_product)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Jumlah Kantong</span><span>{doc.bag_count ? `${doc.bag_count} kantong` : '—'}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Goldar / Rh</span><span className="font-mono font-medium">{doc.blood_type_rh || '—'}</span></div>
+            <div className="flex justify-between text-sm gap-3"><span className="text-muted-foreground shrink-0">Nomor Kantong</span><span className="font-mono text-right break-all">{doc.bag_number || '—'}</span></div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Asal Kantong</span>
+              <span>{doc.origin === 'GRESIK' ? 'Gresik' : doc.origin === 'SURABAYA' ? 'Surabaya' : '—'}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Kelengkapan Berkas</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <ChecklistBadge label="Inform Concern" present={doc.inform_concern} />
+          <ChecklistBadge label="Surat Permintaan Darah" present={doc.surat_permintaan} />
+          <ChecklistBadge label="Form Reaksi Transfusi" present={doc.form_reaksi} />
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Card>
           <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm">Status & File</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -83,7 +109,7 @@ export default function TransfusiDetail() {
                 {hasPdf ? '✓ Tersimpan di Drive' : 'Pending'}
               </Badge>
             </div>
-            {doc.drive_file_id && <div className="flex justify-between text-sm"><span className="text-muted-foreground">File ID</span><span className="font-mono text-xs max-w-[200px] truncate">{doc.drive_file_id}</span></div>}
+            {doc.drive_file_id && <div className="flex justify-between text-sm gap-3"><span className="text-muted-foreground shrink-0">File ID</span><span className="font-mono text-xs truncate">{doc.drive_file_id}</span></div>}
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibuat</span><span className="text-xs">{createdStr}</span></div>
           </CardContent>
         </Card>
@@ -91,5 +117,20 @@ export default function TransfusiDetail() {
 
       <DocumentPreview open={previewOpen} onOpenChange={setPreviewOpen} driveUrl={doc.drive_url} bagNumber={doc.patient_name || 'Dokumen'} />
     </div>
+  );
+}
+
+function ChecklistBadge({ label, present }: { label: string; present: boolean | null }) {
+  return (
+    <Badge
+      variant="outline"
+      className={
+        present
+          ? 'border-emerald-200 text-emerald-700 bg-emerald-50 text-[11px]'
+          : 'border-amber-200 text-amber-700 bg-amber-50 text-[11px]'
+      }
+    >
+      {present ? '✓' : '—'} {label}
+    </Badge>
   );
 }
