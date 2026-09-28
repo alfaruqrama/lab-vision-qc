@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { FileText, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { TransfusiDocument } from '@/lib/transfusi-types';
+import { bloodProductLabel, type TransfusiDocument } from '@/lib/transfusi-types';
 import { cn } from '@/lib/utils';
 
 interface Props { doc: TransfusiDocument }
@@ -16,6 +16,7 @@ export default function TransfusiCard({ doc }: Props) {
   const dateStr = `${hari[d.getDay()]}, ${d.getDate()} ${bulan[d.getMonth()]} ${d.getFullYear()}`;
 
   const label = doc.patient_name || doc.medical_record_number || 'Tanpa Nama';
+  const produk = bloodProductLabel(doc.blood_product);
 
   return (
     <div
@@ -30,8 +31,13 @@ export default function TransfusiCard({ doc }: Props) {
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <p className="font-semibold text-sm">{label}</p>
+            {doc.blood_product && (
+              <Badge variant="outline" className="text-[10px] font-mono border-red-200 text-red-700 bg-red-50">
+                {produk}
+              </Badge>
+            )}
             <Badge variant="outline" className={cn('text-[10px]', hasPdf ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-amber-200 text-amber-700 bg-amber-50')}>
               {hasPdf ? '✓ PDF Tersedia' : 'Pending'}
             </Badge>
@@ -40,6 +46,15 @@ export default function TransfusiCard({ doc }: Props) {
           {doc.patient_name && doc.medical_record_number && (
             <p className="text-xs text-muted-foreground">RM: {doc.medical_record_number}</p>
           )}
+
+          {(doc.blood_type_rh || doc.bag_number) && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              {doc.blood_type_rh && <span className="font-mono font-medium">{doc.blood_type_rh}</span>}
+              {doc.blood_type_rh && doc.bag_number && ' · '}
+              {doc.bag_number && <span>Kantong: {doc.bag_number}</span>}
+            </p>
+          )}
+
           {doc.notes && <p className="text-xs text-muted-foreground mt-0.5 truncate">{doc.notes}</p>}
 
           <p className="text-[10px] text-muted-foreground mt-1">{dateStr}</p>
@@ -50,6 +65,7 @@ export default function TransfusiCard({ doc }: Props) {
             onClick={(e) => { e.stopPropagation(); window.open(doc.drive_url!, '_blank'); }}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
             title="Buka di Drive"
+            aria-label="Buka di Drive"
           >
             <ExternalLink size={14} />
           </button>

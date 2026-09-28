@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { TransfusiDocument, TransfusiFilters } from '@/lib/transfusi-types';
+import type {
+  TransfusiDocument,
+  TransfusiFilters,
+  UploadTransfusiMetadata,
+} from '@/lib/transfusi-types';
 import { isConnected } from '@/lib/api';
 import { fetchDocuments, fetchDocumentById, uploadToDrive, deleteDocument } from '@/lib/transfusi-api';
 import { toast } from 'sonner';
@@ -34,9 +38,12 @@ export function useUploadTransfusi() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ pdfBase64, metadata }: {
+    mutationFn: async ({
+      pdfBase64,
+      metadata,
+    }: {
       pdfBase64: string;
-      metadata: { patientName?: string; medicalRecordNumber?: string; notes?: string };
+      metadata: UploadTransfusiMetadata;
     }) => {
       return uploadToDrive(pdfBase64, metadata);
     },
@@ -45,24 +52,47 @@ export function useUploadTransfusi() {
       const now = new Date().toISOString();
       const optimistic: TransfusiDocument = {
         id: `optimistic-${Date.now()}`,
-        patient_name: metadata.patientName || null,
-        medical_record_number: metadata.medicalRecordNumber || null,
-        request_date: now.split('T')[0],
+        patient_name: metadata.patientName,
+        medical_record_number: metadata.medicalRecordNumber,
+        request_date: metadata.requestDate || now.split('T')[0],
         notes: metadata.notes || null,
         drive_file_id: null,
         drive_url: null,
         uploaded_by: null,
         created_at: now,
+        blood_product: metadata.bloodProduct,
+        bag_count: metadata.bagCount,
+        blood_type_rh: metadata.bloodTypeRh,
+        bag_number: metadata.bagNumber,
+        inform_concern: metadata.informConcern ?? true,
+        surat_permintaan: metadata.suratPermintaan ?? true,
+        form_reaksi: metadata.formReaksi ?? true,
+        origin: metadata.origin,
       };
       const previous = queryClient.getQueryData<TransfusiDocument[]>(transfusiKeys.list());
-      queryClient.setQueryData<TransfusiDocument[]>(transfusiKeys.list(), (old) => old ? [optimistic, ...old] : [optimistic]);
+      queryClient.setQueryData<TransfusiDocument[]>(transfusiKeys.list(), (old) =>
+        old ? [optimistic, ...old] : [optimistic],
+      );
       return { previous };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) queryClient.setQueryData(transfusiKeys.list(), context.previous);
-      toast.error('Gagal mengupload dokumen');
+      const message = err instanceof Error ? err.message : '';
+      if (message.includes('nama pasien') || message.includes('No. RM')) {
+        toast.error(message);
+      } else if (
+        message.includes('GOOGLE_OAUTH_') ||
+        message.includes('GOOGLE_SERVICE_ACCOUNT_KEY') ||
+        message.includes('belum di-set')
+      ) {
+        toast.error('Drive belum dikonfigurasi. Hubungi admin.');
+      } else if (message.includes('invalid_grant') || message.includes('Refresh token')) {
+        toast.error('Otorisasi Google Drive kedaluwarsa. Admin perlu mint token ulang.');
+      } else {
+        toast.error('Gagal mengunggah dokumen');
+      }
     },
-    onSuccess: () => toast.success('Dokumen berhasil diupload ke Drive'),
+    onSuccess: () => toast.success('Dokumen berhasil disimpan ke Google Drive'),
     onSettled: () => queryClient.invalidateQueries({ queryKey: transfusiKeys.all }),
   });
 }
@@ -74,7 +104,9 @@ export function useDeleteTransfusiDocument() {
     onMutate: async (documentId) => {
       await queryClient.cancelQueries({ queryKey: transfusiKeys.all });
       const previous = queryClient.getQueryData<TransfusiDocument[]>(transfusiKeys.list());
-      queryClient.setQueryData<TransfusiDocument[]>(transfusiKeys.list(), (old) => old ? old.filter((d) => d.id !== documentId) : []);
+      queryClient.setQueryData<TransfusiDocument[]>(transfusiKeys.list(), (old) =>
+        old ? old.filter((d) => d.id !== documentId) : [],
+      );
       return { previous };
     },
     onError: (_err, _id, context) => {

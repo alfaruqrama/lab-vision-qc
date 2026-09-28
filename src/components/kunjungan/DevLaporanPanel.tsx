@@ -31,9 +31,6 @@ export function DevLaporanPanel({ onSaved }: DevLaporanPanelProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Hanya render untuk developer
-  if (user?.role !== 'developer') return null;
-
   // Draft state — kita clone layout untuk edit sementara
   const [draft, setDraft] = useState<LaporanLayout>({ ...layout, sectionOrder: [...layout.sectionOrder], sectionHidden: [...layout.sectionHidden], sectionLabels: { ...layout.sectionLabels }, customSections: layout.customSections.map(cs => ({ ...cs, fields: cs.fields.map(f => ({ ...f })) })) });
 
@@ -47,6 +44,13 @@ export function DevLaporanPanel({ onSaved }: DevLaporanPanelProps) {
       customSections: source.customSections.map(cs => ({ ...cs, fields: cs.fields.map(f => ({ ...f })) })),
     });
   }, []);
+
+  // Hanya render untuk developer.
+  // PENTING: guard ini harus SETELAH semua hook di atas. Kalau diletakkan
+  // lebih awal, jumlah hook yang dipanggil berubah antar-render (user null
+  // saat auth loading → developer setelahnya) dan React melempar
+  // "Rendered more hooks than during the previous render".
+  if (user?.role !== 'developer') return null;
 
   // ── Section order operations ──
 
@@ -162,8 +166,10 @@ export function DevLaporanPanel({ onSaved }: DevLaporanPanelProps) {
       } else {
         toast.error('Gagal menyimpan', { description: result.message });
       }
-    } catch (e: any) {
-      toast.error('Error', { description: e.message });
+    } catch (e) {
+      toast.error('Error', {
+        description: e instanceof Error ? e.message : 'Terjadi kesalahan tak terduga',
+      });
     } finally {
       setSaving(false);
     }
