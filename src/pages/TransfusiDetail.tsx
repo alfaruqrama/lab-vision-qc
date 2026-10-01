@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import DocumentPreview from '@/features/transfusi/components/DocumentPreview';
 import { useTransfusiDocument, useDeleteTransfusiDocument } from '@/features/transfusi/hooks/useTransfusiRecords';
 import { bloodProductLabel } from '@/lib/transfusi-types';
+import { canModifyRecords } from '@/lib/auth-types';
 import { useAuth } from '@/hooks/use-auth';
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -19,7 +20,7 @@ export default function TransfusiDetail() {
   const { data: doc, isLoading } = useTransfusiDocument(id || '');
   const deleteMutation = useDeleteTransfusiDocument();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const canDelete = user?.role === 'admin';
+  const canDelete = canModifyRecords(user?.role);
 
   const handleDelete = async () => {
     if (!doc || !window.confirm(`Hapus dokumen ${doc.patient_name || 'tanpa nama'}?`)) return;

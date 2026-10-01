@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# setup-drive-secrets.sh — pasang secret OAuth Google Drive untuk modul Transfusi,
-# lalu deploy Edge Function-nya.
+# setup-drive-secrets.sh — pasang secret OAuth Google Drive + Google Sheet untuk
+# modul Transfusi, lalu deploy Edge Function-nya.
 #
 # Dibuat karena `supabase secrets set` tetap melaporkan "Finished" walaupun
 # nilainya kosong — jadi kegagalan `cat` tidak pernah kelihatan.
 #
 # Pemakaian (jalan A — OAuth akun Gmail):
-#   bash scripts/setup-drive-secrets.sh <path-ke-gdrive-oauth.env> <folder-id-drive>
+#   bash scripts/setup-drive-secrets.sh <path-ke-gdrive-oauth.env> <folder-id-drive> [sheet-id]
 #
 # File .env dihasilkan oleh:
 #   bash scripts/mint-gdrive-oauth.sh <oauth-client.json>
@@ -15,22 +15,29 @@
 # Contoh:
 #   bash scripts/setup-drive-secrets.sh \
 #     ~/.config/lab-vision-qc/gdrive-oauth.env \
-#     1zIG5k1CnGhjj6Sz3x6DMstM1_pIWLmEg
+#     1zIG5k1CnGhjj6Sz3x6DMstM1_pIWLmEg \
+#     1Jb_OnAaZte-BHYEkh2ZJUtHqG7MmiDucUPCgYCBcUYA
+#
+# sheet-id opsional: kalau diberikan, baris arsip ikut dicatat otomatis ke
+# Google Sheet (tab "Arsip Transfusi"). Ambil hanya bagian di antara
+# /spreadsheets/d/ dan /edit pada URL.
 
 set -euo pipefail
 
 ENV_FILE="${1:-}"
 FOLDER_ID="${2:-}"
+SHEET_ID="${3:-}"
 
 if [[ -z "$ENV_FILE" || -z "$FOLDER_ID" ]]; then
   cat <<'USAGE'
 Pemakaian:
-  bash scripts/setup-drive-secrets.sh <path-ke-gdrive-oauth.env> <folder-id-drive>
+  bash scripts/setup-drive-secrets.sh <path-ke-gdrive-oauth.env> <folder-id-drive> [sheet-id]
 
 Contoh:
   bash scripts/setup-drive-secrets.sh \
     ~/.config/lab-vision-qc/gdrive-oauth.env \
-    1zIG5k1CnGhjj6Sz3x6DMstM1_pIWLmEg
+    1zIG5k1CnGhjj6Sz3x6DMstM1_pIWLmEg \
+    1Jb_OnAaZte-BHYEkh2ZJUtHqG7MmiDucUPCgYCBcUYA
 
 File .env belum ada?
   1. Buat OAuth client (Desktop app) di Google Cloud Console
@@ -39,6 +46,11 @@ File .env belum ada?
 
 Catatan: untuk Folder ID, ambil HANYA bagian setelah /folders/ —
 tanpa "?usp=drive_link" di belakangnya.
+
+Catatan: untuk Sheet ID, ambil HANYA bagian di antara /spreadsheets/d/
+dan /edit pada URL, contoh:
+  https://docs.google.com/spreadsheets/d/1Jb_OnAaZte-BHYEkh2ZJUtHqG7MmiDucUPCgYCBcUYA/edit
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ini saja
 USAGE
   exit 1
 fi
@@ -48,6 +60,12 @@ if [[ "$FOLDER_ID" == *"?"* || "$FOLDER_ID" == *" "* ]]; then
   echo "  Ambil hanya bagian setelah /folders/ , contoh:"
   echo "  https://drive.google.com/drive/folders/1zIG5k1CnGhjj6Sz3x6DMstM1_pIWLmEg?usp=drive_link"
   echo "                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ini saja"
+  exit 1
+fi
+
+if [[ -n "$SHEET_ID" && ( "$SHEET_ID" == *"/"* || "$SHEET_ID" == *"?"* || "$SHEET_ID" == *" "* ) ]]; then
+  echo "✗ Sheet ID tampak seperti URL utuh, bukan ID."
+  echo "  Ambil hanya bagian di antara /spreadsheets/d/ dan /edit."
   exit 1
 fi
 
@@ -137,6 +155,7 @@ PY
 echo "  client_id     : ${CLIENT_ID_PREFIX}…"
 echo "  refresh_token : ada (${REFRESH_LEN} karakter, …${REFRESH_SUFFIX})"
 echo "  folder_id     : $FOLDER_ID"
+echo "  sheet_id      : ${SHEET_ID:-(tidak di-set — auto-isi Sheet dilewati)}"
 
 echo
 echo "▸ Memasang GOOGLE_OAUTH_CLIENT_ID ..."
@@ -150,6 +169,13 @@ supabase secrets set GOOGLE_OAUTH_REFRESH_TOKEN="$GOOGLE_OAUTH_REFRESH_TOKEN"
 
 echo "▸ Memasang GDRIVE_TRANSFUSI_FOLDER_ID ..."
 supabase secrets set GDRIVE_TRANSFUSI_FOLDER_ID="$FOLDER_ID"
+
+if [[ -n "$SHEET_ID" ]]; then
+  echo "▸ Memasang GTRANSFUSI_SHEET_ID ..."
+  supabase secrets set GTRANSFUSI_SHEET_ID="$SHEET_ID"
+else
+  echo "▸ GTRANSFUSI_SHEET_ID dilewati (Sheet ID tidak diberikan)."
+fi
 
 echo
 echo "▸ Memverifikasi ..."
@@ -169,6 +195,15 @@ do
     ok=0
   fi
 done
+
+if [[ -n "$SHEET_ID" ]]; then
+  if grep -q "GTRANSFUSI_SHEET_ID" <<<"$LIST_OUTPUT"; then
+    echo "  ✓ GTRANSFUSI_SHEET_ID"
+  else
+    echo "  ✗ GTRANSFUSI_SHEET_ID TIDAK terpasang"
+    ok=0
+  fi
+fi
 
 if [[ "$ok" -ne 1 ]]; then
   echo
@@ -192,5 +227,6 @@ Langkah terakhir — jalankan dua migrasi di Supabase Dashboard
 
 Lalu uji dari HP: Transfusi → Scan Baru.
 PDF harus muncul di Drive: Berkas Transfusi → YYYY → MM
+Baris arsip harus muncul di Google Sheet (tab "Arsip Transfusi").
 ────────────────────────────────────────────────────────────
 NEXT

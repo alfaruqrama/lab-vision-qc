@@ -19,21 +19,57 @@
 
 set -euo pipefail
 
-CLIENT_JSON="${1:-}"
+# Dua mode sumber kredensial:
+#   1) posisional JSON client (cara lama)   : mint-gdrive-oauth.sh ~/Downloads/client.json
+#   2) --from-env <path-env> (tanpa JSON)   : pakai client_id/secret dari file env yang ada
+#
+# Mode (2) penting sekarang: Google tidak lagi mengizinkan mengunduh JSON client
+# secret, jadi kredensial dibaca dari file env yang sudah tersimpan.
+FROM_ENV=""
+CLIENT_JSON=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --from-env)
+      FROM_ENV="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      CLIENT_JSON=""
+      shift
+      break
+      ;;
+    *)
+      CLIENT_JSON="$1"
+      shift
+      ;;
+  esac
+done
+
 PORT="${GDRIVE_OAUTH_PORT:-8765}"
 REDIRECT_URI="http://127.0.0.1:${PORT}/"
-SCOPE="https://www.googleapis.com/auth/drive"
+# `drive`        → unggah PDF ke folder arsip (modul Transfusi).
+# `spreadsheets` → tulis baris arsip ke Google Sheet (auto-isi spreadsheet).
+# Keduanya dibutuhkan, jadi mint sekali dengan scope gabungan.
+SCOPE="https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets"
 OUT_DIR="${HOME}/.config/lab-vision-qc"
 OUT_FILE="${OUT_DIR}/gdrive-oauth.env"
 
-if [[ -z "$CLIENT_JSON" ]]; then
+if [[ -z "$CLIENT_JSON" && -z "$FROM_ENV" ]]; then
   cat <<'USAGE'
 Pemakaian:
   bash scripts/mint-gdrive-oauth.sh <path-ke-oauth-client.json>
+  bash scripts/mint-gdrive-oauth.sh --from-env <path-ke-gdrive-oauth.env>
 
-Unduh JSON dari Google Cloud Console:
+Mode 1 (JSON): unduh dari Google Cloud Console
   APIs & Services → Credentials → OAuth 2.0 Client IDs → Download JSON
   Tipe client: Desktop app  (bukan Web, bukan Service account)
+  Catatan: Google kini menyembunyikan tombol download untuk sebagian client.
+  Kalau tidak bisa mengunduh JSON, pakai mode --from-env.
+
+Mode 2 (--from-env): baca client_id & client_secret yang sudah ada dari file env
+  (mis. ~/.config/lab-vision-qc/gdrive-oauth.env), lalu mint refresh token BARU
+  dengan scope lengkap (drive + spreadsheets). Tidak perlu file JSON.
+  File env lama otomatis dicadangkan ke *.bak.
 
 Sebelum mint:
   Consent screen harus **In production**, bukan Testing.
@@ -42,7 +78,12 @@ USAGE
   exit 1
 fi
 
-if [[ ! -f "$CLIENT_JSON" ]]; then
+if [[ -n "$FROM_ENV" && ! -f "$FROM_ENV" ]]; then
+  echo "✗ File env tidak ditemukan: $FROM_ENV"
+  exit 1
+fi
+
+if [[ -z "$FROM_ENV" && ! -f "$CLIENT_JSON" ]]; then
   echo "✗ File tidak ditemukan: $CLIENT_JSON"
   exit 1
 fi
@@ -52,9 +93,37 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-# ─── Baca client_id / client_secret dari JSON Desktop atau Web ───────────────
+# ─── Baca client_id / client_secret ──────────────────────────────────────────
+#
+# Dari env (mode 2) atau dari JSON Desktop/Web (mode 1).
 
-eval "$(python3 - "$CLIENT_JSON" <<'PY'
+if [[ -n "$FROM_ENV" ]]; then
+  eval "$(python3 - "$FROM_ENV" <<'PY'
+import shlex, sys
+path = sys.argv[1]
+want = {"GOOGLE_OAUTH_CLIENT_ID": "CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET": "CLIENT_SECRET"}
+found: dict[str, str] = {}
+with open(path) as fh:
+    for raw in fh:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        k = k.strip()
+        v = v.strip().strip("'").strip('"')
+        if k in want:
+            found[want[k]] = v
+missing = [k for k in ("CLIENT_ID", "CLIENT_SECRET") if not found.get(k)]
+if missing:
+    sys.exit("✗ File env tidak punya " + ", ".join(missing) + ". Isi minimal GOOGLE_OAUTH_CLIENT_ID dan GOOGLE_OAUTH_CLIENT_SECRET.")
+print("CLIENT_ID=" + shlex.quote(found["CLIENT_ID"]))
+print("CLIENT_SECRET=" + shlex.quote(found["CLIENT_SECRET"]))
+print("CLIENT_KIND=installed")
+PY
+  )"
+  echo "▸ Sumber kredensial: $FROM_ENV (mode --from-env)"
+else
+  eval "$(python3 - "$CLIENT_JSON" <<'PY'
 import json, shlex, sys
 path = sys.argv[1]
 with open(path) as fh:
@@ -70,7 +139,8 @@ print("CLIENT_ID=" + shlex.quote(cid))
 print("CLIENT_SECRET=" + shlex.quote(sec))
 print("CLIENT_KIND=" + shlex.quote("installed" if "installed" in data else "web"))
 PY
-)"
+  )"
+fi
 
 if [[ "$CLIENT_KIND" == "web" ]]; then
   echo "⚠ JSON ini tipe Web, bukan Desktop."
@@ -205,6 +275,16 @@ if expires:
     sys.exit(2)
 
 os.makedirs(out_dir, mode=0o700, exist_ok=True)
+
+# Cadangkan file env lama sebelum ditimpa — supaya token lama masih bisa
+# dipulihkan bila mint sebagian berhasil.
+if os.path.exists(out_file):
+    backup = out_file + ".bak"
+    with open(out_file, "rb") as src, open(backup, "wb") as dst:
+        dst.write(src.read())
+    os.chmod(backup, 0o600)
+    print(f"▸ File env lama dicadangkan: {backup}")
+
 content = (
     f"GOOGLE_OAUTH_CLIENT_ID={client_id}\n"
     f"GOOGLE_OAUTH_CLIENT_SECRET={client_secret}\n"
@@ -219,11 +299,16 @@ os.replace(tmp, out_file)
 print()
 print(f"✓ Refresh token disimpan: {out_file}")
 print(f"  (chmod 600, {len(refresh)} karakter, suffix …{refresh[-6:]})")
+print("  Scope yang diminta: drive + spreadsheets")
 print()
 print("Lanjut pasang secret + deploy:")
 print("  bash scripts/setup-drive-secrets.sh \\")
 print(f"    {out_file} \\")
-print("    <FOLDER_ID>")
+print("    <FOLDER_ID> \\")
+print("    <SHEET_ID>   # opsional, untuk auto-isi Google Sheet")
 print()
 print("Folder ID = bagian setelah /folders/ di URL Drive, tanpa ?usp=...")
+print("Sheet ID  = bagian di antara /spreadsheets/d/ dan /edit.")
+print()
+print("Catatan: bila Sheets API baru diaktifkan, tunggu 1-2 menit sebelum uji.")
 PY
