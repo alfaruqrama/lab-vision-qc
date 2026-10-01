@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { QCRecord, ParamName, WestgardStatus } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
+import { canModifyRecords } from '@/lib/auth-types';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { XCircle, AlertTriangle, Trash2 } from 'lucide-react';
@@ -32,7 +33,7 @@ export function QCRecordCard({ record, compact = false, onClick, className, onDe
   const label = INSTRUMENT_LABELS[record.alat];
 
   const auth = useAuth();
-  const isAdmin = auth.user?.role === 'admin';
+  const canDelete = canModifyRecords(auth.user?.role);
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -82,7 +83,7 @@ export function QCRecordCard({ record, compact = false, onClick, className, onDe
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={overallStatus} showIcon />
-            {isAdmin && onDelete && (
+            {canDelete && onDelete && (
               <button
                 onClick={handleDelete}
                 className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"

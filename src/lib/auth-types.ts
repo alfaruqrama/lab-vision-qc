@@ -1,5 +1,17 @@
 export type UserRole = 'admin' | 'petugas' | 'viewer' | 'developer';
 
+/**
+ * Peran yang boleh mengubah/menghapus data operasional (QC, Transfusi, dsb).
+ *
+ * `viewer` hanya membaca; `admin`, `petugas`, dan `developer` boleh mengelola.
+ * Dipakai terpusat agar aturan role tidak berbeda-beda antar modul.
+ */
+const MODIFY_ROLES: readonly UserRole[] = ['admin', 'petugas', 'developer'];
+
+export function canModifyRecords(role: UserRole | undefined | null): boolean {
+  return !!role && MODIFY_ROLES.includes(role);
+}
+
 export interface AuthUser {
   id: string;        // uuid from profiles table
   username: string;

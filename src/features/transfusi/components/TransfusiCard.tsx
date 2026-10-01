@@ -1,14 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import { FileText, ExternalLink } from 'lucide-react';
+import { FileText, ExternalLink, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { bloodProductLabel, type TransfusiDocument } from '@/lib/transfusi-types';
+import { canModifyRecords } from '@/lib/auth-types';
+import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 
-interface Props { doc: TransfusiDocument }
+interface Props {
+  doc: TransfusiDocument;
+  /** Dipanggil setelah pengguna mengonfirmasi hapus. */
+  onDelete?: (doc: TransfusiDocument) => void;
+}
 
-export default function TransfusiCard({ doc }: Props) {
+export default function TransfusiCard({ doc, onDelete }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const hasPdf = !!doc.drive_url;
+  const canDelete = !!onDelete && canModifyRecords(user?.role);
 
   const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -17,6 +25,20 @@ export default function TransfusiCard({ doc }: Props) {
 
   const label = doc.patient_name || doc.medical_record_number || 'Tanpa Nama';
   const produk = bloodProductLabel(doc.blood_product);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nama = doc.patient_name || 'tanpa nama';
+    const rm = doc.medical_record_number ? ` (RM: ${doc.medical_record_number})` : '';
+    if (
+      window.confirm(
+        `Hapus dokumen transfusi "${nama}"${rm}?\n\nTindakan ini tidak dapat dibatalkan. ` +
+          'Catatan: berkas PDF di Google Drive tidak ikut terhapus.',
+      )
+    ) {
+      onDelete?.(doc);
+    }
+  };
 
   return (
     <div
@@ -60,16 +82,28 @@ export default function TransfusiCard({ doc }: Props) {
           <p className="text-[10px] text-muted-foreground mt-1">{dateStr}</p>
         </div>
 
-        {hasPdf && (
-          <button
-            onClick={(e) => { e.stopPropagation(); window.open(doc.drive_url!, '_blank'); }}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-            title="Buka di Drive"
-            aria-label="Buka di Drive"
-          >
-            <ExternalLink size={14} />
-          </button>
-        )}
+        <div className="flex items-center gap-0.5">
+          {hasPdf && (
+            <button
+              onClick={(e) => { e.stopPropagation(); window.open(doc.drive_url!, '_blank'); }}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              title="Buka di Drive"
+              aria-label="Buka di Drive"
+            >
+              <ExternalLink size={14} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+              title="Hapus dokumen"
+              aria-label="Hapus dokumen"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Camera, X, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Camera, X, Loader2, AlertCircle, ScanLine } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
-import { usePdfBuilder, MAX_IMAGE_DIMENSION } from '@/features/transfusi/hooks/usePdfBuilder';
+import { usePdfBuilder } from '@/features/transfusi/hooks/usePdfBuilder';
 import { useUploadTransfusi } from '@/features/transfusi/hooks/useTransfusiRecords';
+import {
+  DocumentScanner,
+  type ScanOutcome,
+} from '@/features/transfusi/components/DocumentScanner';
+import type { ScanFilter } from '@/features/transfusi/scan/applyScanFilter';
+import type { Point } from '@/features/transfusi/scan/cornerGeometry';
 import {
   BLOOD_PRODUCTS,
   BLOOD_TYPES_RH,
@@ -26,6 +32,21 @@ import {
   type BloodTypeRh,
 } from '@/lib/transfusi-types';
 import { toast } from 'sonner';
+
+/** Batas jumlah halaman foto per dokumen — menjaga ukuran PDF. */
+const MAX_PHOTOS = 10;
+
+/**
+ * Satu foto dokumen yang sudah (atau akan) dipindai.
+ * `file` yang masuk PDF selalu yang sudah dipotong & difilter.
+ */
+interface ScannedPhoto {
+  file: File;
+  previewUrl: string;
+  corners?: Point[];
+  filter?: ScanFilter;
+}
+
 
 const DOKUMEN_WAJIB = [
   { key: 'informConcern' as const, label: 'Inform Concern' },
@@ -54,9 +75,17 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
   const [suratPermintaan, setSuratPermintaan] = useState(true);
   const [formReaksi, setFormReaksi] = useState(true);
 
-  const [photos, setPhotos] = useState<File[]>([]);
-  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<ScannedPhoto[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Antrean pemindaian ──
+  // Saat operator memilih beberapa foto sekaligus, kita proses satu per satu
+  // lewat DocumentScanner. `scanQueue` menyimpan sisa file mentah, `scanFile`
+  // adalah yang sedang dibuka, dan `editingIndex` menandai mode edit ulang.
+  const [scanQueue, setScanQueue] = useState<File[]>([]);
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const displayPetugas = petugas || (user?.nama ?? '');
   const isUploading = uploadMutation.isPending;
@@ -79,21 +108,93 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
     return !formReaksi;
   });
 
+  /** Buka pemindai untuk file berikutnya dalam antrean, bila ada. */
+  const openNextInQueue = useCallback((queue: File[]) => {
+    if (queue.length === 0) {
+      setScanFile(null);
+      setScanOpen(false);
+      return;
+    }
+    setScanFile(queue[0]);
+    setScanQueue(queue.slice(1));
+    setScanOpen(true);
+  }, []);
+
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    setPhotos((prev) => [...prev, ...files]);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => setPhotoPreviews((prev) => [...prev, ev.target?.result as string]);
-      reader.readAsDataURL(file);
-    });
     e.target.value = '';
+    if (files.length === 0) return;
+
+    const remaining = MAX_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      toast.error(`Maksimal ${MAX_PHOTOS} foto per dokumen.`);
+      return;
+    }
+
+    const accepted = files.slice(0, remaining);
+    if (files.length > remaining) {
+      toast.warning(
+        `Hanya ${remaining} foto pertama yang diproses (batas ${MAX_PHOTOS} halaman).`,
+      );
+    }
+
+    setEditingIndex(null);
+    openNextInQueue(accepted);
+  };
+
+  /** Simpan hasil pemindaian (baru atau hasil edit ulang). */
+  const handleScanApply = (result: ScanOutcome) => {
+    setPhotos((prev) => {
+      const next: ScannedPhoto = {
+        file: result.file,
+        previewUrl: result.previewUrl,
+        corners: result.corners,
+        filter: result.filter,
+      };
+      if (editingIndex !== null) {
+        const copy = [...prev];
+        // Bebaskan blob URL lama agar tidak bocor memori.
+        if (copy[editingIndex]?.previewUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(copy[editingIndex].previewUrl);
+        }
+        copy[editingIndex] = next;
+        return copy;
+      }
+      return [...prev, next];
+    });
+    setEditingIndex(null);
+
+    // Lanjut ke file berikutnya dalam antrean (mode tambah baru).
+    if (editingIndex === null) {
+      openNextInQueue(scanQueue);
+    }
+  };
+
+  /** Batalkan sisa antrean saat dialog ditutup manual. */
+  const handleScanOpenChange = (open: boolean) => {
+    setScanOpen(open);
+    if (!open) {
+      setScanQueue([]);
+      setScanFile(null);
+      setEditingIndex(null);
+    }
+  };
+
+  const handleEditPhoto = (index: number) => {
+    const photo = photos[index];
+    if (!photo) return;
+    setEditingIndex(index);
+    setScanFile(photo.file);
+    setScanQueue([]);
+    setScanOpen(true);
   };
 
   const handleRemovePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+    setPhotos((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSubmit = async () => {
@@ -124,7 +225,10 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
     // tidak terlihat kalau kita hanya menyerahkan ke onError milik mutation.
     let base64: string;
     try {
-      ({ base64 } = await buildPdf(photos, pdfMetadata));
+      ({ base64 } = await buildPdf(
+        photos.map((p) => p.file),
+        pdfMetadata,
+      ));
     } catch (err) {
       console.error('Build PDF error:', err);
       toast.error(
@@ -334,19 +438,24 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Ambil foto formulir transfusi, kwitansi, dan kantong darah. Semua foto digabung
-            jadi 1 file PDF. Foto diperkecil otomatis ke {MAX_IMAGE_DIMENSION}px agar
-            unggahan tidak terlalu besar.
+            Ambil foto formulir transfusi, kwitansi, dan kantong darah. Kertas
+            dideteksi &amp; dipotong otomatis, diputar, dan difilter seperti hasil pemindai.
+            Sudut bisa diatur manual setelah foto. Semua foto digabung jadi 1 file PDF
+            (maks {MAX_PHOTOS} halaman).
           </p>
 
-          {photoPreviews.length > 0 && (
+          {photos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              {photoPreviews.map((src, i) => (
+              {photos.map((photo, i) => (
                 <div
                   key={i}
-                  className="relative rounded-lg overflow-hidden border bg-muted aspect-square"
+                  className="relative rounded-lg overflow-hidden border bg-muted aspect-square group"
                 >
-                  <img src={src} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                  <img
+                    src={photo.previewUrl}
+                    alt={`Dokumen ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
                   <button
                     onClick={() => handleRemovePhoto(i)}
                     className="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-white hover:bg-black/80"
@@ -355,8 +464,17 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
                   >
                     <X size={14} />
                   </button>
+                  <button
+                    onClick={() => handleEditPhoto(i)}
+                    className="absolute bottom-1 right-1 p-1 rounded-full bg-black/60 text-white hover:bg-black/80"
+                    disabled={isUploading}
+                    aria-label={`Atur ulang potongan foto ${i + 1}`}
+                    title="Atur potongan"
+                  >
+                    <ScanLine size={13} />
+                  </button>
                   <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1 rounded">
-                    {i + 1}/{photoPreviews.length}
+                    {i + 1}/{photos.length}
                   </span>
                 </div>
               ))}
@@ -379,10 +497,10 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
             className="w-full"
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            disabled={isUploading || photos.length >= MAX_PHOTOS || scanOpen}
           >
             <Camera size={14} className="mr-1" />
-            {photos.length > 0 ? `Tambah Foto (${photos.length})` : 'Ambil Foto Dokumen'}
+            {photos.length > 0 ? `Tambah Foto (${photos.length}/${MAX_PHOTOS})` : 'Ambil Foto Dokumen'}
           </Button>
 
           {photos.length > 0 && (
@@ -392,6 +510,14 @@ export default function TransfusiForm({ onSuccess }: { onSuccess?: () => void })
           )}
         </CardContent>
       </Card>
+
+      {/* ── Pemindai dokumen ── */}
+      <DocumentScanner
+        open={scanOpen}
+        onOpenChange={handleScanOpenChange}
+        file={scanFile}
+        onApply={handleScanApply}
+      />
 
       {/* ── Catatan ── */}
       <Card>

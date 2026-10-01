@@ -97,6 +97,11 @@ export interface UploadTransfusiResponse {
   drive_url?: string;
   document_id?: string;
   file_name?: string;
+  /**
+   * Terisi bila dokumen berhasil disimpan ke Drive tetapi gagal dicatat ke
+   * Google Sheet. Bersifat peringatan, bukan kegagalan unggahan.
+   */
+  sheet_warning?: string | null;
   error?: string;
 }
 

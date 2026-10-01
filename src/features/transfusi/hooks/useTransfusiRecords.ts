@@ -92,7 +92,18 @@ export function useUploadTransfusi() {
         toast.error('Gagal mengunggah dokumen');
       }
     },
-    onSuccess: () => toast.success('Dokumen berhasil disimpan ke Google Drive'),
+    onSuccess: (result) => {
+      if (result?.sheet_warning) {
+        // PDF tersimpan, tetapi baris arsip gagal masuk Google Sheet.
+        // Peringatan (bukan error) — operator tidak perlu mengunggah ulang.
+        toast.warning('Dokumen tersimpan ke Drive, tetapi gagal dicatat ke Google Sheet.', {
+          description: 'Catat manual bila perlu. Detail teknis ada di log server.',
+          duration: 10_000,
+        });
+      } else {
+        toast.success('Dokumen berhasil disimpan ke Google Drive');
+      }
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: transfusiKeys.all }),
   });
 }

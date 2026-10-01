@@ -1,9 +1,25 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { appendTransfusiRow, buildRow, type SheetRowInput } from './sheets.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-token',
+};
+
+// ─── Label tampilan untuk kolom Sheet ───────────────────────────────────────
+
+const BLOOD_PRODUCT_LABELS: Record<string, string> = {
+  PRC: 'PRC (Packed Red Cells)',
+  WB: 'WB (Whole Blood)',
+  TC: 'TC (Thrombocyte Concentrate)',
+  FFP: 'FFP (Fresh Frozen Plasma)',
+  PRC_LEUKOREDUCED: 'PRC Leukoreduced',
+};
+
+const BLOOD_ORIGIN_LABELS: Record<string, string> = {
+  GRESIK: 'Gresik',
+  SURABAYA: 'Surabaya',
 };
 
 // ─── Nilai domain yang diizinkan (whitelist) ────────────────────────────────
@@ -160,6 +176,14 @@ async function getAccessToken(): Promise<string> {
  */
 function getRootFolderId(): string {
   return requireSecret('GDRIVE_TRANSFUSI_FOLDER_ID');
+}
+
+/**
+ * ID spreadsheet arsip (bagian di URL /spreadsheets/d/<ID>/edit).
+ * Opsional: bila tidak di-set, fitur auto-isi Sheet dilewati tanpa error.
+ */
+function getSheetId(): string {
+  return Deno.env.get('GTRANSFUSI_SHEET_ID')?.trim() ?? '';
 }
 
 /**
@@ -497,6 +521,49 @@ serve(async (req) => {
       );
     }
 
+    // ── Catat baris ke Google Sheet (best-effort) ───────────────────────
+    //
+    // Berkas di Drive + baris di database adalah sumber utama; Sheet hanyalah
+    // salinan untuk memudahkan rekapitulasi. Kegagalan di sini TIDAK boleh
+    // menggagalkan unggahan — kalau gagal, operator diberi peringatan dan bisa
+    // mencatat ulang secara manual, daripada mengunggah ulang & membuat PDF dua.
+    let sheetWarning: string | null = null;
+    const sheetId = getSheetId();
+
+    if (!sheetId) {
+      console.warn('[Transfusi] GTRANSFUSI_SHEET_ID belum di-set — lewati pencatatan Sheet');
+    } else {
+      try {
+        const sheetInput: SheetRowInput = {
+          createdAt: now.toISOString(),
+          patientName: trimmedName,
+          medicalRecordNumber: trimmedRm,
+          requestDate: effectiveDate,
+          bloodProductLabel: validProduct ? BLOOD_PRODUCT_LABELS[validProduct] ?? validProduct : '',
+          bagCount: parsedBagCount,
+          bloodTypeRh: validBloodType ?? '',
+          bagNumber: trimmedBagNumber,
+          originLabel: validOrigin ? BLOOD_ORIGIN_LABELS[validOrigin] ?? validOrigin : '',
+          informConcern: informConcern !== false,
+          suratPermintaan: suratPermintaan !== false,
+          formReaksi: formReaksi !== false,
+          notes: typeof notes === 'string' ? notes.trim() : '',
+          petugas: profile.nama ?? profile.username ?? '',
+          statusPdf: 'Tersimpan di Drive',
+          driveUrl: webViewLink,
+        };
+
+        await appendTransfusiRow(accessToken, sheetId, buildRow(sheetInput));
+        console.log('[Transfusi] Baris arsip dicatat ke Google Sheet');
+      } catch (sheetError) {
+        sheetWarning =
+          sheetError instanceof Error
+            ? sheetError.message
+            : 'Gagal mencatat ke Google Sheet';
+        console.error('[Transfusi] Pencatatan Sheet gagal:', sheetWarning);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -504,6 +571,7 @@ serve(async (req) => {
         drive_url: webViewLink,
         document_id: inserted.id,
         file_name: fileName,
+        sheet_warning: sheetWarning,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

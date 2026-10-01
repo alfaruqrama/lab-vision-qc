@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import TransfusiCard from '@/features/transfusi/components/TransfusiCard';
 import TransfusiSearch from '@/features/transfusi/components/TransfusiSearch';
-import type { TransfusiFilters } from '@/lib/transfusi-types';
+import type { TransfusiFilters, TransfusiDocument } from '@/lib/transfusi-types';
+import { canModifyRecords } from '@/lib/auth-types';
 
 function StatCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: LucideIcon; color: string }) {
   return (
@@ -27,10 +28,18 @@ function StatCard({ label, value, sub, icon: Icon, color }: { label: string; val
 
 export default function TransfusiDashboard() {
   const navigate = useNavigate();
-  const { documents, loading } = useTransfusiStore();
+  const { documents, loading, deleteDocument } = useTransfusiStore();
   const { user } = useAuth();
-  const canInput = user?.role === 'admin' || user?.role === 'petugas' || user?.role === 'developer';
+  const canInput = canModifyRecords(user?.role);
   const [filters, setFilters] = useState<TransfusiFilters>({});
+
+  const handleDelete = async (doc: TransfusiDocument) => {
+    try {
+      await deleteDocument(doc.id);
+    } catch {
+      // Pesan error sudah ditangani di useDeleteTransfusiDocument.
+    }
+  };
 
   const filteredDocs = useMemo(() => {
     let result = documents;
@@ -89,7 +98,7 @@ export default function TransfusiDashboard() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {filteredDocs.map((doc) => <TransfusiCard key={doc.id} doc={doc} />)}
+          {filteredDocs.map((doc) => <TransfusiCard key={doc.id} doc={doc} onDelete={handleDelete} />)}
         </div>
       )}
     </div>
