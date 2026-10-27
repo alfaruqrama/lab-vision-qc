@@ -3,6 +3,7 @@ import { useQCStore } from '@/hooks/use-qc-store';
 import type { LotConfig, ParamConfig, InstrumentType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
+import { calculateStatsFromRecords } from '@/lib/stats-util';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -285,18 +286,27 @@ function ParamTable({ label, children }: { label: string; children: React.ReactN
 export default function LotConfigPage() {
   const { config, updateConfig } = useQCStore();
   const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('CA660');
-  const [localConfig, setLocalConfig] = useState<LotConfig>(() => JSON.parse(JSON.stringify(config)));
+  const [localConfig, setLocalConfig] = useState<LotConfig | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Synchronize local state when remote config loads
+  React.useEffect(() => {
+    if (config) {
+      setLocalConfig(JSON.parse(JSON.stringify(config)));
+    }
+  }, [config]);
+
   function addCA660Lot() {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       CA660: [...prev.CA660, { lot: '', exp: '', Kontrol: { PT: { mean: 0, sd: 0 }, APTT: { mean: 0, sd: 0 }, INR: { mean: 0, sd: 0 } } }],
-    }));
+    } : null);
   }
 
   function addOnCallLot(key: 'ONCALL1' | 'ONCALL2') {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       [key]: [
         ...prev[key],
@@ -308,11 +318,12 @@ export default function LotConfigPage() {
           CTRL2: { GDA: { mean: 0, sd: 0 } },
         },
       ],
-    }));
+    } : null);
   }
 
   function addCleverLot(key: 'CLEVER1' | 'CLEVER2') {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       [key]: [
         ...prev[key],
@@ -322,11 +333,12 @@ export default function LotConfigPage() {
           Kontrol: { GDA: { mean: 0, sd: 0 } },
         },
       ],
-    }));
+    } : null);
   }
 
   function updateLot<T>(key: TabType, index: number, updated: T) {
     setLocalConfig((prev) => {
+      if (!prev) return null;
       const arr = [...(prev[key] as any[])];
       arr[index] = updated;
       return { ...prev, [key]: arr };
@@ -334,14 +346,18 @@ export default function LotConfigPage() {
   }
 
   function deleteLot(key: TabType, index: number) {
-    setLocalConfig((prev) => ({
-      ...prev,
-      [key]: (prev[key] as any[]).filter((_, j) => j !== index),
-    }));
+    setLocalConfig((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        [key]: (prev[key] as any[]).filter((_, j) => j !== index),
+      };
+    });
   }
 
   function addEasyliteLevelLot(level: EasyliteLevel) {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       EASYLITE: {
         ...prev.EASYLITE,
@@ -350,11 +366,12 @@ export default function LotConfigPage() {
           { lot: '', exp: '', params: { Na: { mean: 0, sd: 0 }, K: { mean: 0, sd: 0 }, Cl: { mean: 0, sd: 0 } } },
         ],
       },
-    }));
+    } : null);
   }
 
   function updateEasyliteLot(level: EasyliteLevel, index: number, updated: LotConfig['EASYLITE'][EasyliteLevel][number]) {
     setLocalConfig((prev) => {
+      if (!prev) return null;
       const lots = [...prev.EASYLITE[level]];
       lots[index] = updated;
       return { ...prev, EASYLITE: { ...prev.EASYLITE, [level]: lots } };
@@ -362,16 +379,23 @@ export default function LotConfigPage() {
   }
 
   function deleteEasyliteLot(level: EasyliteLevel, index: number) {
-    setLocalConfig((prev) => ({
-      ...prev,
-      EASYLITE: {
-        ...prev.EASYLITE,
-        [level]: prev.EASYLITE[level].filter((_, j) => j !== index),
-      },
-    }));
+    setLocalConfig((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        EASYLITE: {
+          ...prev.EASYLITE,
+          [level]: prev.EASYLITE[level].filter((_, j) => j !== index),
+        },
+      };
+    });
   }
 
   async function handleSave() {
+    if (!localConfig) {
+      toast.error('Konfigurasi belum dimuat');
+      return;
+    }
     setSaving(true);
     try {
       await updateConfig(localConfig);

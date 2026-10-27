@@ -141,6 +141,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   let streak1s = 1;
   const days41s: string[] = [];
   for (let i = 1; i < scores.length; i++) {
+    // FIX: Compare current with previous for streak consistency
     if (Math.abs(scores[i]) > 1 && Math.abs(scores[i - 1]) > 1 && Math.sign(scores[i]) === Math.sign(scores[i - 1])) {
       streak1s++;
       if (streak1s >= 4) days41s.push(points[i].tanggal);
@@ -341,12 +342,25 @@ function analyzeCrossLevel(
   let sameDirectionPairs = 0;
   for (let i = 0; i < levels.length; i++) {
     for (let j = i + 1; j < levels.length; j++) {
-      const a = levelData[i].zScores;
-      const b = levelData[j].zScores;
-      const commonCount = Math.min(a.length, b.length);
-      for (let k = 1; k < commonCount; k++) {
-        const aDir = a[k] > a[k - 1] ? 1 : a[k] < a[k - 1] ? -1 : 0;
-        const bDir = b[k] > b[k - 1] ? 1 : b[k] < b[k - 1] ? -1 : 0;
+      const levelA = levels[i];
+      const levelB = levels[j];
+      const mapA = new Map(levelPoints[levelA].map((p) => [p.tanggal, p]));
+      const mapB = new Map(levelPoints[levelB].map((p) => [p.tanggal, p]));
+
+      const commonDates = [...mapA.keys()].filter((d) => mapB.has(d));
+      
+      for (let k = 0; k < commonDates.length - 1; k++) {
+        const dateCurr = commonDates[k];
+        const dateNext = commonDates[k + 1];
+        
+        const aCurr = mapA.get(dateCurr)!;
+        const aNext = mapA.get(dateNext)!;
+        const bCurr = mapB.get(dateCurr)!;
+        const bNext = mapB.get(dateNext)!;
+
+        const aDir = aNext.zScore > aCurr.zScore ? 1 : aNext.zScore < aCurr.zScore ? -1 : 0;
+        const bDir = bNext.zScore > bCurr.zScore ? 1 : bNext.zScore < bCurr.zScore ? -1 : 0;
+        
         if (aDir !== 0 && bDir !== 0) {
           totalPairs++;
           if (aDir === bDir) sameDirectionPairs++;

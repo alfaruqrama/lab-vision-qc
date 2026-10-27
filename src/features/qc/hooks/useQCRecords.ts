@@ -18,9 +18,10 @@ async function fetchRecords(): Promise<QCRecord[]> {
 
     // Fetch last 12 months of records
     const now = new Date();
-    const endDate = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`;
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const endDate = nextMonth.toISOString().slice(0, 10);
     const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
+    const startDate = start.toISOString().slice(0, 10);
 
     const { data, error } = await client
       .from('qc_records')

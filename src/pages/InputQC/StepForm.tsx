@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord, EasyliteLotConfig } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
-import { evaluateWestgard } from '@/lib/westgard';
+import { evaluateSeries } from '@/lib/westgard-engine';
 import * as api from '@/lib/api';
-import { useQCStore } from '@/hooks/use-qc-store';
+import { useQCStore } from '@/features/qc/hooks/useQCStore';
 import { useAuth } from '@/hooks/use-auth';
 import { useAIExtraction } from '@/features/qc/hooks';
 import { ParamValueCard } from '@/features/qc/components';
@@ -33,9 +33,17 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const { config, addRecord, connected, records } = useQCStore();
   const { user } = useAuth();
 
+  // Helper to get current date in WIB (UTC+7)
+  const getWIBDate = () => {
+    const now = new Date();
+    const wibOffset = 7 * 60 * 60 * 1000;
+    const wibDate = new Date(now.getTime() + wibOffset);
+    return wibDate.toISOString().slice(0, 10);
+  };
+
   // Form state
   const [lotNumber, setLotNumber] = useState('');
-  const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
+  const [tanggal, setTanggal] = useState(getWIBDate());
   const [values, setValues] = useState<Partial<Record<ParamName, string>>>({});
   const [catatan, setCatatan] = useState('');
   const [saving, setSaving] = useState(false);
@@ -210,11 +218,12 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       const statuses: Partial<Record<ParamName, string>> = {};
       params.forEach((p) => {
         if (vals[p]) {
-          const num = parseFloat(vals[p]!);
+          // Numeric normalization: remove any non-numeric char except dot and minus
+          const cleanVal = vals[p]!.replace(/[^0-9.\-]/g, '');
+          const num = parseFloat(cleanVal);
           if (!isNaN(num)) {
             parsedParams[p] = num;
-            const cfg = lvl ? getParamConfig(p, lvl) : getParamConfig(p);
-            statuses[p] = cfg ? evaluateWestgard(num, cfg).status : 'ok';
+            statuses[p] = 'ok';
           }
         }
       });
@@ -222,8 +231,10 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     }
 
     function makeRecord(lvl: ControlLevel, p: ReturnType<typeof parseParams>): QCRecord {
+      const overall = 'ok';
+
       return {
-        id: `qc-${Date.now()}-${lvl.toLowerCase()}`,
+        id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         tanggal,
         alat: instrument,
@@ -231,20 +242,60 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         lot: lvl === 'HIGH' ? highLotNumber : lotNumber,
         params: p.params,
         status: p.statuses as QCRecord['status'],
+        overall_status: overall,
         analis: user?.nama || 'Unknown',
         catatan,
       };
     }
 
     try {
+      let recordsToSave: QCRecord[] = [];
       if (isEasylite) {
         const normal = parseParams(values, 'NORMAL');
         const high = parseParams(highValues, 'HIGH');
-        await Promise.all([addRecord(makeRecord('NORMAL', normal)), addRecord(makeRecord('HIGH', high))]);
+        if (Object.keys(normal.params).length > 0) recordsToSave.push(makeRecord('NORMAL', normal));
+        if (Object.keys(high.params).length > 0) recordsToSave.push(makeRecord('HIGH', high));
       } else {
         const single = parseParams(values);
-        await addRecord(makeRecord(level, single));
+        recordsToSave.push(makeRecord(level, single));
       }
+
+      const allParamPoints = recordsToSave.flatMap(r => 
+        Object.entries(r.params).map(([param, value]) => {
+          const cfg = getParamConfig(param, r.level);
+          return {
+            runKey: `${r.tanggal}_${r.alat}_${r.analis}`,
+            timestamp: r.timestamp,
+            date: r.tanggal,
+            level: r.level,
+            lot: r.lot,
+            z: cfg ? (value - cfg.mean) / cfg.sd : 0,
+            excluded: false
+          };
+        })
+      );
+
+
+      // Gross Error Validation: Check if any point is > 10SD from target
+      const grossErrors = allParamPoints.filter(p => Math.abs(p.z) > 10);
+      if (grossErrors.length > 0) {
+        const paramNames = grossErrors.map(ge => {
+            // We need to map back to param name. 
+            // Since allParamPoints is a flat map of params, we can't easily get the name here.
+            // But we can warn that "One or more parameters have extreme values (>10SD)".
+            return 'Extreme Value';
+        });
+        toast.warning(`Deteksi Gross Error: Beberapa nilai terlalu jauh dari target (>10SD). Pastikan input sudah benar.`);
+      }
+
+      const evaluation = evaluateSeries(allParamPoints, { levelsCount: isEasylite ? 2 : 1 });
+      
+      const finalRecords = recordsToSave.map(r => ({
+        ...r,
+        overall_status: evaluation.statusByRun[`${r.tanggal}_${r.alat}_${r.analis}`] || 'ok'
+      }));
+
+      await Promise.all(finalRecords.map(r => addRecord(r)));
       navigate('/qc');
     } catch {
       toast.error('Gagal menyimpan data');
