@@ -104,3 +104,6 @@ export function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysi
     </Card>
   );
 }
+
+// Alias export untuk kompatibilitas
+export { WestgardAnalysisCard as LJAnalysis };

@@ -7,7 +7,8 @@ create extension if not exists pgcrypto;
 
 -- 2. Create Server-Side Login Function (SECURITY DEFINER)
 -- This function handles password verification without exposing hashes to the client.
-create or replace function auth.verify_login(p_username text, p_password text)
+-- Note: Created in public schema (not auth) because Supabase restricts auth schema access
+create or replace function public.verify_login(p_username text, p_password text)
 returns jsonb as $$
 declare
     v_user record;
@@ -30,7 +31,7 @@ begin
     end if;
 
     -- Verify password using pgcrypto (bcrypt)
-    if not crypt_auth_check(p_password, v_user.password_hash) then
+    if crypt(p_password, v_user.password_hash) != v_user.password_hash then
         return jsonb_build_object('success', false, 'message', 'Username atau password salah');
     end if;
 

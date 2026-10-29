@@ -47,28 +47,23 @@ export function ControlSummary({ total, inControl, outOfControl, inControlPct, m
           </p>
         </div>
       </div>
-
-      {meanTarget !== undefined && meanActual !== undefined && (
-        <div className="grid grid-cols-3 gap-2 text-xs p-2 bg-muted rounded-md mb-2">
-          <div>
-            <p className="text-muted-foreground">Mean Target</p>
-            <p className="font-bold font-mono-data">{meanTarget.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Mean Aktual</p>
-            <p className="font-bold font-mono-data">{meanActual.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Bias %</p>
-            <p className={cn("font-bold font-mono-data", Math.abs(((meanActual - meanTarget) / meanTarget) * 100) > 5 ? 'text-destructive' : 'text-success')}>
-              {(((meanActual - meanTarget) / meanTarget) * 100).toFixed(2)}%
-            </p>
-          </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-muted-foreground">Mean (Target)</p>
+          <p className="font-bold font-mono-data">
+            {meanActual?.toFixed(2) ?? '-'} ({meanTarget?.toFixed(2) ?? '-'})
+          </p>
         </div>
-      )}
-      <p className={cn("text-xs font-semibold mt-2", isInControl ? 'text-success' : 'text-destructive')}>
-        {isInControl ? '✓ Kontrol Masuk' : '✗ Kontrol Tidak Masuk'}
-      </p>
+        <div>
+          <p className="text-muted-foreground">SD (Target)</p>
+          <p className="font-bold font-mono-data">
+            {sdTarget?.toFixed(3) ?? '-'}
+          </p>
+        </div>
+      </div>
     </Card>
   );
 }
+
+// Alias export untuk kompatibilitas
+export { ControlSummary as LJSummary };

@@ -415,6 +415,20 @@ export default function LotConfigPage() {
     { value: 'CLEVER2', label: 'GDA Clever Check 2' },
   ];
 
+  if (!localConfig) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
+          <p className="text-sm text-muted-foreground">Atur mean & SD untuk setiap lot kontrol</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted-foreground">Memuat konfigurasi...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -423,12 +437,12 @@ export default function LotConfigPage() {
       </div>
 
       {/* Instrument selector */}
-      <div className="flex items-center gap-3">
-        <Label className="text-sm font-semibold">Instrumen:</Label>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Instrumen</label>
         <select
           value={selectedInstrument}
           onChange={(e) => setSelectedInstrument(e.target.value as InstrumentType)}
-          className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
         >
           {instrumentOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>

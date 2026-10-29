@@ -163,21 +163,21 @@ export function evaluateSeries(
         }
       });
     }
+  });
 
-    const total = points.length;
-    const reject = Object.values(statusByRun).filter(s => s === 'oos').length;
-    const warning = Object.values(statusByRun).filter(s => s === 'warning').length;
-    
-    return {
-      violations,
-      statusByRun,
-      summary: {
-        total,
-        inControl: total - reject,
-        warning,
-        reject,
-        advisory: 0
-      }
-    };
-  }
+  const total = points.length;
+  const reject = Object.values(statusByRun).filter(s => s === 'oos').length;
+  const warning = Object.values(statusByRun).filter(s => s === 'warning').length;
+
+  return {
+    violations,
+    statusByRun,
+    summary: {
+      total,
+      inControl: total - reject,
+      warning,
+      reject,
+      advisory: 0
+    }
+  };
 }

@@ -172,9 +172,15 @@ export function DocumentScanner({ open, onOpenChange, file, onApply }: DocumentS
 
   const busy = loading || applying;
 
+  // Deteksi orientasi gambar untuk layout responsif
+  const isPortrait = dims.height > dims.width;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col p-0 gap-0">
+      <DialogContent className={cn(
+        "h-[92vh] flex flex-col p-0 gap-0",
+        isPortrait ? "max-w-lg" : "max-w-2xl"
+      )}>
         <DialogHeader className="px-4 pt-4 pb-2 border-b">
           <DialogTitle className="text-base flex items-center gap-2">
             <ScanLine size={18} className="text-primary" />
@@ -182,7 +188,7 @@ export function DocumentScanner({ open, onOpenChange, file, onApply }: DocumentS
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-auto px-4 py-3 space-y-3">
+        <div className="flex-1 min-h-0 flex flex-col px-4 py-3">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Loader2 size={32} className="animate-spin text-primary" />
@@ -195,15 +201,17 @@ export function DocumentScanner({ open, onOpenChange, file, onApply }: DocumentS
               <span>{error}</span>
             </div>
           ) : previewUrl ? (
-            <>
-              <CornerEditor
-                src={previewUrl}
-                imageWidth={dims.width}
-                imageHeight={dims.height}
-                corners={corners}
-                onCornersChange={setCorners}
-                className="max-h-[52vh] mx-auto"
-              />
+            <div className="space-y-3">
+              <div className="flex-1 min-h-0 relative flex items-center justify-center w-full overflow-hidden bg-black/90 rounded-lg">
+                <CornerEditor
+                  src={previewUrl}
+                  imageWidth={dims.width}
+                  imageHeight={dims.height}
+                  corners={corners}
+                  onCornersChange={setCorners}
+                  className="h-full w-full"
+                />
+              </div>
 
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 {detected ? (
@@ -217,35 +225,24 @@ export function DocumentScanner({ open, onOpenChange, file, onApply }: DocumentS
                 )}
               </div>
 
-              {/* Filter */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">Filter</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium text-muted-foreground">Filter:</p>
+                <div className="flex flex-wrap gap-1.5">
                   {SCAN_FILTERS.map((f) => (
-                    <button
+                    <Button
                       key={f.value}
                       type="button"
+                      variant={filter === f.value ? "default" : "outline"}
+                      size="sm"
                       onClick={() => setFilter(f.value)}
-                      className={cn(
-                        'rounded-lg border px-2 py-2 text-xs transition-colors',
-                        filter === f.value
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'border-border hover:border-primary/60',
-                      )}
+                      className="h-7 px-2.5 text-[11px]"
                     >
                       {f.label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
-
-              {opencvFailed && (
-                <p className="text-[11px] text-amber-600">
-                  Deteksi otomatis tidak tersedia (mesin pemindai gagal dimuat). Anda masih bisa
-                  memotong foto secara manual dengan menggeser sudut.
-                </p>
-              )}
-            </>
+            </div>
           ) : null}
         </div>
 
