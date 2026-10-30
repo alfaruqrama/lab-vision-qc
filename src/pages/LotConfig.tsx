@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
-import type { LotConfig, ParamConfig, InstrumentType } from '@/lib/types';
+import type { LotConfig, ParamConfig, InstrumentType, QCRecord, ParamName, ControlLevel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { calculateStatsFromRecords } from '@/lib/stats-util';
@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/features/qc/lib/constants';
-import { Trash2, Plus, Loader2, Save, ArrowLeftRight } from 'lucide-react';
+import { Trash2, Plus, Loader2, Save, ArrowLeftRight, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
@@ -33,6 +33,32 @@ type ParamConfigExt = ParamConfig & {
   high?: number;
   cv?: number;
 };
+
+/**
+ * Hitung mean & SD dari data QC historis untuk satu alat + lot (+ level) + parameter.
+ * Mengembalikan null bila tidak ada data yang cocok.
+ */
+function computeParamStats(
+  records: QCRecord[],
+  alat: InstrumentType,
+  lot: string,
+  level: ControlLevel | null,
+  param: ParamName,
+): ParamConfig | null {
+  if (!lot) return null;
+  const filtered = records.filter(
+    (r) =>
+      !r.excluded &&
+      r.alat === alat &&
+      r.lot === lot &&
+      (level ? r.level === level : true) &&
+      r.params[param] !== undefined,
+  );
+  if (filtered.length === 0) return null;
+  const stats = calculateStatsFromRecords(filtered, param);
+  if (!stats.mean || !stats.sd) return null;
+  return { mean: stats.mean, sd: stats.sd };
+}
 
 
 function ParamRow({
@@ -284,7 +310,7 @@ function ParamTable({ label, children }: { label: string; children: React.ReactN
 
 
 export default function LotConfigPage() {
-  const { config, updateConfig } = useQCStore();
+  const { config, updateConfig, records } = useQCStore();
   const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('CA660');
   const [localConfig, setLocalConfig] = useState<LotConfig | null>(null);
   const [saving, setSaving] = useState(false);
@@ -406,6 +432,63 @@ export default function LotConfigPage() {
     }
   }
 
+  function handleAutoSd() {
+    if (!localConfig) return;
+    const next = JSON.parse(JSON.stringify(localConfig)) as LotConfig;
+    let filled = 0;
+
+    next.CA660.forEach((lot) => {
+      (['PT', 'APTT', 'INR'] as ParamName[]).forEach((p) => {
+        const s = computeParamStats(records, 'CA660', lot.lot, 'Kontrol', p);
+        if (s) {
+          (lot.Kontrol as Record<string, ParamConfig>)[p] = s;
+          filled++;
+        }
+      });
+    });
+
+    (['NORMAL', 'HIGH'] as const).forEach((level) => {
+      next.EASYLITE[level].forEach((lot) => {
+        (['Na', 'K', 'Cl'] as ParamName[]).forEach((p) => {
+          const s = computeParamStats(records, 'EASYLITE', lot.lot, level, p);
+          if (s) {
+            (lot.params as Record<string, ParamConfig>)[p] = s;
+            filled++;
+          }
+        });
+      });
+    });
+
+    (['ONCALL1', 'ONCALL2'] as const).forEach((key) => {
+      next[key].forEach((lot) => {
+        (['CTRL0', 'CTRL1', 'CTRL2'] as const).forEach((ctrl) => {
+          const s = computeParamStats(records, key, lot.lot, ctrl, 'GDA');
+          if (s) {
+            lot[ctrl].GDA = s;
+            filled++;
+          }
+        });
+      });
+    });
+
+    (['CLEVER1', 'CLEVER2'] as const).forEach((key) => {
+      next[key].forEach((lot) => {
+        const s = computeParamStats(records, key, lot.lot, 'Kontrol', 'GDA');
+        if (s) {
+          lot.Kontrol.GDA = s;
+          filled++;
+        }
+      });
+    });
+
+    setLocalConfig(next);
+    if (filled > 0) {
+      toast.success(`Auto SD diterapkan ke ${filled} parameter dari data QC`);
+    } else {
+      toast.error('Tidak ada data QC yang cocok untuk lot terdaftar');
+    }
+  }
+
   const instrumentOptions: { value: InstrumentType; label: string }[] = [
     { value: 'CA660', label: 'Sysmex CA-660' },
     { value: 'EASYLITE', label: 'Easylite' },
@@ -431,9 +514,15 @@ export default function LotConfigPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
-        <p className="text-sm text-muted-foreground">Atur mean & SD untuk setiap lot kontrol</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
+          <p className="text-sm text-muted-foreground">Atur mean &amp; SD untuk setiap lot kontrol</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleAutoSd} title="Hitung mean & SD dari data QC historis">
+          <Calculator size={14} className="mr-1" />
+          Auto SD dari Data QC
+        </Button>
       </div>
 
       {/* Instrument selector */}
