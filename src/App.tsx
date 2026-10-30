@@ -33,11 +33,9 @@ import LoginPage from "@/pages/LoginPage";
 import AdminUserPanel from "@/pages/AdminUserPanel";
 import TCMForm from "@/pages/TCMForm";
 import MaintenanceDashboard from "@/pages/MaintenanceDashboard";
-import MaintenanceChecklistHarian from "@/pages/MaintenanceChecklistHarian";
-import MaintenanceChecklistBerkala from "@/pages/MaintenanceChecklistBerkala";
+import MaintenancePage from "@/pages/MaintenancePage";
 import MaintenanceHistory from "@/pages/MaintenanceHistory";
 import MaintenanceSchedule from "@/pages/MaintenanceSchedule";
-import MaintenanceUjiFungsi from "@/pages/MaintenanceUjiFungsi";
 import MaintenanceLaporan from "@/pages/MaintenanceLaporan";
 import TransfusiLayout from "@/components/layout/TransfusiLayout";
 import TransfusiDashboard from "@/pages/TransfusiDashboard";
@@ -90,13 +88,11 @@ const App = () => (
                 {/* Admin only routes */}
                 <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin', 'developer']}><PortalLayout><AdminUserPanel /></PortalLayout></ProtectedRoute>} />
 
-                {/* Maintenance module with sidebar/bottom nav */}
+                {/* Maintenance module with new unified page */}
                 <Route path="/maintenance" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceDashboard /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/harian" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistHarian /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/berkala" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceChecklistBerkala /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
+                <Route path="/maintenance/:alat" element={<ProtectedRoute><MaintenanceProvider><MaintenancePage /></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/history" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceHistory /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/schedule" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceSchedule /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
-                <Route path="/maintenance/uji-fungsi" element={<ProtectedRoute allowedRoles={['admin', 'petugas', 'developer']}><MaintenanceProvider><MaintenanceLayout><MaintenanceUjiFungsi /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
                 <Route path="/maintenance/laporan" element={<ProtectedRoute><MaintenanceProvider><MaintenanceLayout><MaintenanceLaporan /></MaintenanceLayout></MaintenanceProvider></ProtectedRoute>} />
 
                 <Route path="*" element={<ProtectedRoute><PortalLayout><NotFound /></PortalLayout></ProtectedRoute>} />

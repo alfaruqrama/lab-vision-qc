@@ -135,23 +135,12 @@ export default function MaintenanceDashboard() {
                 variant="outline"
                 size="sm"
                 className="w-full h-8 text-xs"
-                onClick={() => navigate(`/maintenance/harian?alat=${alat}`)}
+                onClick={() => navigate(`/maintenance/${alat}`)}
               >
                 <ClipboardCheck size={14} className="mr-1" />
                 Checklist
               </Button>
               <div className="flex gap-1.5">
-                {tipeSet.has('uji_fungsi') && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-8 text-xs"
-                    onClick={() => navigate(`/maintenance/uji-fungsi?alat=${alat}`)}
-                  >
-                    <ShieldCheck size={14} className="mr-1" />
-                    Uji Fungsi
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"
