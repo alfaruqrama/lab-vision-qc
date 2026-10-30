@@ -22,14 +22,11 @@ export interface DetectOptions {
   cannyLow?: number;
   /** Ambang atas Canny. */
   cannyHigh?: number;
-  /** Perkiraan toleransi tepi lurus (fraksi keliling). Lebih besar = lebih longgar. */
-  epsilonRatio?: number;
 }
 
 const DEFAULTS: Required<DetectOptions> = {
-  cannyLow: 50,
-  cannyHigh: 150,
-  epsilonRatio: 0.02,
+  cannyLow: 75,
+  cannyHigh: 200,
 };
 
 /**
@@ -84,7 +81,19 @@ export async function detectDocumentCorners(
     // "Expected null or instance of Mat, got an instance of MatVector".
     cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-    const best = findLargestQuad(cv, contours, imageData.width, imageData.height, opt.epsilonRatio);
+    const best = findBestQuad(cv, contours, imageData.width, imageData.height);
+    
+    // Fallback: jika tidak ada quad yang valid, kembalikan seluruh batas gambar
+    // Ini mencegah crop persegi dan memastikan gambar ditampilkan utuh
+    if (!best) {
+      return [
+        { x: 0, y: 0 },
+        { x: imageData.width, y: 0 },
+        { x: imageData.width, y: imageData.height },
+        { x: 0, y: imageData.height },
+      ];
+    }
+    
     return best;
   } catch (err) {
     console.error('[Scan] Deteksi tepi gagal:', err);
@@ -100,44 +109,114 @@ function toGray(cv: OpenCv, src: CvMat, dst: CvMat): void {
   cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
 }
 
-/** Iterasi kontur, cari kuadrilateral terbesar yang masuk akal. */
-function findLargestQuad(
+/**
+ * Gabungkan 2 titik terdekat dari 5 titik menjadi 1 (midpoint).
+ * Digunakan ketika approxPolyDP menghasilkan 5 titik karena satu sudut terdeteksi ganda.
+ */
+function mergeClosestPair(points: Point[]): Point[] {
+  if (points.length !== 5) return points;
+
+  let minDist = Infinity;
+  let mergeIdx = -1;
+
+  // Cek jarak antara titik berurutan (termasuk wrap-around)
+  for (let i = 0; i < 5; i++) {
+    const j = (i + 1) % 5;
+    const dx = points[i].x - points[j].x;
+    const dy = points[i].y - points[j].y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < minDist) {
+      minDist = dist;
+      mergeIdx = i;
+    }
+  }
+
+  // Gabungkan titik mergeIdx dan mergeIdx+1 menjadi midpoint
+  const j = (mergeIdx + 1) % 5;
+  const merged: Point = {
+    x: (points[mergeIdx].x + points[j].x) / 2,
+    y: (points[mergeIdx].y + points[j].y) / 2,
+  };
+
+  // Ambil 3 titik lainnya (yang tidak digabungkan)
+  const result: Point[] = [];
+  for (let i = 0; i < 5; i++) {
+    if (i === mergeIdx || i === j) continue;
+    result.push(points[i]);
+  }
+
+  // Sisipkan merged point di posisi yang tepat (setelah mergeIdx)
+  result.splice(mergeIdx % 3, 0, merged);
+
+  return result;
+}
+
+/** Iterasi kontur, cari kuadrilateral terbaik dengan multi-pass epsilon. */
+function findBestQuad(
   cv: OpenCv,
   contours: CvMatVector,
   width: number,
   height: number,
-  epsilonRatio: number,
 ): Point[] | null {
+  // Multi-pass dengan epsilon berbeda untuk fleksibilitas
+  const epsilonRatios = [0.02, 0.04, 0.06];
   let best: Point[] | null = null;
   let bestArea = 0;
 
+  // Ambil top 5 kontur terbesar (doc-skanner approach)
+  const contourData: Array<{ index: number; area: number }> = [];
   const count = contours.size();
   for (let i = 0; i < count; i++) {
-    // `contours.get(i)` mengembalikan referensi yang dimiliki MatVector —
-    // JANGAN di-delete manual; MatVector-nya yang dibersihkan di akhir.
     const contour = contours.get(i);
-    const perimeter = cv.arcLength(contour, true);
-    if (perimeter <= 0) continue;
+    const area = cv.contourArea(contour);
+    contourData.push({ index: i, area });
+  }
+  contourData.sort((a, b) => b.area - a.area);
+  const topContours = contourData.slice(0, 5);
 
-    const approx = new cv.Mat();
-    try {
-      cv.approxPolyDP(contour, approx, epsilonRatio * perimeter, true);
+  for (const epsilonRatio of epsilonRatios) {
+    for (const { index: i } of topContours) {
+      // `contours.get(i)` mengembalikan referensi yang dimiliki MatVector —
+      // JANGAN di-delete manual; MatVector-nya yang dibersihkan di akhir.
+      const contour = contours.get(i);
+      const perimeter = cv.arcLength(contour, true);
+      if (perimeter <= 0) continue;
 
-      // Hanya peduli bentuk segi empat.
-      if (approx.rows !== 4) continue;
+      const approx = new cv.Mat();
+      try {
+        cv.approxPolyDP(contour, approx, epsilonRatio * perimeter, true);
 
-      const corners = matToPoints(approx);
-      const ordered = orderCorners(corners);
+        let corners: Point[] | null = null;
 
-      if (!isPlausibleQuad(ordered, width, height)) continue;
+        // Handle 4 titik (ideal)
+        if (approx.rows === 4) {
+          corners = matToPoints(approx);
+        }
+        // Handle 5 titik (satu sudut terdeteksi ganda)
+        else if (approx.rows === 5) {
+          const fivePoints = matToPoints(approx);
+          corners = mergeClosestPair(fivePoints);
+        }
 
-      const area = Math.abs(quadAreaLocal(ordered));
-      if (area > bestArea) {
-        bestArea = area;
-        best = ordered;
+        if (!corners) continue;
+
+        const ordered = orderCorners(corners);
+
+        if (!isPlausibleQuad(ordered, width, height)) continue;
+
+        const area = Math.abs(quadAreaLocal(ordered));
+        if (area > bestArea) {
+          bestArea = area;
+          best = ordered;
+        }
+      } finally {
+        safeDelete(approx);
       }
-    } finally {
-      safeDelete(approx);
+    }
+    
+    // Jika sudah dapat hasil yang bagus, tidak perlu lanjut ke epsilon berikutnya
+    if (best && bestArea > width * height * 0.3) {
+      break;
     }
   }
 

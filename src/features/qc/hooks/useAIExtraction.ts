@@ -131,7 +131,10 @@ export function useAIExtraction({ instrument, getParamConfig, onExtracted }: Use
       params.forEach((p) => {
         const val = (valuesToSet as Record<string, unknown>)[p];
         if (val !== null && val !== undefined) {
-          newValues[p] = String(val);
+          const cleanVal = String(val).replace(/[^0-9.\-]/g, '');
+          if (!isNaN(Number(cleanVal))) {
+            newValues[p] = cleanVal;
+          }
         }
       });
 

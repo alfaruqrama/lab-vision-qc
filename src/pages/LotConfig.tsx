@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
-import type { LotConfig, ParamConfig, InstrumentType } from '@/lib/types';
+import type { LotConfig, ParamConfig, InstrumentType, QCRecord, ParamName, ControlLevel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
+import { calculateStatsFromRecords } from '@/lib/stats-util';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/features/qc/lib/constants';
-import { Trash2, Plus, Loader2, Save, ArrowLeftRight } from 'lucide-react';
+import { Trash2, Plus, Loader2, Save, ArrowLeftRight, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
 
@@ -32,6 +33,32 @@ type ParamConfigExt = ParamConfig & {
   high?: number;
   cv?: number;
 };
+
+/**
+ * Hitung mean & SD dari data QC historis untuk satu alat + lot (+ level) + parameter.
+ * Mengembalikan null bila tidak ada data yang cocok.
+ */
+function computeParamStats(
+  records: QCRecord[],
+  alat: InstrumentType,
+  lot: string,
+  level: ControlLevel | null,
+  param: ParamName,
+): ParamConfig | null {
+  if (!lot) return null;
+  const filtered = records.filter(
+    (r) =>
+      !r.excluded &&
+      r.alat === alat &&
+      r.lot === lot &&
+      (level ? r.level === level : true) &&
+      r.params[param] !== undefined,
+  );
+  if (filtered.length === 0) return null;
+  const stats = calculateStatsFromRecords(filtered, param);
+  if (!stats.mean || !stats.sd) return null;
+  return { mean: stats.mean, sd: stats.sd };
+}
 
 
 function ParamRow({
@@ -283,20 +310,29 @@ function ParamTable({ label, children }: { label: string; children: React.ReactN
 
 
 export default function LotConfigPage() {
-  const { config, updateConfig } = useQCStore();
+  const { config, updateConfig, records } = useQCStore();
   const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('CA660');
-  const [localConfig, setLocalConfig] = useState<LotConfig>(() => JSON.parse(JSON.stringify(config)));
+  const [localConfig, setLocalConfig] = useState<LotConfig | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Synchronize local state when remote config loads
+  React.useEffect(() => {
+    if (config) {
+      setLocalConfig(JSON.parse(JSON.stringify(config)));
+    }
+  }, [config]);
+
   function addCA660Lot() {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       CA660: [...prev.CA660, { lot: '', exp: '', Kontrol: { PT: { mean: 0, sd: 0 }, APTT: { mean: 0, sd: 0 }, INR: { mean: 0, sd: 0 } } }],
-    }));
+    } : null);
   }
 
   function addOnCallLot(key: 'ONCALL1' | 'ONCALL2') {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       [key]: [
         ...prev[key],
@@ -308,11 +344,12 @@ export default function LotConfigPage() {
           CTRL2: { GDA: { mean: 0, sd: 0 } },
         },
       ],
-    }));
+    } : null);
   }
 
   function addCleverLot(key: 'CLEVER1' | 'CLEVER2') {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       [key]: [
         ...prev[key],
@@ -322,11 +359,12 @@ export default function LotConfigPage() {
           Kontrol: { GDA: { mean: 0, sd: 0 } },
         },
       ],
-    }));
+    } : null);
   }
 
   function updateLot<T>(key: TabType, index: number, updated: T) {
     setLocalConfig((prev) => {
+      if (!prev) return null;
       const arr = [...(prev[key] as any[])];
       arr[index] = updated;
       return { ...prev, [key]: arr };
@@ -334,14 +372,18 @@ export default function LotConfigPage() {
   }
 
   function deleteLot(key: TabType, index: number) {
-    setLocalConfig((prev) => ({
-      ...prev,
-      [key]: (prev[key] as any[]).filter((_, j) => j !== index),
-    }));
+    setLocalConfig((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        [key]: (prev[key] as any[]).filter((_, j) => j !== index),
+      };
+    });
   }
 
   function addEasyliteLevelLot(level: EasyliteLevel) {
-    setLocalConfig((prev) => ({
+    if (!localConfig) return;
+    setLocalConfig((prev) => prev ? {
       ...prev,
       EASYLITE: {
         ...prev.EASYLITE,
@@ -350,11 +392,12 @@ export default function LotConfigPage() {
           { lot: '', exp: '', params: { Na: { mean: 0, sd: 0 }, K: { mean: 0, sd: 0 }, Cl: { mean: 0, sd: 0 } } },
         ],
       },
-    }));
+    } : null);
   }
 
   function updateEasyliteLot(level: EasyliteLevel, index: number, updated: LotConfig['EASYLITE'][EasyliteLevel][number]) {
     setLocalConfig((prev) => {
+      if (!prev) return null;
       const lots = [...prev.EASYLITE[level]];
       lots[index] = updated;
       return { ...prev, EASYLITE: { ...prev.EASYLITE, [level]: lots } };
@@ -362,16 +405,23 @@ export default function LotConfigPage() {
   }
 
   function deleteEasyliteLot(level: EasyliteLevel, index: number) {
-    setLocalConfig((prev) => ({
-      ...prev,
-      EASYLITE: {
-        ...prev.EASYLITE,
-        [level]: prev.EASYLITE[level].filter((_, j) => j !== index),
-      },
-    }));
+    setLocalConfig((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        EASYLITE: {
+          ...prev.EASYLITE,
+          [level]: prev.EASYLITE[level].filter((_, j) => j !== index),
+        },
+      };
+    });
   }
 
   async function handleSave() {
+    if (!localConfig) {
+      toast.error('Konfigurasi belum dimuat');
+      return;
+    }
     setSaving(true);
     try {
       await updateConfig(localConfig);
@@ -379,6 +429,63 @@ export default function LotConfigPage() {
       toast.error('Gagal menyimpan konfigurasi');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handleAutoSd() {
+    if (!localConfig) return;
+    const next = JSON.parse(JSON.stringify(localConfig)) as LotConfig;
+    let filled = 0;
+
+    next.CA660.forEach((lot) => {
+      (['PT', 'APTT', 'INR'] as ParamName[]).forEach((p) => {
+        const s = computeParamStats(records, 'CA660', lot.lot, 'Kontrol', p);
+        if (s) {
+          (lot.Kontrol as Record<string, ParamConfig>)[p] = s;
+          filled++;
+        }
+      });
+    });
+
+    (['NORMAL', 'HIGH'] as const).forEach((level) => {
+      next.EASYLITE[level].forEach((lot) => {
+        (['Na', 'K', 'Cl'] as ParamName[]).forEach((p) => {
+          const s = computeParamStats(records, 'EASYLITE', lot.lot, level, p);
+          if (s) {
+            (lot.params as Record<string, ParamConfig>)[p] = s;
+            filled++;
+          }
+        });
+      });
+    });
+
+    (['ONCALL1', 'ONCALL2'] as const).forEach((key) => {
+      next[key].forEach((lot) => {
+        (['CTRL0', 'CTRL1', 'CTRL2'] as const).forEach((ctrl) => {
+          const s = computeParamStats(records, key, lot.lot, ctrl, 'GDA');
+          if (s) {
+            lot[ctrl].GDA = s;
+            filled++;
+          }
+        });
+      });
+    });
+
+    (['CLEVER1', 'CLEVER2'] as const).forEach((key) => {
+      next[key].forEach((lot) => {
+        const s = computeParamStats(records, key, lot.lot, 'Kontrol', 'GDA');
+        if (s) {
+          lot.Kontrol.GDA = s;
+          filled++;
+        }
+      });
+    });
+
+    setLocalConfig(next);
+    if (filled > 0) {
+      toast.success(`Auto SD diterapkan ke ${filled} parameter dari data QC`);
+    } else {
+      toast.error('Tidak ada data QC yang cocok untuk lot terdaftar');
     }
   }
 
@@ -391,20 +498,40 @@ export default function LotConfigPage() {
     { value: 'CLEVER2', label: 'GDA Clever Check 2' },
   ];
 
+  if (!localConfig) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
+          <p className="text-sm text-muted-foreground">Atur mean & SD untuk setiap lot kontrol</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted-foreground">Memuat konfigurasi...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
-        <p className="text-sm text-muted-foreground">Atur mean & SD untuk setiap lot kontrol</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold">Konfigurasi Lot</h1>
+          <p className="text-sm text-muted-foreground">Atur mean &amp; SD untuk setiap lot kontrol</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleAutoSd} title="Hitung mean & SD dari data QC historis">
+          <Calculator size={14} className="mr-1" />
+          Auto SD dari Data QC
+        </Button>
       </div>
 
       {/* Instrument selector */}
-      <div className="flex items-center gap-3">
-        <Label className="text-sm font-semibold">Instrumen:</Label>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Instrumen</label>
         <select
           value={selectedInstrument}
           onChange={(e) => setSelectedInstrument(e.target.value as InstrumentType)}
-          className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
         >
           {instrumentOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>

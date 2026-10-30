@@ -42,7 +42,7 @@ export function computeZScores(
         if (rawValue == null) return null;
 
         // Find lot config active at this record's date
-        const lot = findActiveLot(levelLots, r.tanggal);
+        const lot = findActiveLot(levelLots, r.tanggal, r.lot);
         if (!lot) return null;
 
         const paramCfg = getParamConfigFromLot(lot, alat, level, param);
@@ -108,14 +108,23 @@ function getParamConfigFromLot(
 
 /**
  * Find the lot config active on a given date.
- * Strategy: find the lot with the closest expiry date that is >= record date.
- * If none active, use the lot with the latest expiry date (most recent).
+ * Strategy: 
+ * 1. Use the lot number explicitly recorded in the QC record (r.lot).
+ * 2. Fallback: find the lot with the closest expiry date that is >= record date.
+ * 3. If none active, use the lot with the latest expiry date (most recent).
  */
 function findActiveLot(
   lots: LotLike[],
   recordDate: string,
+  recordLot?: string,
 ): LotLike | null {
-  // Filter lots that were not expired on this date
+  // Priority 1: Match by explicit lot number from record
+  if (recordLot) {
+    const match = lots.find((l) => l.lot === recordLot);
+    if (match) return match;
+  }
+
+  // Priority 2: Filter lots that were not expired on this date
   const active = lots.filter((l) => l.exp >= recordDate);
   if (active.length > 0) {
     // Pick the one that expires soonest (most specific match)
@@ -123,7 +132,7 @@ function findActiveLot(
     return active[0];
   }
 
-  // No active lot: use the latest exp date
+  // Priority 3: No active lot: use the latest exp date
   const sorted = [...lots].sort((a, b) => b.exp.localeCompare(a.exp));
   return sorted[0] || null;
 }

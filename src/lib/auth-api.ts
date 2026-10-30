@@ -38,7 +38,7 @@ export function isSessionTimeValid(): boolean {
 
 
 /**
- * Login: verify username + password, create session token.
+ * Login: verify username + password via server-side RPC.
  */
 export async function login(username: string, password: string): Promise<LoginResponse> {
   if (!isSupabaseConfigured()) {
@@ -46,46 +46,25 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 
   try {
-    // Query user by username (case-insensitive via ilike)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, username, nama, role, password_hash, is_active')
-      .ilike('username', username)
-      .single();
+    const { data, error } = await supabase.rpc('verify_login', {
+      p_username: username,
+      p_password: password,
+    });
 
-    if (profileError || !profile) {
-      return { success: false, message: 'Username atau password salah' };
-    }
-
-    if (!profile.is_active) {
-      return { success: false, message: 'Akun tidak aktif. Hubungi admin.' };
-    }
-
-    // Verify password (case-insensitive)
-    const passwordMatch = await bcrypt.compare(password.toLowerCase(), profile.password_hash);
-    if (!passwordMatch) {
-      return { success: false, message: 'Username atau password salah' };
-    }
-
-    // Create session token
-    const expiresAt = new Date(Date.now() + SESSION_DURATION).toISOString();
-    const { data: session, error: sessionError } = await supabase
-      .from('sessions')
-      .insert({ user_id: profile.id, expires_at: expiresAt })
-      .select('token')
-      .single();
-
-    if (sessionError || !session) {
-      return { success: false, message: 'Gagal membuat session' };
+    if (error || !data || !data.success) {
+      return { 
+        success: false, 
+        message: data?.message || 'Username atau password salah' 
+      };
     }
 
     const authUser: AuthUser = {
-      id: profile.id,
-      username: profile.username,
-      nama: profile.nama,
-      role: profile.role,
-      token: session.token,
-      loginAt: Date.now(),
+      id: data.user.id,
+      username: data.user.username,
+      nama: data.user.nama,
+      role: data.user.role,
+      token: data.user.token,
+      loginAt: data.user.loginAt,
     };
 
     storeAuth(authUser);

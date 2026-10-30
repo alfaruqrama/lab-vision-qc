@@ -100,9 +100,10 @@ export function CornerEditor({
     <div
       ref={containerRef}
       className={cn(
-        'relative select-none touch-none overflow-hidden rounded-lg bg-black',
+        'relative select-none touch-none overflow-hidden rounded-lg bg-black max-w-full',
         className,
       )}
+      style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -111,7 +112,7 @@ export function CornerEditor({
         src={src}
         alt="Dokumen"
         draggable={false}
-        className="block w-full h-auto"
+        className="block w-full h-full object-contain"
         onPointerDown={handlePointerDownWhole}
       />
 

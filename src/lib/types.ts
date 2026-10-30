@@ -12,6 +12,8 @@ export interface ParamConfig {
 export interface CA660LotConfig {
   lot: string;
   exp: string;
+  sdSource?: 'manufacturer' | 'lab';
+  rangeMultiplier?: number;
   Kontrol: {
     PT: ParamConfig;
     APTT: ParamConfig;
@@ -22,6 +24,8 @@ export interface CA660LotConfig {
 export interface EasyliteLotConfig {
   lot: string;
   exp: string;
+  sdSource?: 'manufacturer' | 'lab';
+  rangeMultiplier?: number;
   params: {
     Na: ParamConfig;
     K: ParamConfig;
@@ -32,6 +36,8 @@ export interface EasyliteLotConfig {
 export interface LegacyEasyliteLotConfig {
   lot: string;
   exp: string;
+  sdSource?: 'manufacturer' | 'lab';
+  rangeMultiplier?: number;
   NORMAL: {
     Na: ParamConfig;
     K: ParamConfig;
@@ -47,6 +53,8 @@ export interface LegacyEasyliteLotConfig {
 export interface OnCallLotConfig {
   lot: string;
   exp: string;
+  sdSource?: 'manufacturer' | 'lab';
+  rangeMultiplier?: number;
   CTRL0: { GDA: ParamConfig };
   CTRL1: { GDA: ParamConfig };
   CTRL2: { GDA: ParamConfig };
@@ -55,6 +63,8 @@ export interface OnCallLotConfig {
 export interface CleverLotConfig {
   lot: string;
   exp: string;
+  sdSource?: 'manufacturer' | 'lab';
+  rangeMultiplier?: number;
   Kontrol: {
     GDA: ParamConfig;
   };
@@ -83,8 +93,10 @@ export interface QCRecord {
   lot: string;
   params: Partial<Record<ParamName, number>>;
   status: Partial<Record<ParamName, WestgardStatus>>;
+  overall_status?: WestgardStatus;
   analis: string;
   catatan: string;
+  excluded?: boolean;
 }
 
 export const CA660_PARAMS: ParamName[] = ['PT', 'APTT', 'INR'];

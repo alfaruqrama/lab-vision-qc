@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ClipboardCheck, CalendarCheck, History, Calendar, Plus, ChevronLeft, Wrench, Sun, Moon, ShieldCheck, FileText } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, History, Plus, ChevronLeft, Wrench, Sun, Moon, FileText } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { useMaintenanceStore } from '@/hooks/use-maintenance-store';
 import { Button } from '@/components/ui/button';
@@ -7,9 +7,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/maintenance', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/maintenance/harian', label: 'Checklist Harian', icon: ClipboardCheck },
-  { path: '/maintenance/berkala', label: 'Checklist Berkala', icon: CalendarCheck },
-  { path: '/maintenance/uji-fungsi', label: 'Uji Fungsi', icon: ShieldCheck },
+  { path: '/maintenance/BC6800', label: 'Checklist', icon: ClipboardCheck },
   { path: '/maintenance/laporan', label: 'Laporan', icon: FileText },
   { path: '/maintenance/history', label: 'Riwayat', icon: History },
 ];
@@ -19,6 +17,18 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const { connected } = useMaintenanceStore();
+
+  const isActive = (path: string) => {
+    if (path === '/maintenance') return location.pathname === '/maintenance';
+    if (path === '/maintenance/BC6800') {
+      return (
+        location.pathname.startsWith('/maintenance/') &&
+        location.pathname !== '/maintenance/laporan' &&
+        location.pathname !== '/maintenance/history'
+      );
+    }
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,7 +78,7 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
       <aside className="hidden md:flex fixed left-0 top-14 bottom-0 w-[220px] flex-col bg-navy z-40">
         <nav className="flex-1 p-3 space-y-1 pt-4">
           {navItems.map((item) => {
-            const active = location.pathname === item.path;
+            const active = isActive(item.path);
             return (
               <button
                 key={item.path}
@@ -87,7 +97,7 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
           })}
         </nav>
         <div className="p-3">
-          <Button onClick={() => navigate('/maintenance/harian')} className="w-full gap-2 h-11">
+          <Button onClick={() => navigate('/maintenance/BC6800')} className="w-full gap-2 h-11">
             <Plus size={18} />
             Input Checklist
           </Button>
@@ -105,7 +115,7 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40 safe-area-bottom">
         <div className="flex items-end justify-around px-2 pt-1 pb-2">
           {navItems.slice(0, 2).map((item) => {
-            const active = location.pathname === item.path;
+            const active = isActive(item.path);
             return (
               <button
                 key={item.path}
@@ -122,7 +132,7 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
           })}
 
           <button
-            onClick={() => navigate('/maintenance/harian')}
+            onClick={() => navigate('/maintenance/BC6800')}
             className="nav-fab -mt-5 w-14 h-14 flex items-center justify-center"
             aria-label="Input Checklist"
           >
@@ -130,7 +140,7 @@ export default function MaintenanceLayout({ children }: { children: React.ReactN
           </button>
 
           {navItems.slice(2).map((item) => {
-            const active = location.pathname === item.path;
+            const active = isActive(item.path);
             return (
               <button
                 key={item.path}
