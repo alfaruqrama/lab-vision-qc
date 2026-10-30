@@ -167,21 +167,47 @@ export function isPlausibleQuad(
   imageWidth: number,
   imageHeight: number,
   minAreaRatio = 0.15,
+  maxAreaRatio = 0.98,
+  minAngleDeg = 15,
 ): boolean {
   if (corners.length !== 4) return false;
   const imageArea = imageWidth * imageHeight;
   if (imageArea <= 0) return false;
 
   const area = quadArea(corners);
-  if (area / imageArea < minAreaRatio) return false;
+  const areaRatio = area / imageArea;
+  if (areaRatio < minAreaRatio) return false;
+  if (areaRatio > maxAreaRatio) return false;
 
   // Semua sudut harus di dalam gambar (dengan toleransi).
   const tolerance = 2;
-  return corners.every(
+  if (!corners.every(
     (p) =>
       p.x >= -tolerance &&
       p.y >= -tolerance &&
       p.x <= imageWidth + tolerance &&
       p.y <= imageHeight + tolerance,
-  );
+  )) return false;
+
+  // Cek sudut internal — tolak quad dengan sudut terlalu lancip (< minAngleDeg).
+  // Ini mencegah menerima kontur aneh yang kebetulan punya 4 titik.
+  const minAngleRad = (minAngleDeg * Math.PI) / 180;
+  for (let i = 0; i < 4; i++) {
+    const prev = corners[(i + 3) % 4];
+    const curr = corners[i];
+    const next = corners[(i + 1) % 4];
+    const v1x = prev.x - curr.x;
+    const v1y = prev.y - curr.y;
+    const v2x = next.x - curr.x;
+    const v2y = next.y - curr.y;
+    const dot = v1x * v2x + v1y * v2y;
+    const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
+    const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
+    if (mag1 === 0 || mag2 === 0) return false;
+    const cosAngle = dot / (mag1 * mag2);
+    const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+    if (angle < minAngleRad) return false;
+  }
+
+  return true;
 }
