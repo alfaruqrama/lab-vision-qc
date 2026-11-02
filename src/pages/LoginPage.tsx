@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Activity, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -18,10 +18,20 @@ export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  const getSafeRedirectUrl = (): string => {
+    const raw = searchParams.get('redirect');
+    if (!raw) return '/';
+    const decoded = decodeURIComponent(raw);
+    if (!decoded.startsWith('/')) return '/';
+    if (decoded === '/login') return '/';
+    return decoded;
+  };
 
   // Kalau sudah login, redirect ke home
   if (isAuthenticated) {
-    navigate('/');
+    navigate(getSafeRedirectUrl());
     return null;
   }
 
@@ -44,7 +54,7 @@ export default function LoginPage() {
           title: 'Login berhasil',
           description: 'Selamat datang di Portal Lab',
         });
-        navigate('/');
+        navigate(getSafeRedirectUrl());
       } else {
         setErrorMessage(result.message || 'Username atau password salah');
       }
