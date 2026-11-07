@@ -1,0 +1,3612 @@
+{
+  "_catatan": "Mapping per penjamin: badge -> kolom rekap sheet OMZET KUNJUNGAN + kelompok hitungan. Turunan dari src/components/kunjungan/InputHarianTab.tsx (BUILTIN_PENJAMIN, REKAP_LABEL_MAP) dan src/components/kunjungan/LaporanTab.tsx (readInputHarianDraft).",
+  "_aturan": {
+    "hitunganBPJS": "true hanya bila badge=BPJS. Badge PROKESPEN BPJS dan JKK dihitung non-BPJS oleh LaporanTab.",
+    "pasanganPG": "Karyawan: KARYAWAN PG + KARYAWAN PG INHEALTH PLUS. Keluarga: KELUARGA PG + KELUARGA PG INHEALTH PLUS.",
+    "masukRekap": "false bila badge punya REKAP_LABEL_MAP tapi tidak ada di REKAP_LABEL_ORDER (tidak jadi kolom rekap Excel).",
+    "catatanPG": "KARYAWAN PG INHEALTH & KELUARGA PG INHEALTH (tanpa PLUS) badge=PG tapi TIDAK dihitung di rincian 6 baris Pasien PG.",
+    "promo": "Promo dihitung per baris (kolom promo>0), bukan per penjamin."
+  },
+  "ringkasan": {
+    "PG": {
+      "jumlah": 7,
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "BPJS": {
+      "jumlah": 2,
+      "rekapLabel": "BPJS KES",
+      "kategori": "BPJS KESEHATAN",
+      "hitunganBPJS": true,
+      "masukRekap": true
+    },
+    "NPG": {
+      "jumlah": 246,
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "INHEALTH PG": {
+      "jumlah": 2,
+      "rekapLabel": "AJ INHEALTH PLUS",
+      "kategori": "PT PETROKIMIA - INHEALTH",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "PROKESPEN": {
+      "jumlah": 1,
+      "rekapLabel": "PROKESPEN MURNI",
+      "kategori": "PROKESPEN MURNI",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "PROKESPEN BPJS": {
+      "jumlah": 1,
+      "rekapLabel": "PROKESPEN BPJS",
+      "kategori": "PROKESPEN BPJS COB",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "UMUM": {
+      "jumlah": 32,
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "JKK": {
+      "jumlah": 1,
+      "rekapLabel": "BPJS TK",
+      "kategori": "BPJS TENAGA KERJA",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "AS": {
+      "jumlah": 98,
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    },
+    "BRI LIFE PG": {
+      "jumlah": 2,
+      "rekapLabel": "BRI (PG)",
+      "kategori": "PT PETROKIMIA - BRI LIFE",
+      "hitunganBPJS": false,
+      "masukRekap": true
+    }
+  },
+  "penjamin": [
+    {
+      "nama": "KARYAWAN PG",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": "karyawan",
+      "masukRekap": true
+    },
+    {
+      "nama": "KELUARGA PG",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": "keluarga",
+      "masukRekap": true
+    },
+    {
+      "nama": "KARYAWAN PG INHEALTH",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KELUARGA PG INHEALTH",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BPJS KESEHATAN",
+      "badge": "BPJS",
+      "rekapLabel": "BPJS KES",
+      "kategori": "BPJS KESEHATAN",
+      "hitunganBPJS": true,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BPJS KESEHATAN - KAPITASI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BPJS NAIK KELAS",
+      "badge": "BPJS",
+      "rekapLabel": "BPJS KES",
+      "kategori": "BPJS KESEHATAN",
+      "hitunganBPJS": true,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KARYAWAN PG INHEALTH PLUS",
+      "badge": "INHEALTH PG",
+      "rekapLabel": "AJ INHEALTH PLUS",
+      "kategori": "PT PETROKIMIA - INHEALTH",
+      "hitunganBPJS": false,
+      "pasanganPG": "karyawan",
+      "masukRekap": true
+    },
+    {
+      "nama": "KELUARGA PG INHEALTH PLUS",
+      "badge": "INHEALTH PG",
+      "rekapLabel": "AJ INHEALTH PLUS",
+      "kategori": "PT PETROKIMIA - INHEALTH",
+      "hitunganBPJS": false,
+      "pasanganPG": "keluarga",
+      "masukRekap": true
+    },
+    {
+      "nama": "PROKESPEN MURNI",
+      "badge": "PROKESPEN",
+      "rekapLabel": "PROKESPEN MURNI",
+      "kategori": "PROKESPEN MURNI",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PROKESPEN BPJS COB",
+      "badge": "PROKESPEN BPJS",
+      "rekapLabel": "PROKESPEN BPJS",
+      "kategori": "PROKESPEN BPJS COB",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PASIEN UMUM",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MCU UMUM",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GENERAL PATIENT",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BPJS KETENAGAKERJAAN (JKK)",
+      "badge": "JKK",
+      "rekapLabel": "BPJS TK",
+      "kategori": "BPJS TENAGA KERJA",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "K3PG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "COB BPJS KESEHATAN",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADHI KARYA (PERSERO), PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADINATA GRAHA SOLUSI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADIRA DINAMIKA MEDICILIN (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADMEDIKA - INHEALTH MANDIRI",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AIA ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AIA FINANCIAL",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AJ INHEALTH",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AKSES TELKO MEDIKA (PT TELKOM AKSES)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ANEKA JASA GRHADIKA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "APLIKANUSA LINTASARTA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ACA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ADIRA MEDICILLIN - JSMART",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ALLIANZ ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ASTRA BUANA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI AXA INDONESIA (ADMEDIKA), PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI BRI LIFE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KARYAWAN PG BRI LIFE",
+      "badge": "BRI LIFE PG",
+      "rekapLabel": "BRI (PG)",
+      "kategori": "PT PETROKIMIA - BRI LIFE",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KELUARGA PG BRI LIFE",
+      "badge": "BRI LIFE PG",
+      "rekapLabel": "BRI (PG)",
+      "kategori": "PT PETROKIMIA - BRI LIFE",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI GARDA MEDIKA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI INHEALTH (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI JIWA MANULIFE INDONESIA, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI MEGA LIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI RAMAYANA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI SINAR MAS, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI TAKAFUL KELUARGA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AVRIST ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AXA INSURANCE INDONESIA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AXA MANDIRI (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BANK RAKYAT INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BANK TABUNGAN NEGARA (BTN)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BNI LIFE INSURANCE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CARGILL INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CEMINDO GEMILANG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CIGNA INDONESIA, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DPB PETROKIMIA KAYAKU",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EQUITY LIFE INDONESIA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "FWD LIFE INDONESIA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GENERALI INDONESIA LIFE (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GRAHA SARANA GRESIK, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HM. SAMPOERNA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HIKARI TEKNOLOGI INDONESIA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INHEALTH INDEMITY",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "JASA RAHARJA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "JASINDO HEALTHCARE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "JINDAL STAINLES INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KOPERASI WARGA SEMEN GRESIK (KWSG)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KRAKATAU MEDIKA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "LIPPO LIFE ASSURANCE, PT (MEDITAP)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MANDIRI INHEALTH OWLEXA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MEGA INSURANCE (Fullerton)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "NIPSEA PAINT AND CHEMICALS (NIPPON PAINT), PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PANGANSARI UTAMA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PBV PETROKIMIA GRESIK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PELINDO, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMINA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRO GRAHA MEDIKA (RSPG)(PGM), PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRO JORDAN ABADI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKIMIA GRESIK, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKIMIA KAYAKU, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRONIKA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROSIDA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PJB UNIT PEMBANGKITAN GRESIK, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PLN NUSANTARA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT INDOSPRING TBK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT KNAUF GYPSUM INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PAMAPERSADA NUSANTARA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PUPUK INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT WIJAYA KARYA Tbk (WIKA)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SMELTING, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SOLVAY MANYAR, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SUNDAY INSURANCE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HANWHA LIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MNC LIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "OONA INSURANCE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "NAYAKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "WILMAR NABATI INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "XINYI GLASS INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "YAYASAN KESEHATAN PERTAMINA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "YAYASAN PETROKIMIA GRESIK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ANTIGEN MCU",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ANTIGEN PASIEN",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MCU CALON JAMAAH HAJI",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET MINI MCU (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET MERAH PUTIH (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET PAHLAWAN (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SEGAR BUGAR",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SEHAT BUGAR",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET NARKOBA (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET BASIC PEKERJA (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON KARYAWAN PT PGM",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ANTIGEN PG",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KOPERASI KONSUMEN KLG PG (K3PG)",
+      "badge": "PG",
+      "rekapLabel": "PT PETROKIMIA",
+      "kategori": "PT PETROKIMIA (karyawan & keluarga)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADMEDIKA HEALTHCARE SOLUTION",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASTRA AVIVA LIFE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI ADMEDIKA ( PT. BANK CENTRAL ASIA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI AJ SEQUIS LIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI BINA DANA ARTHA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI BUMIDA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI CAKRAWALA PROTEKSI, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI INTRA ASIA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI JIWA RECAPITAL, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI JMA SYARIAH (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI KSK INSURANCE INDONESIA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI MEGA HEALTH, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI RAMA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI TAKAFUL KELUARGA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI TIRTA MEDICAL CENTER",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BNI LIFE INSURANCE (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BNI LIFE SYARIAH (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BNI LIFE TELKOMSEL (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PARAGON TECHNOLOGY AND INOVATION(ADMEDIKA), PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CAR LIFE INSURANCE (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EQUITY LIFE INDONESIA, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GLOBAL ASST. & HEALTHCARE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GREAT EASTERN (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HANWHA LIFE (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTERNASIONAL SOS (ASIH EKA ABADI, PT) (ISOS)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTERNATIONAL PACIFIC CROSS (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MAGNA SEHAT ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMINA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMINA LUBRICANTS, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT MNC LIFE ASSURANCE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT NAYAKA ERA HUSADA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PRUDENTIAL LIFE ASSURANCE (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. ASURANSI JIWA SINARMAS MSIG (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RELIANCE (ISOMEDIK)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RELIANCE INSURANCE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RELIANCE INSURANCE, PT (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SIMASCARD (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SOMPO (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SINAR MAS, AJ",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "JIWA SEQWES",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PGN SAKA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ACROSS ASIA ASSIST",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI JIWA ASTRA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI JIWA MANULIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. ZURICH",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BCA LIFE",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADMEDIKA (BCA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CHUBB (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI CIPUTRA INDONESIA (ADMEDIKA), PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "VALE ADMEDIKA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASURANSI FWD (FULLERTON)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BOSOWA ASURANSI (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HARTA GENERAL INSURANCE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTERNATIONAL SERVICE PACIFIC CROSS, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADMINISTRASI ADMEDIKA, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PRUDENTIAL SHARIA LIFE ASSURANCE , PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MSIG LIFE INSURANCE INDONESIA Tbk (ADMEDIKA), PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASKRIDA (ADMEDIKA)",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "OWLEXA",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HIKARI",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PLN INSURANCE, PT",
+      "badge": "AS",
+      "rekapLabel": "ASURANSI KOMERSIAL",
+      "kategori": "ASURANSI KOMERSIAL",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET PEJUANG (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET PRE MARITAL SILVER",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET PRE MARITAL GOLD",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "VOUCHER FREE MCU",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SCREENING A (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SCREENING B (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SCREENING C (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SCREENING D (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SCREENING E (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SAHABAT DIABETES (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SAHABAT GINJAL (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SAHABAT HATI (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SAHABAT JANTUNG BASIC (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET SAHABAT JANTUNG PREM (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET MCU SAPI (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PROMO PETRONITE",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET PUTIH (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET MERAH (UMUM)",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAKET IGE ATOPY",
+      "badge": "UMUM",
+      "rekapLabel": "TUNAI",
+      "kategori": "TUNAI/UMUM & PAKET PROMO",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ABYAKTA NASTARI TRANSINDO, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ADVANTIS AKAZA INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "AHMAD PUTRA INDO KARYA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ANGSA EMAS PERDANA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ASTRA GRAPHIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BABCOCK & WILCOX, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BAHAGIA SEJAHTERA BERSAMA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BANIQL TEKNOLOGI INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BANK SYARIAH INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BATARA ELOK SEMESTA TERPADU, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BATARA ELOK SEMESTA TERPADU, PT (BEST)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BERMAKS INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BIMA ASRI INTERMITRA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "BIRAWIDHA GARDA SANTOSA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CAST INSPECTION AND ENGINEERING BATAM, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DAVKO MEGAH CORPORINDO, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DEPRIWANGGA OM, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "Dinas Kesehatan Kabupaten Gresik",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DSV SOLUTIONS INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DUNIA KIMIA JAYA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EDBERS NUSANTARA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EKA BINTANG PERKASA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ELIN JAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ELIN SUSANTO JAYA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EMITRACO INVESTAMA MANDIRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ETEX BUILDING PEFORMANCE INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "EXXONMOBIL LUBRICANTS INDONESIA (FULLERTON), PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "FOKUS JASA MITRA, PT (FJM)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GLOSTER Furniture, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GRESIK CIPTA SEJAHTERA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GRESIK POWER INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. GRESIK GASES INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "GUNA TEGUH ABADI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HATCH, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "HIKMAH JAYA PUTRA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "IKPT GRESIK, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INDONESIA DIRTAJAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTECS TEKNIKATAMA INDUSTRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTEGRITAS SOLUSI MEDIKA, PT (ISOMEDIK)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INTI KARYA PERSADA TEHNIK ENJINIRING, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KARTIKA BINA MEDIKATAMA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KASHIWABARA ENGINEERING INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KAWASAN INDUSTRI GRESIK, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "Kementrian Kesehatan RI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KLUB RENANG PETROKIMIA GRESIK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KOPINDO CIPTA SEJAHTERA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "KWSG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "LAUTAN AIR INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "LERINDRO INTERNATIONAL, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "LIKU TELAGA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "LINDE INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MACAN ASUHAN PERKASA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MARDIKA SARANA ENGINEERING, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MARGABUMI MATRARAYA (MM), PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MEDIA DOKTER INVESTAMA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MEGA ASIA GLOBAL, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MEISO MITRA UTAMA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MIPCON PRIMA INDUSTRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "MUCOINDO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "NETMARKS INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PANASONIC GOBEL LIFE SOLUTIONS MANUFACTURING INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PARNA MASPION SEJAHTERA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PELINDO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMEDIKA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMINA HULU ENERGI WEST MADURA OFFSHORE, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERUSAHAAN KOLEGA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRO JORDAN ABADI,PT (PJA)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRO KARYA MANDIRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRO OXO NUSANTARA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROCENTRAL, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKAYAKU, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKAYAKU, PT (K3)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKOPINDO CIPTA SELARAS, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROKOPINDO CIPTA SELARAS, PT (PCS)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRONIKA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETROWIDADA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PGN SAKA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PHC MANAGE CARE PELINDO 3, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PJB - UNIT PEMBANGKIT PAITON, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PJB UNIT PEMELIHARAAN GRESIK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PLN POWER UP",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PRASADHA PAMUNAH LIMBAH INDUSTRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT AA INTERNATIONAL INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ADHI KARYA ( UNIT PIPING )",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ADHI KARYA ( UNIT STEEL STRUCTURE )",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ADHI KARYA (PERSERO) TBK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ADHI PERSADA BETON",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ADHIKARYA ( UNIT STEEL STRUCTURE )",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ANDIKA JAYA PERSADA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ARMADA CAKRAWALA ESA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ARTOKAYA INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ASUKA ENGINEERING INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ATAMORA TEHNIK MAKMUR",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT AVER ASIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BAROKAH MANFAAT DUNIA AKHIRAT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BERLIAN AMAL PERKASA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BINA SARANA PUTRA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BIRAWIDHA GARDA SANTOSA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BLUE GAS INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BUKIT ASAM ( PERTAMEDIKA )",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT BUMIMULIA INDAH LESTARI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT CARGILL INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT CHIYODA INTERNATIONAL INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT CIPTA MORTAR UTAMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT DHARMA GRAHA UTAMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT DUNIA KIMIA JAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ECOOILS JAYA INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT ENVILAB INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT GAS SECURITY SERVICES",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT GD INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT GLOBAL ECO CHEMICALS INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT GLOBAL OCENIA SEJAHTERA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT GRAHA MAKMUR CIPTA PRATAMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT INDAL STEEL PIPE",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT INDONESIA DIRTAJAYA ANEKA INDUSTRI BOX (PT INTAN USTRIX)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT INTIM JAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT JAYA SAKTI MANDIRI UNGGUL",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT KIMIKA USAHA PRIMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT KINDEN INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT LF SERVICES INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT LIWAYWAY",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT MARGABUMI MATRARAYA (MM)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT MEDIKA PRAKARSA INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT METITO INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT MK PRIMA INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT MUCOINDO PRAKASA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT NIPPON INDOSARI CORPINDO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PACINESIA CHEMICAL INDUSTRY",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PEMBANGUNAN PERUMAHAN",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PERTAMINA HULU ENERGI WMO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PETRO KARYA NIAGA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PINTAR DATA GROUP",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PIPA NITROGEN SERVIS INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PLN NUSANTARA POWER UP GRESIK",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PRIMA SARANA JASA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PUPUK INDONESIA ENERGI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT PUSPETINDO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT REZEKI SURYA INTIMAKMUR",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SMCC UTAMA INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SOLUSI MAJU JAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SOLVAY MANYAR",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SUCI ENERGY SOLUSI INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SUZUKI FINANCE INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT SWADAYA CIPTA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT TECHNO PREFAB INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT TEKNIK UMUM SANKO ENG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT TERAS TEKNIK PERDANA -PT MEISEI INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT TIGA PILAR ENERGI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT VOLAC WILMAR FEED INGREDIENTS INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT WELTES ENERGI NUSANTARA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. ALDZAMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. BERDIKARI PONDASI PERKASA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. DELAPAN PINTU UTAMA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. KARYA MANUNGGAL JATI",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. PAITON OPERATION MAINTENANCE INDONESIA (POMI)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. PERTAMINA BINA MEDIKA (PERTAMEDIKA)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. PETRO OXO NUSANTARA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PT. WIJAYA KARYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PUPUK INDONESIA UTILITAS, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PUPUK INDONESIA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "Puskesmas Nelayan",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "Qatar Energy LNG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RAMAYANA KWSG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RAMAYANA PJA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "REDTROINDO NUSANTARA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "REVAN JAYA MANDIRI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "RS PUPUK KALTIM BONTANG",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SAKA INDONESIA PANGKAH LIMITED",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SAMPOERNA ALAM SAMUDRA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SEMEN INDONESIA DISTRIBUTOR",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SENTANA ADIDAYA PRATAMA,PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SIGAP PRATAMA SEJAHTERA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SILVERINDO GLOBAL KARYA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SUPERKRANE MITRA UTAMA TBK. PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SURI TANI PEMUKA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "SYENSQO MANYAR, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "TEKNOLOGI KARYA ABADI, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "THE FIRST TRIJAYA CATERING & SUPPLIERS, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "TOKKI ENGINEERING AND FABRICATION, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "TPC INDO PLASTIC AND CHEMICALS, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "UNIVERSITAS INTERNATIONAL SEMEN INDONESIA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "WASA MITRA ENGINEERING, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "WASKITA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "WELLINDO JAYA PERSADA, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "YAYASAN KESEHATAN PEGAWAI TELKOM, PT",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ALBEA RIGID PACKAGING SURABAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ATAMORA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ABITECH",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "ABHITECH",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON FOKUS JASA MITRA, PT (FJM)",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON INDOSPRING",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON KAYAKU",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON LIWAYWAY",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON PETRO OXO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "CALON PJA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "DIRTAJAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "INDONESIA DIRTAJAYA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PAMA PERSADA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PELINDO",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PERTAMEDIKA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PETRONIKA",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    },
+    {
+      "nama": "PSV SOLUTION",
+      "badge": "NPG",
+      "rekapLabel": "PERUSAHAAN LAIN",
+      "kategori": "PERUSAHAAN LAIN (non-PG)",
+      "hitunganBPJS": false,
+      "pasanganPG": null,
+      "masukRekap": true
+    }
+  ]
+}

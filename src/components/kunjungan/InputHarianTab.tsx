@@ -683,16 +683,16 @@ function usePenjaminList() {
 const REKAP_LABEL_MAP: Record<string, string> = {
   'PG':           'PT PETROKIMIA',
   'NPG':          'PERUSAHAAN LAIN',
-  'INHEALTH PG':  'INHEALTH (PG)',
+  'INHEALTH PG':  'AJ INHEALTH PLUS',
   'BRI LIFE PG':  'BRI (PG)',
   'AS':           'ASURANSI KOMERSIAL',
   'PROKESPEN':    'PROKESPEN MURNI',
   'PROKESPEN BPJS': 'PROKESPEN BPJS',
   'BPJS':         'BPJS KES',
   'JKK':          'BPJS TK',
-  'UMUM':         'TUNAI/UMUM',
+  'UMUM':         'TUNAI',
 };
-const REKAP_LABEL_ORDER = ['PG','NPG','INHEALTH PG','AS','PROKESPEN','PROKESPEN BPJS','BPJS','JKK','UMUM'];
+const REKAP_LABEL_ORDER = ['PG','NPG','BRI LIFE PG','INHEALTH PG','AS','PROKESPEN','PROKESPEN BPJS','BPJS','JKK','UMUM'];
 
 function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: McuInputRow[]) {
   const wb = XLSX.utils.book_new();
@@ -783,12 +783,10 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
   // Format: 12 blok bulan, tiap blok punya header + 31 baris hari + TOTAL + Sub Total + separator
   const BULAN_NAMES = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
-  // 9 payer untuk RJ/RI/IGD
-  const PAYER_9 = ['PT PETROKIMIA','PERUSAHAAN LAIN','INHEALTH (PG)','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
-  // Badge → index di PAYER_9
+  const PAYER_10 = ['PT PETROKIMIA','PERUSAHAAN LAIN','BRI (PG)','AJ INHEALTH PLUS','ASURANSI KOMERSIAL','PROKESPEN MURNI','PROKESPEN BPJS','BPJS KES','BPJS TK','TUNAI'];
   const BADGE_TO_IDX: Record<string, number> = {
-    'PG': 0, 'NPG': 1, 'INHEALTH PG': 2, 'BRI LIFE PG': 2, 'AS': 3,
-    'PROKESPEN': 4, 'PROKESPEN BPJS': 5, 'BPJS': 6, 'JKK': 7, 'UMUM': 8,
+    'PG': 0, 'NPG': 1, 'BRI LIFE PG': 2, 'INHEALTH PG': 3, 'AS': 4,
+    'PROKESPEN': 5, 'PROKESPEN BPJS': 6, 'BPJS': 7, 'JKK': 8, 'UMUM': 9,
   };
   // MCU hanya 4 kolom: PT PETROKIMIA, PERUSAHAAN LAIN, ASURANSI KOMERSIAL, UMUM
   const MCU_PAYERS = ['PT PETROKIMIA','PERUSAHAAN LAIN','ASURANSI KOMERSIAL','UMUM'];
@@ -822,9 +820,9 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
   // Hitung data per badge untuk hari ini
   // RJ per badge = rjYani + promo + dokter + exc + prior + grhuRj + sat + ppk1
-  const rjPerBadge: number[] = Array(9).fill(0);
-  const riPerBadge: number[] = Array(9).fill(0);
-  const igdPerBadge: number[] = Array(9).fill(0);
+  const rjPerBadge: number[] = Array(10).fill(0);
+  const riPerBadge: number[] = Array(10).fill(0);
+  const igdPerBadge: number[] = Array(10).fill(0);
   const mcuPerBadge: number[] = Array(4).fill(0);
 
   for (const r of kunjungan) {
@@ -843,11 +841,11 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
 
   for (let mi = 0; mi < 12; mi++) {
     const bulan = BULAN_NAMES[mi];
-    // Header row 1: bulan, RAWAT JALAN (9 cols), RAWAT INAP (9 cols), IGD (9 cols), MCU (4 cols), TOTAL, TARGET, CAPAIAN
+    // Header row 1: bulan, RAWAT JALAN (10 cols), RAWAT INAP (10 cols), IGD (10 cols), MCU (4 cols), TOTAL, TARGET, CAPAIAN
     const h1: any[] = [bulan];
-    h1.push('RAWAT JALAN', ...Array(8).fill(null));
-    h1.push('RAWAT INAP', ...Array(8).fill(null));
-    h1.push('IGD', ...Array(8).fill(null));
+    h1.push('RAWAT JALAN', ...Array(9).fill(null));
+    h1.push('RAWAT INAP', ...Array(9).fill(null));
+    h1.push('IGD', ...Array(9).fill(null));
     h1.push('MCU', ...Array(3).fill(null));
     h1.push('TOTAL KUNJUNGN', 'TARGET', 'CAPAIAN (%)');
     kunjAoa.push(h1);
@@ -855,17 +853,17 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     // Header row 2: sub-headers (payer names)
     const h2: any[] = [null];
     // RJ payers
-    h2.push(...PAYER_9);
+    h2.push(...PAYER_10);
     // RI payers
-    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    h2.push(...PAYER_10.map(p => p === 'TUNAI' ? 'UMUM' : p));
     // IGD payers
-    h2.push(...PAYER_9.map(p => p === 'TUNAI' ? 'UMUM' : p));
+    h2.push(...PAYER_10.map(p => p === 'TUNAI' ? 'UMUM' : p));
     // MCU payers
     h2.push(...MCU_PAYERS);
     h2.push(null, null, null);
     kunjAoa.push(h2);
 
-    // 31 day rows — hanya kolom data (B-AF = 31 kolom), skip TOTAL KUNJUNGN (formula gsheet)
+    // 31 day rows — 34 kolom data B-AI, skip TOTAL/TARGET/CAPAIAN (formula sheet)
     for (let d = 1; d <= 31; d++) {
       const row: any[] = [d];
       if (mi === monthIdx && d === dayNum) {
@@ -875,12 +873,12 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
         row.push(...mcuPerBadge);
         row.push(null, null, null); // TOTAL KUNJUNGN, TARGET, CAPAIAN — skip
       } else {
-        row.push(...Array(34).fill(null));
+        row.push(...Array(37).fill(null));
       }
       kunjAoa.push(row);
     }
 
-    // TOTAL row — hanya kolom data (B-AF), skip AG
+    // TOTAL row — hanya kolom data B-AI, skip AJ/AK/AL
     const totRow: any[] = ['TOTAL'];
     if (mi === monthIdx) {
       totRow.push(...rjPerBadge);
@@ -889,7 +887,7 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
       totRow.push(...mcuPerBadge);
       totRow.push(null, null, null);
     } else {
-      totRow.push(...Array(34).fill(0));
+      totRow.push(...Array(37).fill(0));
     }
     kunjAoa.push(totRow);
 
@@ -899,19 +897,19 @@ function exportToExcel(tanggal: string, kunjungan: KunjunganInputRow[], mcu: Mcu
     const riSub = mi === monthIdx ? riPerBadge.reduce((a,b)=>a+b,0) : 0;
     const igdSub = mi === monthIdx ? igdPerBadge.reduce((a,b)=>a+b,0) : 0;
     const mcuSub = mi === monthIdx ? mcuPerBadge.reduce((a,b)=>a+b,0) : 0;
-    subRow.push(`RAWAT JALAN :`, rjSub, ...Array(7).fill(null));
-    subRow.push(`RAWAT INAP :`, riSub, ...Array(7).fill(null));
-    subRow.push(`IGD :`, igdSub, ...Array(7).fill(null));
+    subRow.push(`RAWAT JALAN :`, rjSub, ...Array(8).fill(null));
+    subRow.push(`RAWAT INAP :`, riSub, ...Array(8).fill(null));
+    subRow.push(`IGD :`, igdSub, ...Array(8).fill(null));
     subRow.push(`MCU : `, mcuSub, ...Array(2).fill(null));
     subRow.push(null, null, null);
     kunjAoa.push(subRow);
 
     // Separator row
-    kunjAoa.push(Array(35).fill(null));
+    kunjAoa.push(Array(38).fill(null));
   }
 
   const ws4 = XLSX.utils.aoa_to_sheet(kunjAoa);
-  ws4['!cols'] = [{ wch:12 }, ...Array(34).fill({ wch:8 })];
+  ws4['!cols'] = [{ wch:12 }, ...Array(37).fill({ wch:8 })];
   XLSX.utils.book_append_sheet(wb, ws4, 'KUNJUNGAN 2026');
 
   XLSX.writeFile(wb, `Lap_${tanggal}.xlsx`);

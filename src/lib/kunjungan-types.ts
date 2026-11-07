@@ -4,6 +4,7 @@ export interface OmzetRow {
   petrokimia: number;
   perusahaan: number;
   bri: number;
+  inhealth: number;
   asuransi: number;
   prokMurni: number;
   prokBpjs: number;
@@ -81,7 +82,8 @@ export function badgeClass(pct: number): string {
 export const PAYERS = [
   { k: 'petrokimia', l: 'PT Petrokimia', c: '#dc2626' },
   { k: 'perusahaan', l: 'Perusahaan', c: '#2563eb' },
-  { k: 'inhealth', l: 'INHEALTH (PG)', c: '#6366f1' },
+  { k: 'bri', l: 'BRI (PG)', c: '#ea580c' },
+  { k: 'inhealth', l: 'AJ INHEALTH PLUS', c: '#6366f1' },
   { k: 'asuransi', l: 'Asuransi', c: '#7c3aed' },
   { k: 'prokMurni', l: 'Prok. Murni', c: '#0891b2' },
   { k: 'prokBpjs', l: 'Prok. BPJS', c: '#059669' },
