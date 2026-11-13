@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, ComposedChart, Line
@@ -7,7 +7,7 @@ import { RefreshCw, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER, getPayerValue
+  normalizeMonthKeys, sortMonths, pickDefaultMonth, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER, getPayerValue
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { useAuth } from '@/hooks/use-auth';
@@ -38,8 +38,8 @@ function PctBadge({ pct }: { pct: number }) {
   );
 }
 
-function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data omzet" />;
+function OmzetTab({ month, data, error }: { month: string; data: OmzetRow[]; error?: string | null }) {
+  if (!data.length) return <EmptyState text={`Belum ada data omzet ${month}`} error={error} />;
 
   const tot = data.reduce((s, r) => s + r.total, 0);
   const dHit = data.filter(r => r.pct >= 100).length;
@@ -174,8 +174,8 @@ function OmzetTab({ month, data }: { month: string; data: OmzetRow[] }) {
   );
 }
 
-function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) {
-  if (!data.length) return <EmptyState text="Belum ada data kunjungan" />;
+function KunjunganTab({ month, data, error }: { month: string; data: KunjunganRow[]; error?: string | null }) {
+  if (!data.length) return <EmptyState text={`Belum ada data kunjungan ${month}`} error={error} />;
 
   const totK = data.reduce((s, r) => s + r.total, 0);
   const dHit = data.filter(r => r.pct >= 100).length;
@@ -310,9 +310,9 @@ function KunjunganTab({ month, data }: { month: string; data: KunjunganRow[] }) 
   );
 }
 
-function McuTab({ month, data }: { month: string; data: McuRow[] }) {
+function McuTab({ month, data, error }: { month: string; data: McuRow[]; error?: string | null }) {
   const rows = data.filter(r => r.omzet > 0);
-  if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} />;
+  if (!rows.length) return <EmptyState text={`Belum ada data MCU untuk ${month}`} error={error} />;
 
   const total = rows.reduce((s, r) => s + r.omzet, 0);
   const avg = total / rows.length;
@@ -398,12 +398,14 @@ function McuTab({ month, data }: { month: string; data: McuRow[] }) {
 }
 
 // LaporanTab moved to src/components/kunjungan/LaporanTab.tsx
-function EmptyState({ text }: { text: string }) {
+function EmptyState({ text, error }: { text: string; error?: string | null }) {
   return (
     <div className="card-clinical p-12 text-center text-muted-foreground">
       <BarChart3 className="w-8 h-8 mx-auto mb-3 opacity-40" />
       <p className="font-semibold">{text}</p>
-      <p className="text-xs mt-1">Pastikan koneksi aktif dan refresh untuk memuat data terbaru.</p>
+      <p className="text-xs mt-1">
+        {error ? error : 'Pastikan koneksi aktif dan refresh untuk memuat data terbaru.'}
+      </p>
     </div>
   );
 }
@@ -441,14 +443,17 @@ function StatusBadge({ status, lastUpdated, onRefresh, refreshing }: {
 
 export default function KunjunganDashboard() {
   const navigate = useNavigate();
-  const { data, status, lastUpdated, error, refresh, availableMonths, kumulatif } = useKunjunganData();
+  const { data, status, lastUpdated, currentMonth, error, refresh, availableMonths, kumulatif } = useKunjunganData();
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
 
   const [month, setMonth] = useState(CURRENT_MONTH_NAME);
   const [mcuMonth, setMcuMonth] = useState(CURRENT_MONTH_NAME);
 
-  // Selalu sertakan bulan sekarang di daftar pilihan meski data belum ada
+  // Bulan default hanya diarahkan sekali, dan tidak pernah menimpa pilihan pengguna:
+  // utamakan bulan dari GAS, lalu bulan terakhir yang benar-benar berisi rows,
+  // baru bulan kalender lokal sebagai fallback terakhir.
+  const monthTouched = useRef(false);
   const activeMonthsList = useMemo(() => {
     const months = availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
     if (!months.includes(CURRENT_MONTH_NAME)) {
@@ -457,8 +462,17 @@ export default function KunjunganDashboard() {
     return months;
   }, [tab, availableMonths]);
 
+  useEffect(() => {
+    if (monthTouched.current || status === 'loading') return;
+    const src = tab === 'mcu' ? data.mcu : tab === 'kunjungan' ? data.kunjungan : data.omzet;
+    const pick = pickDefaultMonth(src, currentMonth);
+    if (tab === 'mcu') setMcuMonth(prev => (prev === pick ? prev : pick));
+    else setMonth(prev => (prev === pick ? prev : pick));
+  }, [tab, status, currentMonth, data]);
+
   const activeMonth = tab === 'mcu' ? mcuMonth : month;
   const setActiveMonth = (m: string) => {
+    monthTouched.current = true;
     if (tab === 'mcu') setMcuMonth(m);
     else setMonth(m);
   };
@@ -569,9 +583,9 @@ export default function KunjunganDashboard() {
             </div>
           ) : (
             <>
-              {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} />}
-              {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} />}
-              {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} />}
+              {tab === 'omzet' && <OmzetTab month={activeMonth} data={data.omzet[activeMonth] || []} error={error} />}
+              {tab === 'kunjungan' && <KunjunganTab month={activeMonth} data={data.kunjungan[activeMonth] || []} error={error} />}
+              {tab === 'mcu' && <McuTab month={activeMonth} data={data.mcu[activeMonth] || []} error={error} />}
             </>
           )
         )}

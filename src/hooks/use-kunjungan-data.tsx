@@ -25,6 +25,7 @@ export function useKunjunganData() {
   const [data, setData] = useState<KunjunganData>(EMBEDDED);
   const [status, setStatus] = useState<ConnectionStatus>('embedded');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kumulatif, setKumulatif] = useState<KumulatifData | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -34,6 +35,7 @@ export function useKunjunganData() {
       setData(EMBEDDED);
       setStatus('embedded');
       setLastUpdated(null);
+      setCurrentMonth(null);
       setError(null);
       return;
     }
@@ -45,17 +47,15 @@ export function useKunjunganData() {
         fetchKumulatif().catch(() => null),
       ]);
 
-      if (!result.omzet || typeof result.omzet !== 'object' ||
-          !result.kunjungan || typeof result.kunjungan !== 'object') {
-        throw new Error('Response GAS tidak valid — struktur data tidak sesuai');
-      }
-
+      // fetchSummary() sudah memvalidasi kontrak dan melempar bila payload bukan milik
+      // dashboard; sampai sini data dijamin berbentuk KunjunganData.
       setData({
         omzet: result.omzet,
         kunjungan: result.kunjungan,
         mcu: result.mcu ?? {},
       });
       setLastUpdated(result.lastUpdated);
+      setCurrentMonth(result.currentMonth || null);
       setStatus('live');
       setError(null);
 
@@ -96,5 +96,5 @@ export function useKunjunganData() {
     [data]
   );
 
-  return { data, status, lastUpdated, error, refresh, availableMonths, kumulatif };
+  return { data, status, lastUpdated, currentMonth, error, refresh, availableMonths, kumulatif };
 }
