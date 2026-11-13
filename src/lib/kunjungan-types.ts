@@ -61,6 +61,25 @@ export function sortMonths(months: string[]): string[] {
   return [...months].sort((a, b) => BULAN_ORDER.indexOf(a) - BULAN_ORDER.indexOf(b));
 }
 
+/**
+ * Bulan yang ditampilkan saat dashboard dibuka.
+ * Urutan: bulan dari GAS (bila ada rows) → bulan terakhir yang berisi rows →
+ * bulan dari GAS → bulan kalender lokal. Bulan berisi rows selalu menang,
+ * supaya dashboard tidak terbuka pada bulan kosong.
+ */
+export function pickDefaultMonth(
+  src: Record<string, unknown[] | undefined>,
+  currentMonth: string | null | undefined,
+): string {
+  const hasRows = (m: string) => (src[m] || []).length > 0;
+  const valid = (m: string | null | undefined): m is string => !!m && BULAN_ORDER.includes(m);
+  if (valid(currentMonth) && hasRows(currentMonth)) return currentMonth;
+  const lastWithRows = [...sortMonths(Object.keys(src))].reverse().find(hasRows);
+  if (lastWithRows) return lastWithRows;
+  if (valid(currentMonth)) return currentMonth;
+  return BULAN_ORDER[new Date().getMonth()];
+}
+
 export function fmtRp(v: number): string {
   if (!v) return 'Rp 0';
   const jt = v / 1e6;
