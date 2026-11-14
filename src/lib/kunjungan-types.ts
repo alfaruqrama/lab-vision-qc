@@ -80,6 +80,30 @@ export function pickDefaultMonth(
   return BULAN_ORDER[new Date().getMonth()];
 }
 
+export type MonthTabKey = 'omzet' | 'kunjungan' | 'mcu';
+
+/** Tab 'laporan' dan 'input' tidak punya bulan sendiri; ikut daftar omzet. */
+export function monthTabKey(tab: string): MonthTabKey {
+  return tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet';
+}
+
+/**
+ * Bulan aktif per tab. Tiap tab punya sheet sendiri, jadi defaultnya bisa
+ * berbeda — dan pilihan user di satu tab tidak boleh menimpa tab lain.
+ * Tab yang sudah disentuh user dikembalikan apa adanya.
+ */
+export function resolveTabMonths(
+  prev: Record<MonthTabKey, string>,
+  touched: ReadonlySet<MonthTabKey>,
+  tab: MonthTabKey,
+  src: Record<string, unknown[] | undefined>,
+  currentMonth: string | null | undefined,
+): Record<MonthTabKey, string> {
+  if (touched.has(tab)) return prev;
+  const pick = pickDefaultMonth(src, currentMonth);
+  return prev[tab] === pick ? prev : { ...prev, [tab]: pick };
+}
+
 export function fmtRp(v: number): string {
   if (!v) return 'Rp 0';
   const jt = v / 1e6;

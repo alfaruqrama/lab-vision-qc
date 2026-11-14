@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fetchSummary } from '../kunjungan-api';
-import { pickDefaultMonth } from '../kunjungan-types';
+import { pickDefaultMonth, resolveTabMonths, monthTabKey } from '../kunjungan-types';
 
 const SUMMARY_URL = 'https://script.google.com/macros/s/DASHBOARD_TEST/exec';
 
@@ -30,6 +30,22 @@ describe('fetchSummary response contract', () => {
   it('menolak payload tanpa allOmzet sama sekali', async () => {
     mockJson({ status: 'ok' });
     await expect(fetchSummary()).rejects.toThrow(/bukan dari skrip Dashboard/);
+  });
+
+  it('menolak array pada field summary yang harus berupa map bulan', async () => {
+    mockJson({ allOmzet: [], allKunjungan: [], allMcu: [] });
+    await expect(fetchSummary()).rejects.toThrow(/object berisi array rows/);
+  });
+
+  it('menolak nilai bulan yang bukan array rows', async () => {
+    mockJson({ allOmzet: { NOV: {} }, allKunjungan: {}, allMcu: {} });
+    await expect(fetchSummary()).rejects.toThrow(/object berisi array rows/);
+  });
+
+  it('menerima nilai bulan null (dashboard aman karena pakai `|| []`)', async () => {
+    mockJson({ allOmzet: { NOV: null }, allKunjungan: {}, allMcu: {} });
+    const result = await fetchSummary();
+    expect(result.omzet.NOVEMBER).toBeNull();
   });
 
   it('menerima bulan yang belum berisi data (allOmzet kosong itu sah)', async () => {
@@ -87,5 +103,42 @@ describe('pickDefaultMonth', () => {
   it('memakai bulan kalender saat tidak ada data sama sekali', () => {
     const expected = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'][new Date().getMonth()];
     expect(pickDefaultMonth({}, null)).toBe(expected);
+  });
+});
+
+describe('resolveTabMonths', () => {
+  const base = { omzet: 'NOVEMBER', kunjungan: 'NOVEMBER', mcu: 'NOVEMBER' };
+
+  it('mengisi bulan default tab dari data tab itu sendiri', () => {
+    const result = resolveTabMonths(base, new Set(), 'omzet', { OKTOBER: [{ d: 1 }] }, 'NOVEMBER');
+    expect(result.omzet).toBe('OKTOBER');
+  });
+
+  it('pilihan user di satu tab tidak menimpa tab lain', () => {
+    const prev = { ...base, omzet: 'AGUSTUS' };
+    const touched = new Set(['omzet' as const]);
+    const result = resolveTabMonths(prev, touched, 'omzet', { OKTOBER: [{ d: 1 }] }, 'NOVEMBER');
+    expect(result.omzet).toBe('AGUSTUS');
+  });
+
+  it('tab yang belum disentuh tetap dapat default sendiri walau tab lain disentuh', () => {
+    const prev = { ...base, omzet: 'AGUSTUS' };
+    const touched = new Set(['omzet' as const]);
+    const result = resolveTabMonths(prev, touched, 'mcu', { OKTOBER: [{ d: 1 }] }, 'NOVEMBER');
+    expect(result.mcu).toBe('OKTOBER');
+    expect(result.omzet).toBe('AGUSTUS');
+  });
+
+  it('mengembalikan objek yang sama bila tidak ada perubahan', () => {
+    const prev = { ...base, omzet: 'OKTOBER' };
+    const result = resolveTabMonths(prev, new Set(), 'omzet', { OKTOBER: [{ d: 1 }] }, 'NOVEMBER');
+    expect(result).toBe(prev);
+  });
+
+  it('memetakan tab laporan dan input ke daftar omzet', () => {
+    expect(monthTabKey('laporan')).toBe('omzet');
+    expect(monthTabKey('input')).toBe('omzet');
+    expect(monthTabKey('kunjungan')).toBe('kunjungan');
+    expect(monthTabKey('mcu')).toBe('mcu');
   });
 });

@@ -45,7 +45,7 @@ function assertIsSummary(data: any): asserts data is GsSummaryResponse {
   // Skrip GAS lain (mis. Input Harian) membalas {status:'ok',service:'...'} untuk action
   // yang tidak dikenal, bukan {error}. Cek keberadaan field kontrak, bukan sekadar typeof,
   // supaya {} tidak bisa lolos sebagai "dashboard tanpa data".
-  const misconfigured = !data || typeof data !== 'object'
+  const misconfigured = !data || typeof data !== 'object' || Array.isArray(data)
     || !('allOmzet' in data) || !('allKunjungan' in data);
   if (misconfigured) {
     const service = data?.service ? ` — endpoint ini melayani "${data.service}"` : '';
@@ -54,10 +54,17 @@ function assertIsSummary(data: any): asserts data is GsSummaryResponse {
     );
   }
 
+  // Map bulan: object yang setiap nilainya array rows. Object kosong sah (bulan
+  // belum berisi data). Nilai null/undefined juga aman (dashboard pakai `|| []`),
+  // tapi object non-array seperti {} lolos `|| []` lalu crash di .filter MCU.
+  const isMonthRows = (value: unknown) => !!value && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.values(value).every(v => Array.isArray(v) || v === null || v === undefined);
+
   for (const key of ['allOmzet', 'allKunjungan', 'allMcu'] as const) {
     const v = (data as any)[key];
-    if (v !== undefined && (typeof v !== 'object' || v === null)) {
-      throw new Error(`Field ${key} bukan object (${url})`);
+    if (v !== undefined && !isMonthRows(v)) {
+      throw new Error(`Field ${key} harus berupa object berisi array rows (${url})`);
     }
   }
 }
