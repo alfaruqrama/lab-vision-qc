@@ -23,20 +23,33 @@ async function fetchRecords(): Promise<QCRecord[]> {
     const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
     const startDate = start.toISOString().slice(0, 10);
 
-    const { data, error } = await client
-      .from('qc_records')
-      .select('*')
-      .gte('tanggal', startDate)
-      .lt('tanggal', endDate)
-      .order('tanggal', { ascending: true })
-      .order('timestamp', { ascending: true });
+    // Fetch with pagination — Supabase default is 1000 rows, but a full year of
+    // QC records across all instruments can exceed that and silently truncate
+    // the newest data. Page through until fewer than the page size come back.
+    const PAGE = 1000;
+    const all: QCRecord[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await client
+        .from('qc_records')
+        .select('*')
+        .gte('tanggal', startDate)
+        .lt('tanggal', endDate)
+        .order('tanggal', { ascending: true })
+        .order('timestamp', { ascending: true })
+        .range(from, from + PAGE - 1);
 
-    if (error) {
-      console.error('Fetch QC records error:', error);
-      return [];
+      if (error) {
+        console.error('Fetch QC records error:', error);
+        return [];
+      }
+
+      all.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
     }
 
-    return data || [];
+    return all;
   }
 
   // Demo mode: read from localStorage or generate mock data
