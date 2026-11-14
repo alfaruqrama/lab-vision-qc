@@ -36,7 +36,9 @@ export function computeZScores(
     }
 
     const points = records
-      .filter((r) => r.level === level)
+      // Skip records flagged as excluded (gross error) — consistent with
+      // stats-util.ts and westgard-engine.ts. Older rows have no flag.
+      .filter((r) => r.level === level && !r.excluded)
       .map((r) => {
         const rawValue = r.params[param];
         if (rawValue == null) return null;

@@ -26,8 +26,8 @@ import { LJExportControls } from '@/features/qc/components/lj/LJExport';
 const LJChart = lazy(() => import('@/features/qc/components/lj/LJChart').then(mod => ({ default: mod.LJChart })));
 
 export default function LeveyJennings() {
-  const { records, loading: recordsLoading } = useQCRecords();
-  const { config, loading: configLoading } = useQCConfig();
+  const { data: records = [], isLoading: recordsLoading } = useQCRecords();
+  const { data: config, isLoading: configLoading } = useQCConfig();
 
   // State
   const [selectedAlat, setSelectedAlat] = useState<InstrumentType>('CA660');

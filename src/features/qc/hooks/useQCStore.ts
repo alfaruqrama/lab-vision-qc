@@ -1,21 +1,9 @@
-import { useQCConfig } from './useQCConfig';
-import { useQCRecords } from './useQCRecords';
-
 /**
- * Hook gabungan yang menyediakan config dan records untuk Input QC.
- * Menggabungkan useQCConfig dan useQCRecords untuk kemudahan penggunaan.
+ * Re-export of the canonical QC store hook.
+ *
+ * This file used to hold a second implementation that read `.records` /
+ * `.config` straight off the React Query results, which are objects with
+ * `.data`, not the values themselves — every consumer got `undefined`.
+ * Keeping one implementation avoids that class of bug.
  */
-export function useQCStore() {
-  const configResult = useQCConfig();
-  const recordsResult = useQCRecords();
-
-  return {
-    config: configResult.config,
-    connected: configResult.connected,
-    records: recordsResult.records,
-    addRecord: recordsResult.addRecord,
-    updateRecord: recordsResult.updateRecord,
-    deleteRecord: recordsResult.deleteRecord,
-    refreshRecords: recordsResult.refreshRecords,
-  };
-}
+export { useQCStore, QCProvider } from '@/hooks/use-qc-store';
