@@ -1,4 +1,5 @@
 import type { ParamConfig, WestgardStatus } from './types';
+import { ruleStatus } from './westgard-rules';
 
 export interface WestgardResult {
   status: WestgardStatus;
@@ -16,11 +17,11 @@ export function evaluateWestgard(value: number, config: ParamConfig): WestgardRe
   let status: WestgardStatus = 'ok';
 
   if (absZ > 3) {
-    status = 'oos';
     rules.push('1-3s');
+    status = ruleStatus('1-3s');
   } else if (absZ > 2) {
-    status = 'warning';
     rules.push('1-2s');
+    status = ruleStatus('1-2s');
   }
 
   return { status, zScore, rules };

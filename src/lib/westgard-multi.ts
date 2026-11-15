@@ -1,5 +1,6 @@
 import type { ZScorePoint } from './zscore';
 import type { ControlLevel } from './types';
+import { ruleStatus } from './westgard-rules';
 
 
 export type RuleStatus = 'ok' | 'warning' | 'oos';
@@ -99,7 +100,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
     rules.push({
       rule: '1-3s',
       level,
-      status: 'oos',
+      status: ruleStatus('1-3s'),
       affectedDays: oos13s.map((p) => p.tanggal),
       description: `${oos13s.length} titik melampaui ±3SD — investigasi segera`,
     });
@@ -111,7 +112,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
     rules.push({
       rule: '1-2s',
       level,
-      status: 'warning',
+      status: ruleStatus('1-2s'),
       affectedDays: warn12s.map((p) => p.tanggal),
       description: `${warn12s.length} titik melampaui ±2SD — pantau ketat`,
     });
@@ -131,7 +132,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
     rules.push({
       rule: '2-2s',
       level,
-      status: 'oos',
+      status: ruleStatus('2-2s'),
       affectedDays: days22s,
       description: '2 titik berturut-turut > ±2SD di sisi yang sama — indikasi systematic error',
     });
@@ -153,7 +154,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
     rules.push({
       rule: '4-1s',
       level,
-      status: 'warning',
+      status: ruleStatus('4-1s'),
       affectedDays: [...new Set(days41s)],
       description: '4+ titik berturut-turut > ±1SD — potensi shift sistematik',
     });
@@ -174,7 +175,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
     rules.push({
       rule: '10x',
       level,
-      status: 'oos',
+      status: ruleStatus('10x'),
       affectedDays: [...new Set(days10x)],
       description: '10+ titik berturut-turut di satu sisi mean — indikasi bias sistematik',
     });
@@ -212,7 +213,7 @@ export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): Rul
         violations.push({
           rule: 'R-4s',
           level: `${levelA}-${levelB}`,
-          status: 'oos',
+          status: ruleStatus('R-4s'),
           affectedDays,
           description: `Selisih Z-score ${levelA} vs ${levelB} > 4 — perbedaan signifikan antar level`,
         });
