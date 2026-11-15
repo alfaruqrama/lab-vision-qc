@@ -3,8 +3,8 @@ import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { lazy } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Filter, 
+import {
+  Filter,
   AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -12,10 +12,20 @@ import { cn } from '@/lib/utils';
 
 import { useQCRecords } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig } from '@/features/qc/hooks/useQCConfig';
+import { useAuth } from '@/hooks/use-auth';
 import { computeZScores, getParamTarget } from '@/lib/zscore';
 import { analyzeMultiLevel } from '@/lib/westgard-multi';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS, INSTRUMENTS } from '@/lib/types';
+import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
+import {
+  KA_LAB_NAME,
+  PARAM_LABELS,
+  SERIES_COLORS,
+  monthDateRange,
+  type PrintSeries,
+  type LJChartPrintOptions,
+} from '@/features/qc/lib/lj-print';
 
 /**
  * Control level(s) each instrument actually records.
@@ -31,16 +41,6 @@ function getLevelsForInstrument(alat: InstrumentType): ControlLevel[] {
   return ['Kontrol'];
 }
 
-const PARAM_LABELS: Record<ParamName, string> = {
-  PT: 'PT',
-  APTT: 'APTT',
-  INR: 'INR',
-  Na: 'Sodium (Na)',
-  K: 'Potassium (K)',
-  Cl: 'Chloride (Cl)',
-  GDA: 'Glukosa (GDA)',
-};
-
 // Modular Components
 import { LJSummary } from '@/features/qc/components/lj/LJSummary';
 import { LJAnalysis } from '@/features/qc/components/lj/LJAnalysis';
@@ -53,18 +53,16 @@ const LJChart = lazy(() => import('@/features/qc/components/lj/LJChart').then(mo
 export default function LeveyJennings() {
   const { data: records = [], isLoading: recordsLoading } = useQCRecords();
   const { data: config, isLoading: configLoading } = useQCConfig();
+  const { user } = useAuth();
 
   // State
   const [selectedAlat, setSelectedAlat] = useState<InstrumentType>('CA660');
   const [selectedParam, setSelectedParam] = useState<ParamName>(getParamsForInstrument('CA660')[0]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [mode, setMode] = useState<'single' | 'multi'>('single');
-  
+
   // Export state
   const chartRef = useRef<HTMLDivElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   // Parameters offered by the selected instrument. Switching instrument must
@@ -80,6 +78,12 @@ export default function LeveyJennings() {
 
   const levels = useMemo(() => getLevelsForInstrument(selectedAlat), [selectedAlat]);
 
+  // Multi runs overlay the instrument's control levels on one chart, so it only
+  // makes sense where a run actually carries several of them. CA-660 and CLEVER
+  // store a single flat control (`Kontrol`); EASYLITE has NORMAL/HIGH and ONCALL
+  // has CTRL0/1/2.
+  const supportsMulti = levels.length > 1;
+
   const [selectedLevel, setSelectedLevel] = useState<ControlLevel>(getLevelsForInstrument('CA660')[0]);
 
   useEffect(() => {
@@ -87,6 +91,12 @@ export default function LeveyJennings() {
       setSelectedLevel(levels[0]);
     }
   }, [levels, selectedLevel]);
+
+  // Never leave the page in multi mode for an instrument that has no levels to
+  // overlay — otherwise the chart renders a single flat line with no legend.
+  useEffect(() => {
+    if (!supportsMulti && mode === 'multi') setMode('single');
+  }, [supportsMulti, mode]);
 
   // Derived Data
   const filteredRecords = useMemo(() => {
@@ -188,6 +198,70 @@ export default function LeveyJennings() {
     return analyzeMultiLevel(zScoresRecord);
   }, [filteredRecords, config, selectedAlat, selectedParam, levels]);
 
+  /**
+   * Everything the printed sheet shows.
+   *
+   * Built from the same `computeZScores` output the chart draws, so the paper and
+   * the screen can never disagree. In single mode only the selected level is
+   * printed; in multi mode every level is overlaid on one figure.
+   */
+  const printDoc = useMemo<Omit<LJChartPrintOptions, 'printedAt'>>(() => {
+    const shownLevels = mode === 'single'
+      ? [levels.includes(selectedLevel) ? selectedLevel : levels[0]]
+      : levels;
+
+    let series: PrintSeries[] = [];
+    if (config && filteredRecords.length > 0) {
+      const zs = computeZScores(filteredRecords, config, selectedAlat, selectedParam, shownLevels);
+      series = shownLevels
+        .map((lvl) => ({
+          label: lvl,
+          color: SERIES_COLORS[lvl] || 'hsl(220,79%,48%)',
+          points: (zs[lvl] || []).map((p) => ({ date: p.tanggal, value: p.rawValue, z: p.zScore })),
+        }))
+        .filter((s) => s.points.length > 0);
+    }
+
+    const pointCount = series.reduce((n, s) => n + s.points.length, 0);
+    const oosCount = series.reduce(
+      (n, s) => n + s.points.filter((p) => Math.abs(p.z) > 3).length,
+      0,
+    );
+    const inControlPct = pointCount > 0 ? ((pointCount - oosCount) / pointCount) * 100 : 0;
+    const singleStats = mode === 'single' ? stats : null;
+
+    const lines: { label: string; value: string }[] = [
+      { label: 'Total Run', value: String(pointCount) },
+      {
+        label: 'In-Control',
+        value: `${pointCount - oosCount} (${inControlPct.toFixed(0)}%)`,
+      },
+      {
+        label: 'Out-of-Control',
+        value: `${oosCount} (${pointCount > 0 ? ((oosCount / pointCount) * 100).toFixed(0) : 0}%)`,
+      },
+    ];
+    if (singleStats) {
+      if (singleStats.meanTarget !== undefined) lines.push({ label: 'Set Mean / SD', value: `${singleStats.meanTarget.toFixed(2)} / ${singleStats.sdTarget?.toFixed(3) ?? '-'}` });
+      if (singleStats.meanActual !== undefined) lines.push({ label: 'Mean Terukur', value: singleStats.meanActual.toFixed(2) });
+      if (singleStats.sdActual !== undefined) lines.push({ label: 'SD / CV% Terukur', value: `${singleStats.sdActual.toFixed(3)} / ${singleStats.cvActual?.toFixed(2) ?? '-'}` });
+    }
+
+    return {
+      title: `LJ ${INSTRUMENT_LABELS[selectedAlat]} ${selectedParam}`,
+      instrumentLabel: INSTRUMENT_LABELS[selectedAlat],
+      paramLabel: PARAM_LABELS[selectedParam],
+      levelLabel: mode === 'single' ? shownLevels[0] : `Multi (${shownLevels.join(' / ')})`,
+      periodLabel: format(new Date(selectedMonth + '-01'), 'MMMM yyyy'),
+      dateRange: monthDateRange(selectedMonth),
+      unit: PARAM_UNITS[selectedParam],
+      series,
+      lines,
+      picName: user?.nama || '',
+      kaLabName: KA_LAB_NAME,
+    };
+  }, [config, filteredRecords, selectedAlat, selectedParam, selectedMonth, levels, selectedLevel, mode, stats, user]);
+
   if (recordsLoading || configLoading) {
     return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary" /> Loading...</div>;
   }
@@ -201,19 +275,12 @@ export default function LeveyJennings() {
         </div>
         
         <div className="flex items-center gap-2">
-          <LJExportControls 
-            chartRef={chartRef} 
-            previewRef={previewRef} 
-            previewImage={previewImage}
+          <LJExportControls
+            chartRef={chartRef}
             downloading={downloading}
             setDownloading={setDownloading}
-            setPreviewImage={setPreviewImage}
-            setPreviewOpen={setPreviewOpen}
             selected={{ alat: selectedAlat, name: selectedParam, month: selectedMonth }}
-            user={{ nama: 'Admin' }}
-            controlSummary={stats}
-            displayLevel={mode === 'single' ? 'Default' : 'Multi'}
-            formatMonthLabel={() => format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}
+            printDoc={printDoc}
           />
         </div>
       </div>
@@ -277,21 +344,28 @@ export default function LeveyJennings() {
             <div className="pt-4 border-t">
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-2 block">Mode Visualisasi</label>
               <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant={mode === 'single' ? 'default' : 'outline'} 
-                  size="sm" 
+                <Button
+                  variant={mode === 'single' ? 'default' : 'outline'}
+                  size="sm"
                   onClick={() => setMode('single')}
                 >
                   Single
                 </Button>
-                <Button 
-                  variant={mode === 'multi' ? 'default' : 'outline'} 
-                  size="sm" 
+                <Button
+                  variant={mode === 'multi' ? 'default' : 'outline'}
+                  size="sm"
+                  disabled={!supportsMulti}
+                  title={supportsMulti ? undefined : 'Alat ini hanya punya satu level kontrol'}
                   onClick={() => setMode('multi')}
                 >
                   Multi
                 </Button>
               </div>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                {supportsMulti
+                  ? `Multi menampilkan ${levels.join(' / ')} dalam satu grafik.`
+                  : 'Multi hanya untuk alat dengan beberapa level kontrol (Easylite, ONCALL).'}
+              </p>
             </div>
           </div>
         </Card>
@@ -310,6 +384,9 @@ export default function LeveyJennings() {
                   outOfControl={stats.outOfControl}
                   inControlPct={stats.inControlPct}
                   levelLabel={stats.levelLabel}
+                  rejectionRules={analysis?.rules.filter(
+                    (r) => r.status === 'oos' && r.level === stats.levelLabel,
+                  )}
                 />
               )}
             </div>
@@ -382,25 +459,6 @@ export default function LeveyJennings() {
         </div>
       </div>
 
-      {previewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-full overflow-auto p-4 relative">
-            <Button 
-              variant="ghost" 
-              className="absolute top-2 right-2" 
-              onClick={() => setPreviewOpen(false)}
-            >
-              ✕
-            </Button>
-            <div ref={previewRef} className="p-4 bg-white">
-              <img src={previewImage || ''} className="w-full h-auto" alt="Preview" />
-            </div>
-            <div className="flex justify-center mt-4 gap-2">
-              <Button onClick={() => window.print()}>Cetak Sekarang</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

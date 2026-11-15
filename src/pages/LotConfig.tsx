@@ -23,6 +23,7 @@ import { INSTRUMENT_LABELS, INSTRUMENT_ICONS, INSTRUMENT_COLORS } from '@/featur
 import { Trash2, Plus, Loader2, Save, ArrowLeftRight, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
+import { lotHasTarget } from '@/lib/lot-target';
 
 type TabType = keyof LotConfig;
 type EasyliteLevel = 'NORMAL' | 'HIGH';
@@ -165,13 +166,15 @@ interface LotCardProps {
   instrument: InstrumentType;
   lotNumber: string;
   expDate: string;
+  /** True when the lot still carries the zeroed target of a freshly added row. */
+  targetMissing?: boolean;
   onLotChange: (lot: string) => void;
   onExpChange: (exp: string) => void;
   onDelete: () => void;
   children: React.ReactNode;
 }
 
-function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onDelete, children }: LotCardProps) {
+function LotCard({ instrument, lotNumber, expDate, targetMissing, onLotChange, onExpChange, onDelete, children }: LotCardProps) {
   const Icon = INSTRUMENT_ICONS[instrument];
   const colors = INSTRUMENT_COLORS[instrument];
   const { status, daysRemaining } = checkLotExpiry(expDate);
@@ -200,6 +203,11 @@ function LotCard({ instrument, lotNumber, expDate, onLotChange, onExpChange, onD
               {status === 'unknown' && (
                 <span className="px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground rounded">
                   NO EXP
+                </span>
+              )}
+              {targetMissing && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-warning text-warning-foreground rounded">
+                  TARGET KOSONG
                 </span>
               )}
             </div>
@@ -551,6 +559,7 @@ export default function LotConfigPage() {
               instrument="CA660"
               lotNumber={lot.lot}
               expDate={lot.exp}
+              targetMissing={!lotHasTarget(lot)}
               onLotChange={(v) => updateLot('CA660', i, { ...lot, lot: v })}
               onExpChange={(v) => updateLot('CA660', i, { ...lot, exp: v })}
               onDelete={() => deleteLot('CA660', i)}
@@ -579,6 +588,7 @@ export default function LotConfigPage() {
                   instrument="EASYLITE"
                   lotNumber={lot.lot}
                   expDate={lot.exp}
+                  targetMissing={!lotHasTarget(lot)}
                   onLotChange={(v) => updateEasyliteLot(level, i, { ...lot, lot: v })}
                   onExpChange={(v) => updateEasyliteLot(level, i, { ...lot, exp: v })}
                   onDelete={() => deleteEasyliteLot(level, i)}
@@ -606,6 +616,7 @@ export default function LotConfigPage() {
               instrument={selectedInstrument}
               lotNumber={lot.lot}
               expDate={lot.exp}
+              targetMissing={!lotHasTarget(lot)}
               onLotChange={(v) => updateLot(selectedInstrument, i, { ...lot, lot: v })}
               onExpChange={(v) => updateLot(selectedInstrument, i, { ...lot, exp: v })}
               onDelete={() => deleteLot(selectedInstrument, i)}
@@ -630,6 +641,7 @@ export default function LotConfigPage() {
               instrument={selectedInstrument}
               lotNumber={lot.lot}
               expDate={lot.exp}
+              targetMissing={!lotHasTarget(lot)}
               onLotChange={(v) => updateLot(selectedInstrument, i, { ...lot, lot: v })}
               onExpChange={(v) => updateLot(selectedInstrument, i, { ...lot, exp: v })}
               onDelete={() => deleteLot(selectedInstrument, i)}

@@ -28,10 +28,14 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 160 94% 31%;
+    /* Both are also used as text on white / on their own 10% tint, so they are
+       darker than a pure swatch colour: success 6.14:1 on white and 5.31:1 on
+       its tint, warning 5.29:1 and 4.61:1 (WCAG AA needs 4.5). White on the solid
+       warning badge stays at 5.29:1. */
+    --success: 160 100% 22%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 44%;
+    --warning: 30 90% 34%;
     --warning-foreground: 0 0% 100%;
 
     --navy: 214 70% 14%;

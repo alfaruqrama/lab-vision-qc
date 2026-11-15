@@ -93,6 +93,22 @@ interface LJChartProps {
   unit?: string;
 }
 
+/** Hard bounds of the plotted Z axis — the same on every instrument, parameter and month. */
+const Z_MIN = -3;
+const Z_MAX = 3;
+
+/**
+ * Clamp a Z-score into the plotted range.
+ *
+ * The axis is fixed at ±3SD so curves from different months stay comparable;
+ * a point beyond it is pinned to the edge instead of being dropped, so the
+ * out-of-control event stays visible (its real Z is still in the tooltip).
+ */
+function clampZ(z: number | undefined | null): number | undefined {
+  if (typeof z !== 'number' || Number.isNaN(z)) return z ?? undefined;
+  return Math.min(Z_MAX, Math.max(Z_MIN, z));
+}
+
 export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, sd = 1, unit }: LJChartProps) {
   if (data.length === 0) {
     return (
@@ -104,6 +120,8 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
   }
 
   if (mode === 'single') {
+    // Plot the clamped value; keep the real Z on `value` for the tooltip.
+    const plotData = data.map((d) => ({ ...d, plotValue: clampZ(d.value) }));
     return (
       <>
         <div className="flex items-center gap-4 mb-2">
@@ -115,7 +133,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
           </span>
         </div>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+          <LineChart data={plotData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
             <ReferenceArea y1={mean - 3 * sd} y2={mean - 2 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
             <ReferenceArea y1={mean + 2 * sd} y2={mean + 3 * sd} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
@@ -130,7 +148,13 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
             <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
             <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
             <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Run Ke-', position: 'insideBottom', offset: -10, fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} label={{ value: `Z-Score — ${selected.name}`, angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }} />
+            <YAxis
+              fontSize={10}
+              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+              domain={[Z_MIN, Z_MAX]}
+              allowDataOverflow
+              label={{ value: `Z-Score — ${selected.name}`, angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }}
+            />
             <Tooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--foreground))', maxWidth: 280, padding: 0 }}
               content={({ payload }) => {
@@ -145,7 +169,10 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                     <p className={cn('font-mono-data font-bold text-sm', isOoc ? 'text-destructive' : isWarning ? 'text-warning' : '')}>
                       {selected.name}: {item.rawValue ?? '-'} {unit ?? ''}
                     </p>
-                    <p className="text-muted-foreground">Z-score: {item.value}</p>
+                    <p className="text-muted-foreground">
+                      Z-score: {item.value}
+                      {typeof item.value === 'number' && Math.abs(item.value) > Z_MAX && ' (di luar skala ±3)'}
+                    </p>
                     {item.catatan && item.catatan.trim() !== '' && (
                       <div className="pt-1.5 mt-1 border-t border-border/50">
                         <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wide">Tindakan Korektif</p>
@@ -156,12 +183,23 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                 );
               }}
             />
-            <Line type="linear" dataKey="value" stroke="hsl(220,79%,48%)" strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 6, fill: 'hsl(220,79%,48%)' }} />
+            <Line type="linear" dataKey="plotValue" stroke="hsl(220,79%,48%)" strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 6, fill: 'hsl(220,79%,48%)' }} />
           </LineChart>
         </ResponsiveContainer>
       </>
     );
   }
+
+  // Multi mode keeps the real Z on the series key and adds a clamped `${key}Plot`
+  // series for drawing, so the axis stays ±3SD while the tooltip stays truthful.
+  const plotData = data.map((row) => {
+    const next: Record<string, unknown> = { ...row };
+    for (const lvl of multiLevels ?? []) {
+      const key = lvl.toLowerCase();
+      if (typeof row[key] === 'number') next[`${key}Plot`] = clampZ(row[key]);
+    }
+    return next;
+  });
 
   return (
     <>
@@ -172,9 +210,11 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
             {lvl}
           </span>
         ))}
+        <span className="ml-auto text-[10px] text-muted-foreground">Skala tetap ±3SD</span>
       </div>
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+
+        <LineChart data={plotData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
           <ReferenceArea y1={2} y2={3} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
           <ReferenceArea y1={-3} y2={-2} fill="hsl(0,72%,51%)" fillOpacity={0.06} />
@@ -189,7 +229,15 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
           <ReferenceLine y={3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
           <ReferenceLine y={-3} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.5} />
           <XAxis dataKey="date" fontSize={9} tick={{ fill: 'hsl(var(--muted-foreground))' }} interval="preserveStartEnd" label={{ value: 'Tanggal', position: 'insideBottom', offset: -10, fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[-4, 4]} ticks={[-3, -2, -1, 0, 1, 2, 3]} tickFormatter={(v: number) => `${v}`} label={{ value: 'Z-Score', angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }} />
+          <YAxis
+            fontSize={10}
+            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+            domain={[Z_MIN, Z_MAX]}
+            ticks={[-3, -2, -1, 0, 1, 2, 3]}
+            allowDataOverflow
+            tickFormatter={(v: number) => `${v}`}
+            label={{ value: 'Z-Score', angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }}
+          />
           <Tooltip
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--foreground))', maxWidth: 260, padding: 0 }}
             content={({ payload }) => {
@@ -210,7 +258,8 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                         <span className="text-muted-foreground">{lvl}</span>
                         <span className={cn('font-mono-data font-bold', status === 'oos' ? 'text-destructive' : status === 'warning' ? 'text-warning' : '')}>
-                          Z={zVal} ({selected.name}: {raw})
+                          Z={zVal}
+                          {typeof zVal === 'number' && Math.abs(zVal) > Z_MAX ? '*' : ''} ({selected.name}: {raw})
                         </span>
                       </div>
                     );
@@ -222,7 +271,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
           {multiLevels?.map((lvl) => {
             const color = MULTI_LEVEL_COLORS[lvl] || 'hsl(var(--foreground))';
             return (
-              <Line key={lvl} type="linear" dataKey={lvl.toLowerCase()} stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 5, fill: color }} connectNulls />
+              <Line key={lvl} type="linear" dataKey={`${lvl.toLowerCase()}Plot`} stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 5, fill: color }} connectNulls />
             );
           })}
         </LineChart>

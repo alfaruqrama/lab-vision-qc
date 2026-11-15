@@ -15,7 +15,9 @@ import { LogSheetView } from '@/features/qc/components/LogSheetView';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { useAuth } from '@/hooks/use-auth';
 import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { buildLJReportHtml } from '@/features/qc/lib/lj-print';
+import { buildReportPages } from '@/features/qc/lib/lj-report-pages';
+import { openPrintWindow, monthDateRange } from '@/features/qc/lib/lj-print';
 import {
   ResponsiveContainer,
   LineChart,
@@ -195,42 +197,28 @@ export default function MonthlyReport() {
 
   const [printing, setPrinting] = useState(false);
 
+  /**
+   * Print the analyser-style Levey-Jennings sheets: one page per
+   * (instrument, control level, parameter), the layout the lab already files.
+   *
+   * The summary table above stays as the on-screen overview; this is the
+   * document that goes into the QC binder.
+   */
   async function handlePrint() {
-    if (!reportRef.current) return;
     setPrinting(true);
     try {
-      const dataUrl = await toPng(reportRef.current, { quality: 0.95, pixelRatio: 2, skipFonts: true });
+      const pages = buildReportPages({
+        records,
+        config,
+        month,
+        instrument,
+        dateRangeLabel: monthDateRange(month),
+      });
 
-      const monthLabel = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]) - 1, 1)
-        .toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
-
-      const printWin = window.open('', '_blank', 'width=800,height=600');
-      if (!printWin) return;
-
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Laporan QC — ${monthLabel}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; padding: 16px 20px; }
-    .report img { width: 100%; display: block; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-  </style>
-</head>
-<body>
-  <div class="report">
-    <img src="${dataUrl}" alt="Laporan QC" />
-  </div>
-  <script>window.onload = function() { window.print(); }</script>
-</body>
-</html>`;
-
-      printWin.document.write(html);
-      printWin.document.close();
+      const html = buildLJReportHtml(pages, { printedAt: new Date() });
+      if (!openPrintWindow(html, `Levey-Jennings Chart ${month}`)) {
+        console.error('Print window blocked');
+      }
     } catch (err) {
       console.error('Failed to print report:', err);
     } finally {

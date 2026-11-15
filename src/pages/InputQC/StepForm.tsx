@@ -13,6 +13,7 @@ import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { PhotoCapture } from './PhotoCapture';
 import { AIResultPanel } from './AIResultPanel';
 import { checkLotExpiry, formatExpiryMessage } from '@/lib/lot-expiry';
+import { lotHasTarget } from '@/lib/lot-target';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,49 @@ interface StepFormProps {
   level: ControlLevel;
   onBack: () => void;
 }
+
+interface LotLike {
+  lot: string;
+  exp: string;
+}
+
+/**
+ * Order lot options for the input form: usable lots first (soonest expiry first,
+ * which is the lot currently in use), then expired/incomplete ones.
+ *
+ * The array order in lot_config is whatever order the config page happened to
+ * save — a demo lot or a half-filled new row can sit first. Auto-selecting
+ * `lots[0]` blindly then records runs against the wrong target (that is how two
+ * CLEVER runs ended up on the demo lot with mean 100 ± 5 and read as OOS).
+ */
+function orderLotsForInput<T extends LotLike>(lots: T[]): T[] {
+  const rank = (lot: T) => {
+    const { status } = checkLotExpiry(lot.exp);
+    // Usable lots first; a lot with no target or a past expiry goes last so it
+    // is never the one auto-selected.
+    if (status === 'expired' || status === 'unknown' || !lotHasTarget(lot)) return 1;
+    return 0;
+  };
+  return [...lots].sort((a, b) => {
+    const byRank = rank(a) - rank(b);
+    if (byRank !== 0) return byRank;
+    return a.exp.localeCompare(b.exp);
+  });
+}
+
+/**
+ * Suffix shown in the lot dropdown so a lot with no usable target (or one that
+ * has already expired) can never be picked by accident.
+ */
+function lotOptionLabel(lot: LotLike, hasTarget: boolean): string {
+  const notes: string[] = [];
+  const { status } = checkLotExpiry(lot.exp);
+  if (status === 'expired') notes.push('kedaluwarsa');
+  else if (status === 'unknown') notes.push('tanpa tanggal ED');
+  if (!hasTarget) notes.push('target belum diisi');
+  return notes.length > 0 ? `${lot.lot} — ${notes.join(', ')}` : lot.lot;
+}
+
 
 export function StepForm({ instrument, level, onBack }: StepFormProps) {
   const navigate = useNavigate();
@@ -57,21 +101,22 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
 
   // Lot options (non-EasyLite: single list; EasyLite: separate NORMAL/HIGH lists)
   const lots = useMemo(() => {
-    if (instrument === 'CA660') return config.CA660;
-    if (instrument === 'ONCALL1') return config.ONCALL1;
-    if (instrument === 'ONCALL2') return config.ONCALL2;
-    if (instrument === 'CLEVER1') return config.CLEVER1;
-    if (instrument === 'CLEVER2') return config.CLEVER2;
+    if (instrument === 'CA660') return orderLotsForInput(config.CA660);
+    if (instrument === 'ONCALL1') return orderLotsForInput(config.ONCALL1);
+    if (instrument === 'ONCALL2') return orderLotsForInput(config.ONCALL2);
+    if (instrument === 'CLEVER1') return orderLotsForInput(config.CLEVER1);
+    if (instrument === 'CLEVER2') return orderLotsForInput(config.CLEVER2);
     // EASYLITE: return NORMAL lots for the main selector
-    return config.EASYLITE.NORMAL || [];
+    return orderLotsForInput(config.EASYLITE.NORMAL || []);
   }, [instrument, config]);
 
   const highLots = useMemo(() => {
     if (!isEasylite) return [];
-    return config.EASYLITE.HIGH || [];
+    return orderLotsForInput(config.EASYLITE.HIGH || []);
   }, [isEasylite, config]);
 
-  // Auto-select first lot
+  // Auto-select the first *usable* lot (soonest expiring, not expired, with a
+  // filled-in target) rather than whatever happens to be first in the array.
   useEffect(() => {
     if (lots.length > 0 && (!lotNumber || !lots.some((lot) => lot.lot === lotNumber))) {
       setLotNumber(lots[0].lot);
@@ -350,7 +395,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
           >
             {lots.map((l) => (
               <option key={l.lot} value={l.lot}>
-                {l.lot}
+                {lotOptionLabel(l, lotHasTarget(l))}
               </option>
             ))}
           </select>
@@ -365,7 +410,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             >
               {highLots.map((l) => (
                 <option key={l.lot} value={l.lot}>
-                  {l.lot}
+                  {lotOptionLabel(l, lotHasTarget(l))}
                 </option>
               ))}
             </select>

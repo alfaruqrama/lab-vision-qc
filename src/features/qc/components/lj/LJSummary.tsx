@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { RuleViolation } from '@/lib/westgard-multi';
 
 interface ControlSummaryProps {
   total: number;
@@ -12,10 +13,18 @@ interface ControlSummaryProps {
   meanActual?: number;
   sdTarget?: number;
   levelLabel?: string;
+  /**
+   * Sequence rules (2-2s, R-4s, 10x) reject the run set without any single run
+   * leaving ±3SD, so `outOfControl` alone can read "in control" beside a rejection.
+   */
+  rejectionRules?: RuleViolation[];
 }
 
-export function ControlSummary({ total, inControl, outOfControl, inControlPct, meanTarget, meanActual, sdTarget, levelLabel }: ControlSummaryProps) {
-  const isInControl = inControlPct >= 95;
+export function ControlSummary({ total, inControl, outOfControl, inControlPct, meanTarget, meanActual, sdTarget, levelLabel, rejectionRules }: ControlSummaryProps) {
+  const ruleFlags = rejectionRules ?? [];
+  // A green tick means "nothing to investigate" — which a violated rejection
+  // rule contradicts, whatever the in-control percentage says.
+  const isInControl = outOfControl === 0 && ruleFlags.length === 0;
 
   return (
     <Card className="p-3">
@@ -47,6 +56,22 @@ export function ControlSummary({ total, inControl, outOfControl, inControlPct, m
           </p>
         </div>
       </div>
+      {ruleFlags.length > 0 && (
+        <div className="mb-3 rounded-md border border-destructive/20 bg-destructive/10 px-2.5 py-2 space-y-1">
+          <p className="flex items-center gap-1.5 font-semibold text-xs text-destructive">
+            <AlertTriangle size={12} className="shrink-0" />
+            Aturan ditolak
+          </p>
+          {ruleFlags.map((r, i) => (
+            <p key={i} className="text-[11px] text-destructive">
+              {r.rule} — {r.description}
+            </p>
+          ))}
+          <p className="text-[10px] text-muted-foreground">
+            In/Out-of-Control dihitung per run (1-3s); aturan berurutan menolak set run ini.
+          </p>
+        </div>
+      )}
       {/* Mean/SD targets are shown by the dedicated readout above the chart,
           which also carries the measured values and CV% — showing them twice
           left this panel with dashes whenever the caller had no target to pass. */}
