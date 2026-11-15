@@ -18,11 +18,11 @@ nilai rata-rata data. Implementasinya:
 
 | Fungsi | Lokasi | Kegunaan |
 |---|---|---|
-| `findActiveLot()` | `src/lib/zscore.ts:143` | Pilih lot: (1) lot yang tercatat di record, (2) lot yang belum kedaluwarsa dengan exp terdekat, (3) lot exp paling akhir |
-| `getLotArrayForLevel()` | `src/lib/zscore.ts:107` | Ambil array lot untuk satu alat+level |
-| `getParamConfigFromLot()` | `src/lib/zscore.ts:120` | Ambil mean/SD param dari lot; bentuk config beda per alat |
-| `getParamTarget()` | `src/lib/zscore.ts:83` | Pembungkus: `(config, alat, level, param, tanggal, lot)` → `{mean, sd}` |
-| `computeZScores()` | `src/lib/zscore.ts:22` | Hitung z untuk semua record satu level; melewati record `excluded` |
+| `findActiveLot()` | `src/lib/zscore.ts:152` | Pilih lot: (1) lot yang tercatat di record, (2) lot yang belum kedaluwarsa dengan exp terdekat, (3) lot exp paling akhir |
+| `getLotArrayForLevel()` | `src/lib/zscore.ts:116` | Ambil array lot untuk satu alat+level |
+| `getParamConfigFromLot()` | `src/lib/zscore.ts:129` | Ambil mean/SD param dari lot; bentuk config beda per alat |
+| `getParamTarget()` | `src/lib/zscore.ts:92` | Pembungkus: `(config, alat, level, param, tanggal, lot)` → `{mean, sd}` |
+| `computeZScores()` | `src/lib/zscore.ts:30` | Hitung z untuk semua record satu level; melewati record `excluded` |
 
 Bentuk config per alat (`getParamConfigFromLot`):
 
@@ -146,14 +146,17 @@ Dipakai hanya di `src/pages/InputQC/StepForm.tsx:336`, dan hasilnya menghitung
 
 | Bagian | Baris |
 |---|---|
-| `analyzeMultiLevel(levelPoints)` | `:48` |
-| `scanRules()` | `:90` |
-| `detectR4s()` | `:188` |
-| `detectPatterns()` | `:227` |
-| `analyzeCrossLevel()` | `:316` |
-| `generateRecommendation()` | `:414` |
+| `analyzeMultiLevel(levelPoints)` | `:61` |
+| `scanRules()` | `:103` |
+| `startsNewLot()` | `:11` |
+| `detectR4s()` | `:210` |
+| `detectPatterns()` | `:257` |
+| `analyzeCrossLevel()` | `:346` |
+| `generateRecommendation()` | `:444` |
 
-Enam aturan, dihitung **lintas seluruh bulan** (tidak reset per lot). Dipakai di
+Enam aturan, dihitung lintas seluruh bulan, **tetapi streak berurutan diputus saat lot
+berkanti** (diperbaiki 2026-11-15, lihat §4.4) — sama seperti `westgard-engine`.
+Dipakai di
 `src/pages/LeveyJennings.tsx:198`, dirender `src/features/qc/components/lj/LJAnalysis.tsx`.
 
 ### Perbandingan severity
@@ -322,30 +325,44 @@ memakai "selisih > 4s"; pada data 2026 keduanya memberi hasil berbeda (3 run vs 
 Kini keduanya memakai `violatesR4s()` dari `src/lib/westgard-rules.ts` dengan rumusan
 Westgard, dan `evaluateR4s` yang mati di `westgard.ts` sudah dihapus. Rinciannya di §2D.
 
-### 4.4 Batas lot dihitung berbeda
+### 4.4 Batas lot dihitung berbeda — SUDAH DIPERBAIKI
 
 `evaluateSeries` reset urutan per lot (`westgard-engine.ts:51`); `analyzeMultiLevel`
 menelusuri sebulan penuh lintas lot.
 
-Dari data 2026: **9 grup** memakai lebih dari satu lot dalam sebulan, **7 di antaranya**
-menghasilkan jumlah 10x berbeda.
+Yang dipakai sebagai standar: **reset streak saat lot berganti**, karena setiap lot punya
+mean dan SD sendiri — garis referensi yang berbeda. Panduan pergantian lot Bio-Rad:
+*"Across-run rules are evaluated within one lot. Rules like 2₂s across runs, 4₁s, and 10x
+should not calculate points from both the old lot and the new lot in a single sequence,
+because the reference lines are different."* Jadi `analyzeMultiLevel` yang menyimpang, dan
+sekarang mengikuti `evaluateSeries`.
 
-| Grup | 10x lintas-lot | 10x per-lot |
-|---|---|---|
-| CA660 INR | 105 | 101 |
-| EASYLITE HIGH K | 58 | 49 |
-| EASYLITE HIGH Cl | 54 | 44 |
-| EASYLITE NORMAL Cl | 32 | 23 |
-| CLEVER2 GDA | 45 | 30 |
-| CA660 APTT | 66 | 62 |
-| EASYLITE NORMAL K | 45 | 36 |
+Implementasinya: `ZScorePoint` (`src/lib/zscore.ts`) membawa `lot` — lot yang targetnya
+menghasilkan z itu — dan `scanRules` di `src/lib/westgard-multi.ts` memanggil
+`startsNewLot()`: pertemuan dua lot memutus 2-2s, me-reset 4-1s, dan me-reset 10x. Urutan
+tetap kronologis (streak bisa berlanjut kalau lot kembali dipakai), tidak dikelompokkan
+per lot seperti di `westgard-engine` — bedanya kecil dan arah perbaikannya sama.
 
-Tambahan: **4 grup lot** punya <3 run sebulan, sehingga pengelompokan per lot secara
-struktural tidak bisa memicu aturan berurutan sama sekali (ONCALL1 2026-06 CTRL0 = 1 run;
-ONCALL2 2026-07 CTRL2 = 1 run; EASYLITE 2026-04 NORMAL dan HIGH = 2 run).
+R-4s sengaja **tidak** ikut di-reset: aturan itu membandingkan dua bahan kontrol dalam
+satu run, masing-masing terhadap target lotnya sendiri (NORMAL dan HIGH EASYLITE memang
+selalu punya nomor lot berbeda). Yang menjadikannya "satu run" adalah pasangan tanggal
+yang sama, bukan kesamaan nomor lot.
 
-Secara Westgard, streak **seharusnya** di-reset saat lot kontrol berganti — jadi
-`analyzeMultiLevel` yang menyimpang.
+Dampak terukur pada data 2026 penuh (bukan sebulan; hari yang memicu, bukan jumlah titik):
+
+| Grup | 10x lintas-lot | 10x per-lot | 4-1s | 2-2s |
+|---|---|---|---|---|
+| CLEVER2 GDA | 46 | 30 | 7→7 | 2→2 |
+| CA660 INR | 105 | 101 | 12→12 | 0→0 |
+| CA660 APTT | 66 | 62 | 0→0 | 0→0 |
+| EASYLITE HIGH K | 204 | 188 | 87→85 | 1→1 |
+| EASYLITE HIGH Cl | 239 | 228 | 72→72 | 9→9 |
+| EASYLITE NORMAL K | 232 | 217 | 146→143 | 2→2 |
+| EASYLITE NORMAL Cl | 144 | 134 | 25→25 | 4→4 |
+
+Yang menurun adalah **streak fiktif** — barisan titik yang tampak berurutan padahal
+garis targetnya berganti di tengahnya. Catatan: hitungan 2026 penuh jauh lebih besar dari
+audit sebulan yang lama karena sekarang menghitung semua bulan sekaligus.
 
 ### 4.5 Konvensi SD terbelah dua
 

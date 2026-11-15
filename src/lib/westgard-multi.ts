@@ -1,4 +1,16 @@
 import type { ZScorePoint } from './zscore';
+
+/**
+ * True when point `i` starts a new control lot relative to point `i - 1`.
+ *
+ * Bio-Rad's lot-change guidance: across-run rules (2-2s, 4-1s, 10x) must not
+ * chain points from two lots into one sequence, because each lot carries its
+ * own mean and SD — a different reference line. A streak that spans the change
+ * would compare z-scores plotted against two different targets.
+ */
+function startsNewLot(points: ZScorePoint[], i: number): boolean {
+  return (points[i].lot || '') !== (points[i - 1].lot || '');
+}
 import type { ControlLevel } from './types';
 import { ruleStatus, violatesR4s } from './westgard-rules';
 
@@ -122,6 +134,7 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   const days22s: string[] = [];
   for (let i = 1; i < scores.length; i++) {
     if (
+      !startsNewLot(points, i) &&
       Math.abs(scores[i]) > 2 && Math.abs(scores[i - 1]) > 2 &&
       Math.sign(scores[i]) === Math.sign(scores[i - 1])
     ) {
@@ -142,7 +155,12 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   let streak1s = 1;
   const days41s: string[] = [];
   for (let i = 1; i < scores.length; i++) {
-    // FIX: Compare current with previous for streak consistency
+    // A lot change restarts the streak: the previous point is on a different
+    // reference line, so "consecutive" ends here.
+    if (startsNewLot(points, i)) {
+      streak1s = 1;
+      continue;
+    }
     if (Math.abs(scores[i]) > 1 && Math.abs(scores[i - 1]) > 1 && Math.sign(scores[i]) === Math.sign(scores[i - 1])) {
       streak1s++;
       if (streak1s >= 4) days41s.push(points[i].tanggal);
@@ -164,6 +182,10 @@ function scanRules(points: ZScorePoint[], level: string): RuleViolation[] {
   let streak10x = 1;
   const days10x: string[] = [];
   for (let i = 1; i < scores.length; i++) {
+    if (startsNewLot(points, i)) {
+      streak10x = 1;
+      continue;
+    }
     if (Math.sign(scores[i]) === Math.sign(scores[i - 1]) && scores[i] !== 0) {
       streak10x++;
       if (streak10x >= 10) days10x.push(points[i].tanggal);
@@ -206,6 +228,11 @@ export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): Rul
         // R-4s (Westgard): one level > +2s, the other < −2s, same run.
         // A plain |difference| > 4 check is a different, wider rule — see
         // violatesR4s() for why the two are not interchangeable.
+        //
+        // Lot numbers intentionally play no part here: R-4s compares two
+        // control materials in one run, each against its own lot's target
+        // (EASYLITE's NORMAL and HIGH always carry different lot numbers),
+        // and the same-date pairing above is what makes it "within-run".
         if (violatesR4s([a.zScore, b.zScore])) {
           affectedDays.push(date);
         }

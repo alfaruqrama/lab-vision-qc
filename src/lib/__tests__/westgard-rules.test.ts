@@ -21,9 +21,11 @@ function streak41s(): ZPoint[] {
 function asZScorePoints(points: ZPoint[]): ZScorePoint[] {
   return points.map((p) => ({
     tanggal: p.date,
+    level: p.level,
     zScore: p.z,
     rawValue: p.z,
     status: 'ok',
+    lot: p.lot,
   })) as ZScorePoint[];
 }
 
@@ -61,6 +63,60 @@ function r4sFromMulti(normalZ: number, highZ: number): boolean {
   } as never);
   return result.rules.some((r) => r.rule === 'R-4s');
 }
+
+/** `n` consecutive points on one side of the mean, all on `lot`. */
+function sideStreak(n: number, sign: 1 | -1, lot: string, startDay = 1): ZScorePoint[] {
+  return Array.from({ length: n }, (_, i) => {
+    const day = String(startDay + i).padStart(2, '0');
+    return {
+      tanggal: `2026-01-${day}`,
+      level: 'NORMAL' as const,
+      zScore: sign * 0.4,
+      rawValue: sign * 0.4,
+      status: 'ok' as const,
+      lot,
+    };
+  });
+}
+
+function tenXFrom(points: ZScorePoint[]): boolean {
+  const result = analyzeMultiLevel({ NORMAL: points } as never);
+  return result.rules.some((r) => r.rule === '10x');
+}
+
+describe('sequence rules restart at a control lot change', () => {
+  it('counts a 10x streak inside one lot', () => {
+    expect(tenXFrom(sideStreak(10, 1, 'LOT_A'))).toBe(true);
+  });
+
+  it('does not chain a streak across two lots', () => {
+    // 6 runs on the old lot followed by 4 on the new one: ten same-side points
+    // in a row chronologically, but each lot has its own mean and SD, so the
+    // sequence is 6 + 4 and neither half reaches 10.
+    const points = [...sideStreak(6, 1, 'LOT_A'), ...sideStreak(4, 1, 'LOT_B', 7)];
+    expect(tenXFrom(points)).toBe(false);
+  });
+
+  it('still fires on the new lot once it has ten of its own', () => {
+    const points = [...sideStreak(6, 1, 'LOT_A'), ...sideStreak(10, 1, 'LOT_B', 7)];
+    const result = analyzeMultiLevel({ NORMAL: points } as never);
+    const rule = result.rules.find((r) => r.rule === '10x');
+    expect(rule).toBeDefined();
+    // Every reported day belongs to the new lot, not to the chained prefix.
+    expect(rule!.affectedDays.every((d) => d >= '2026-01-13')).toBe(true);
+  });
+
+  it('restarts the 4-1s streak at the boundary too', () => {
+    const above = (n: number, lot: string, startDay: number): ZScorePoint[] =>
+      sideStreak(n, 1, lot, startDay).map((p) => ({ ...p, zScore: 1.5 }));
+    // 3 points above +1s on the old lot, 3 on the new one: six in a row, but
+    // no run of four on a single reference line.
+    const result = analyzeMultiLevel({
+      NORMAL: [...above(3, 'LOT_A', 1), ...above(3, 'LOT_B', 4)],
+    } as never);
+    expect(result.rules.some((r) => r.rule === '4-1s')).toBe(false);
+  });
+});
 
 describe('R-4s uses the Westgard formulation', () => {
   it('fires when one level is above +2s and the other below −2s', () => {

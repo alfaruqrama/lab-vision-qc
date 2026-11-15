@@ -7,6 +7,14 @@ export interface ZScorePoint {
   zScore: number;
   rawValue: number;
   status: 'ok' | 'warning' | 'oos';
+  /**
+   * Control lot whose target produced this z-score.
+   *
+   * Sequence rules (2-2s, 4-1s, 10x) count consecutive runs measured against
+   * one reference line; a new lot brings a new mean and SD, so those rules must
+   * restart at the lot boundary. This carries the identity of that line.
+   */
+  lot: string;
 }
 
 /**
@@ -59,6 +67,7 @@ export function computeZScores(
           zScore: Math.round(zScore * 100) / 100,
           rawValue,
           status,
+          lot: lot.lot,
         };
       })
       .filter(Boolean) as ZScorePoint[];
