@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { lazy } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,34 @@ import { cn } from '@/lib/utils';
 
 import { useQCRecords } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig } from '@/features/qc/hooks/useQCConfig';
-import { computeZScores } from '@/lib/zscore';
+import { computeZScores, getParamTarget } from '@/lib/zscore';
 import { analyzeMultiLevel } from '@/lib/westgard-multi';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, INSTRUMENTS } from '@/lib/types';
+
+/**
+ * Control level(s) each instrument actually records.
+ *
+ * CA-660 and CLEVER store a single flat run under the level `Kontrol`; ONCALL
+ * stores three separate controls; EASYLITE stores its two pack levels. Using
+ * CTRL0/1/2 for CA-660 (as this page used to) matches no record at all and the
+ * chart comes out empty.
+ */
+function getLevelsForInstrument(alat: InstrumentType): ControlLevel[] {
+  if (alat === 'EASYLITE') return ['NORMAL', 'HIGH'];
+  if (alat === 'ONCALL1' || alat === 'ONCALL2') return ['CTRL0', 'CTRL1', 'CTRL2'];
+  return ['Kontrol'];
+}
+
+const PARAM_LABELS: Record<ParamName, string> = {
+  PT: 'PT',
+  APTT: 'APTT',
+  INR: 'INR',
+  Na: 'Sodium (Na)',
+  K: 'Potassium (K)',
+  Cl: 'Chloride (Cl)',
+  GDA: 'Glukosa (GDA)',
+};
 
 // Modular Components
 import { LJSummary } from '@/features/qc/components/lj/LJSummary';
@@ -31,7 +56,7 @@ export default function LeveyJennings() {
 
   // State
   const [selectedAlat, setSelectedAlat] = useState<InstrumentType>('CA660');
-  const [selectedParam, setSelectedParam] = useState<ParamName>('PT');
+  const [selectedParam, setSelectedParam] = useState<ParamName>(getParamsForInstrument('CA660')[0]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [mode, setMode] = useState<'single' | 'multi'>('single');
   
@@ -42,6 +67,27 @@ export default function LeveyJennings() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  // Parameters offered by the selected instrument. Switching instrument must
+  // move the selection along, otherwise CA-660's PT stays picked while ONCALL
+  // is shown — a combination that has no data and no config.
+  const availableParams = useMemo(() => getParamsForInstrument(selectedAlat), [selectedAlat]);
+
+  useEffect(() => {
+    if (!availableParams.includes(selectedParam)) {
+      setSelectedParam(availableParams[0]);
+    }
+  }, [availableParams, selectedParam]);
+
+  const levels = useMemo(() => getLevelsForInstrument(selectedAlat), [selectedAlat]);
+
+  const [selectedLevel, setSelectedLevel] = useState<ControlLevel>(getLevelsForInstrument('CA660')[0]);
+
+  useEffect(() => {
+    if (!levels.includes(selectedLevel)) {
+      setSelectedLevel(levels[0]);
+    }
+  }, [levels, selectedLevel]);
+
   // Derived Data
   const filteredRecords = useMemo(() => {
     return records.filter(r => r.alat === selectedAlat && r.tanggal.startsWith(selectedMonth));
@@ -49,66 +95,98 @@ export default function LeveyJennings() {
 
   const { chartData, stats, multiLevels } = useMemo(() => {
     if (!config || filteredRecords.length === 0) return { chartData: [], stats: null, multiLevels: [] };
-    
-    // FIX: Correct arguments for computeZScores (records, config, alat, param, levels)
-    const levels: ControlLevel[] = selectedAlat === 'EASYLITE' ? ['NORMAL', 'HIGH'] : ['CTRL0', 'CTRL1', 'CTRL2'];
+
     const zScoresRecord = computeZScores(filteredRecords, config, selectedAlat, selectedParam, levels);
-    
+
     if (mode === 'single') {
-      const primaryLevel = levels[0];
-      const points = zScoresRecord[primaryLevel] || [];
-      
-      const data = points.map((p, idx) => ({
-        run: idx + 1,
-        date: p.tanggal,
-        value: p.zScore,
-        status: p.status,
-        analis: filteredRecords.find(r => r.tanggal === p.tanggal)?.analis || '',
-        catatan: filteredRecords.find(r => r.tanggal === p.tanggal)?.catatan || '',
-      }));
-      
-      const vals = data.map(d => d.value);
-      const mean = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      const sd = vals.length > 0 
-        ? Math.sqrt(vals.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / vals.length) 
-        : 1;
-      
-      const inControl = data.filter((d: any) => d.overall_status !== 'oos').length;
-      
-      return { 
-        chartData: data, 
-        stats: { total: data.length, inControl, outOfControl: data.length - inControl, inControlPct: data.length > 0 ? (inControl/data.length)*100 : 0 },
-        multiLevels: []
-      };
-    } else {
-      const data = filteredRecords.map(r => {
-        const obj: any = { date: r.tanggal };
-        levels.forEach(lvl => {
-          const points = zScoresRecord[lvl];
-          const p = points?.find(pt => pt.tanggal === r.tanggal);
-          if (p) {
-            obj[lvl.toLowerCase()] = p.zScore;
-            obj[`${lvl.toLowerCase()}Status`] = p.status;
-            obj[`${lvl.toLowerCase()}Raw`] = r.params[selectedParam] || 0;
-          }
-        });
-        return obj;
+      // Single mode plots one level. Use the level the user picked; fall back to
+      // the instrument's first level when the pick belongs to another instrument.
+      const level = levels.includes(selectedLevel) ? selectedLevel : levels[0];
+      const points = zScoresRecord[level] || [];
+
+      const data = points.map((p, idx) => {
+        const rec = filteredRecords.find(r => r.tanggal === p.tanggal && r.level === level);
+        return {
+          run: idx + 1,
+          date: p.tanggal,
+          value: p.zScore,
+          rawValue: p.rawValue,
+          level,
+          status: p.status,
+          analis: rec?.analis || '',
+          catatan: rec?.catatan || '',
+        };
       });
-      
-      return { 
-        chartData: data, 
-        stats: null, 
-        multiLevels: levels 
+
+      const inControl = data.filter(d => d.status !== 'oos').length;
+
+      const raws = data.map(d => d.rawValue).filter((v): v is number => typeof v === 'number');
+      const meanActual = raws.length > 0 ? raws.reduce((a, b) => a + b, 0) / raws.length : undefined;
+      // SD/CV of the observed values — the "Sum" column in analyser software,
+      // shown next to the "Set" (target) column so drift is visible at a glance.
+      const sdActual = raws.length > 1 && meanActual !== undefined
+        ? Math.sqrt(raws.reduce((a, b) => a + Math.pow(b - meanActual, 2), 0) / (raws.length - 1))
+        : undefined;
+      const last = data[data.length - 1];
+
+      // Mean/SD shown in the resume panel are the control targets actually used
+      // for this level, not the spread of the plotted Z-scores (which is ~0/1
+      // by construction and would tell the operator nothing).
+      const cfg = getParamTarget(config, selectedAlat, level, selectedParam);
+
+      return {
+        chartData: data,
+        stats: {
+          total: data.length,
+          inControl,
+          outOfControl: data.length - inControl,
+          inControlPct: data.length > 0 ? (inControl / data.length) * 100 : 0,
+          meanTarget: cfg?.mean,
+          meanActual,
+          sdTarget: cfg?.sd,
+          sdActual,
+          cvTarget: cfg && cfg.mean ? (cfg.sd / cfg.mean) * 100 : undefined,
+          cvActual: meanActual && sdActual !== undefined ? (sdActual / meanActual) * 100 : undefined,
+          sumN: raws.length,
+          lastValue: typeof last?.rawValue === 'number' ? last.rawValue : undefined,
+          lastDate: last?.date,
+          lastStatus: last?.status,
+          levelLabel: level,
+        },
+        multiLevels: [],
       };
     }
-  }, [filteredRecords, config, selectedAlat, selectedParam, mode]);
+
+    // Multi mode: one x point per (date, level) run, so two controls on the same
+    // day each keep their own point instead of overwriting each other.
+    const rows: any[] = [];
+    const indexByKey = new Map<string, number>();
+    for (const lvl of levels) {
+      for (const p of zScoresRecord[lvl] || []) {
+        const key = `${p.tanggal}|${lvl}`;
+        let idx = indexByKey.get(key);
+        if (idx === undefined) {
+          idx = rows.length;
+          indexByKey.set(key, idx);
+          rows.push({ date: p.tanggal, _levels: {} });
+        }
+        const k = lvl.toLowerCase();
+        rows[idx][k] = p.zScore;
+        rows[idx][`${k}Status`] = p.status;
+        rows[idx][`${k}Raw`] = p.rawValue;
+        rows[idx]._levels[lvl] = true;
+      }
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    return { chartData: rows, stats: null, multiLevels: levels };
+  }, [filteredRecords, config, selectedAlat, selectedParam, mode, levels, selectedLevel]);
 
   const analysis = useMemo(() => {
     if (!config || filteredRecords.length === 0) return null;
-    const levels: ControlLevel[] = selectedAlat === 'EASYLITE' ? ['NORMAL', 'HIGH'] : ['CTRL0', 'CTRL1', 'CTRL2'];
     const zScoresRecord = computeZScores(filteredRecords, config, selectedAlat, selectedParam, levels);
     return analyzeMultiLevel(zScoresRecord);
-  }, [filteredRecords, config, selectedAlat, selectedParam]);
+  }, [filteredRecords, config, selectedAlat, selectedParam, levels]);
 
   if (recordsLoading || configLoading) {
     return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary" /> Loading...</div>;
@@ -150,28 +228,39 @@ export default function LeveyJennings() {
                 value={selectedAlat}
                 onChange={(e) => setSelectedAlat(e.target.value as InstrumentType)}
               >
-                <option value="CA660">CA660</option>
-                <option value="EASYLITE">EASYLITE</option>
-                <option value="ONCALL1">ONCALL 1</option>
-                <option value="ONCALL2">ONCALL 2</option>
+                {INSTRUMENTS.map((i) => (
+                  <option key={i.value} value={i.value}>{i.label}</option>
+                ))}
               </select>
             </div>
             
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Parameter</label>
-              <select 
+              <select
                 className="w-full p-2 rounded-md border bg-background text-sm"
                 value={selectedParam}
                 onChange={(e) => setSelectedParam(e.target.value as ParamName)}
               >
-                <option value="PT">PT</option>
-                <option value="APTT">APTT</option>
-                <option value="INR">INR</option>
-                <option value="Na">Sodium</option>
-                <option value="K">Potassium</option>
-                <option value="Cl">Chloride</option>
+                {availableParams.map((p) => (
+                  <option key={p} value={p}>{PARAM_LABELS[p]}</option>
+                ))}
               </select>
             </div>
+
+            {mode === 'single' && levels.length > 1 && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Level Kontrol</label>
+                <select
+                  className="w-full p-2 rounded-md border bg-background text-sm"
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value as ControlLevel)}
+                >
+                  {levels.map((lvl) => (
+                    <option key={lvl} value={lvl}>{lvl}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Bulan</label>
@@ -215,22 +304,68 @@ export default function LeveyJennings() {
                 Grafik Kontrol {selectedParam}
               </h3>
               {mode === 'single' && stats && (
-                <LJSummary 
-                  total={stats.total} 
-                  inControl={stats.inControl} 
-                  outOfControl={stats.outOfControl} 
-                  inControlPct={stats.inControlPct} 
+                <LJSummary
+                  total={stats.total}
+                  inControl={stats.inControl}
+                  outOfControl={stats.outOfControl}
+                  inControlPct={stats.inControlPct}
+                  levelLabel={stats.levelLabel}
                 />
               )}
             </div>
             
+            {mode === 'single' && stats && (
+              <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                  <p className="text-xs font-semibold">
+                    {selectedParam} · {stats.levelLabel} · titik terakhir {stats.lastDate ?? '-'}
+                  </p>
+                  {stats.lastValue !== undefined && (
+                    <p className={cn(
+                      'font-mono-data text-lg font-bold',
+                      stats.lastStatus === 'oos' ? 'text-destructive' : stats.lastStatus === 'warning' ? 'text-warning' : '',
+                    )}>
+                      {stats.lastValue} {PARAM_UNITS[selectedParam]}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+                  <div>
+                    <p className="text-muted-foreground">Set Mean</p>
+                    <p className="font-mono-data font-semibold">{stats.meanTarget?.toFixed(2) ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Mean Terukur</p>
+                    <p className="font-mono-data font-semibold">{stats.meanActual?.toFixed(2) ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Set SD / CV%</p>
+                    <p className="font-mono-data font-semibold">
+                      {stats.sdTarget?.toFixed(3) ?? '-'} / {stats.cvTarget?.toFixed(2) ?? '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">SD / CV% Terukur</p>
+                    <p className="font-mono-data font-semibold">
+                      {stats.sdActual?.toFixed(3) ?? '-'} / {stats.cvActual?.toFixed(2) ?? '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Suspense fallback={<div className="h-[300px] flex items-center justify-center">Loading Chart...</div>}>
               <LJChart 
                 mode={mode} 
                 data={chartData} 
-                selected={{ alat: selectedAlat, name: selectedParam, levels: [] }} 
-                config={config} 
+                selected={{
+                  alat: selectedAlat,
+                  name: selectedParam,
+                  levels: [levels.includes(selectedLevel) ? selectedLevel : levels[0]],
+                }}
+                config={config}
                 multiLevels={multiLevels}
+                unit={availableParams.includes(selectedParam) ? PARAM_UNITS[selectedParam] : undefined}
               />
             </Suspense>
           </div>

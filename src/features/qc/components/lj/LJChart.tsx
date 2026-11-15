@@ -89,9 +89,11 @@ interface LJChartProps {
   multiLevels?: ControlLevel[];
   mean?: number;
   sd?: number;
+  /** Unit label for the raw value shown in the tooltip (defaults per param). */
+  unit?: string;
 }
 
-export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, sd = 1 }: LJChartProps) {
+export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, sd = 1, unit }: LJChartProps) {
   if (data.length === 0) {
     return (
       <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2">
@@ -128,7 +130,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
             <ReferenceLine y={mean + 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '+3SD', position: 'left', fontSize: 9 }} />
             <ReferenceLine y={mean - 3 * sd} stroke="hsl(0,72%,51%)" strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: '-3SD', position: 'left', fontSize: 9 }} />
             <XAxis dataKey="run" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Run Ke-', position: 'insideBottom', offset: -10, fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} label={{ value: `${selected.name} (${PARAM_UNITS[selected.name]})`, angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }} />
+            <YAxis fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} domain={[mean - 4 * sd, mean + 4 * sd]} label={{ value: `Z-Score — ${selected.name}`, angle: -90, position: 'insideLeft', offset: 0, fontSize: 10, fill: 'hsl(var(--muted-foreground))', style: { textAnchor: 'middle' } }} />
             <Tooltip
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--foreground))', maxWidth: 280, padding: 0 }}
               content={({ payload }) => {
@@ -138,11 +140,12 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                 const isWarning = item.status === 'warning';
                 return (
                   <div className="p-2.5 space-y-1 text-xs">
-                    <p className="font-semibold">Run #{item.run} — {item.date}</p>
+                    <p className="font-semibold">Run #{item.run} — {item.date}{item.level ? ` · ${item.level}` : ''}</p>
                     <p className="text-muted-foreground">Analis: {item.analis}</p>
                     <p className={cn('font-mono-data font-bold text-sm', isOoc ? 'text-destructive' : isWarning ? 'text-warning' : '')}>
-                      {selected.name}: {item.value}
+                      {selected.name}: {item.rawValue ?? '-'} {unit ?? ''}
                     </p>
+                    <p className="text-muted-foreground">Z-score: {item.value}</p>
                     {item.catatan && item.catatan.trim() !== '' && (
                       <div className="pt-1.5 mt-1 border-t border-border/50">
                         <p className="text-[10px] text-muted-foreground font-semibold mb-0.5 uppercase tracking-wide">Tindakan Korektif</p>

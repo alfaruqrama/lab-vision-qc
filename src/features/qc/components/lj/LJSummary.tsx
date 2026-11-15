@@ -47,20 +47,25 @@ export function ControlSummary({ total, inControl, outOfControl, inControlPct, m
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div>
-          <p className="text-muted-foreground">Mean (Target)</p>
-          <p className="font-bold font-mono-data">
-            {meanActual?.toFixed(2) ?? '-'} ({meanTarget?.toFixed(2) ?? '-'})
-          </p>
+      {/* Mean/SD targets are shown by the dedicated readout above the chart,
+          which also carries the measured values and CV% — showing them twice
+          left this panel with dashes whenever the caller had no target to pass. */}
+      {(meanTarget !== undefined || sdTarget !== undefined) && (
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <p className="text-muted-foreground">Mean (Target)</p>
+            <p className="font-bold font-mono-data">
+              {meanActual?.toFixed(2) ?? '-'} ({meanTarget?.toFixed(2) ?? '-'})
+            </p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">SD (Target)</p>
+            <p className="font-bold font-mono-data">
+              {sdTarget?.toFixed(3) ?? '-'}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-muted-foreground">SD (Target)</p>
-          <p className="font-bold font-mono-data">
-            {sdTarget?.toFixed(3) ?? '-'}
-          </p>
-        </div>
-      </div>
+      )}
     </Card>
   );
 }

@@ -106,6 +106,16 @@ export const ONCALL2_PARAMS: ParamName[] = ['GDA'];
 export const CLEVER1_PARAMS: ParamName[] = ['GDA'];
 export const CLEVER2_PARAMS: ParamName[] = ['GDA'];
 
+/** Display labels for the instrument dropdowns (identifiers stay unchanged). */
+export const INSTRUMENTS: { value: InstrumentType; label: string }[] = [
+  { value: 'CA660', label: 'CA-660' },
+  { value: 'EASYLITE', label: 'Easylite' },
+  { value: 'ONCALL1', label: 'ONCALL 1' },
+  { value: 'ONCALL2', label: 'ONCALL 2' },
+  { value: 'CLEVER1', label: 'CLEVER 1' },
+  { value: 'CLEVER2', label: 'CLEVER 2' },
+];
+
 export const PARAM_UNITS: Record<ParamName, string> = {
   PT: 'detik',
   APTT: 'detik',
