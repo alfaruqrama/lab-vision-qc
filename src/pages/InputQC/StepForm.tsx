@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord, EasyliteLotConfig } from '@/lib/types';
+import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
 import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
-import { evaluateSeries } from '@/lib/westgard-engine';
+import { parseParamValues } from '@/lib/param-parse';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/features/qc/hooks/useQCStore';
 import { useAuth } from '@/hooks/use-auth';
@@ -258,26 +258,11 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
     function parseParams(
       vals: Partial<Record<ParamName, string>>,
       lvl?: ControlLevel,
-    ): { params: Partial<Record<ParamName, number>>; statuses: Partial<Record<ParamName, string>> } {
-      const parsedParams: Partial<Record<ParamName, number>> = {};
-      const statuses: Partial<Record<ParamName, string>> = {};
-      params.forEach((p) => {
-        if (vals[p]) {
-          // Numeric normalization: remove any non-numeric char except dot and minus
-          const cleanVal = vals[p]!.replace(/[^0-9.\-]/g, '');
-          const num = parseFloat(cleanVal);
-          if (!isNaN(num)) {
-            parsedParams[p] = num;
-            statuses[p] = 'ok';
-          }
-        }
-      });
-      return { params: parsedParams, statuses };
+    ): ReturnType<typeof parseParamValues> {
+      return parseParamValues(vals, params, (p) => getParamConfig(p, lvl));
     }
 
     function makeRecord(lvl: ControlLevel, p: ReturnType<typeof parseParams>): QCRecord {
-      const overall = 'ok';
-
       return {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -286,8 +271,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         level: lvl,
         lot: lvl === 'HIGH' ? highLotNumber : lotNumber,
         params: p.params,
-        status: p.statuses as QCRecord['status'],
-        overall_status: overall,
+        status: p.statuses,
         analis: user?.nama || 'Unknown',
         catatan,
       };
@@ -305,42 +289,22 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         recordsToSave.push(makeRecord(level, single));
       }
 
-      const allParamPoints = recordsToSave.flatMap(r => 
-        Object.entries(r.params).map(([param, value]) => {
-          const cfg = getParamConfig(param, r.level);
-          return {
-            runKey: `${r.tanggal}_${r.alat}_${r.analis}`,
-            timestamp: r.timestamp,
-            date: r.tanggal,
-            level: r.level,
-            lot: r.lot,
-            z: cfg ? (value - cfg.mean) / cfg.sd : 0,
-            excluded: false
-          };
-        })
+      // Gross Error Validation: warn when any value sits more than 10SD from
+      // its target — almost always a typo, not a real run.
+      const grossErrors = recordsToSave.flatMap((r) =>
+        Object.entries(r.params).filter(([param, value]) => {
+          const cfg = getParamConfig(param as ParamName, r.level);
+          return cfg && cfg.sd !== 0 && Math.abs((value - cfg.mean) / cfg.sd) > 10;
+        }),
       );
-
-
-      // Gross Error Validation: Check if any point is > 10SD from target
-      const grossErrors = allParamPoints.filter(p => Math.abs(p.z) > 10);
       if (grossErrors.length > 0) {
-        const paramNames = grossErrors.map(ge => {
-            // We need to map back to param name. 
-            // Since allParamPoints is a flat map of params, we can't easily get the name here.
-            // But we can warn that "One or more parameters have extreme values (>10SD)".
-            return 'Extreme Value';
-        });
         toast.warning(`Deteksi Gross Error: Beberapa nilai terlalu jauh dari target (>10SD). Pastikan input sudah benar.`);
       }
 
-      const evaluation = evaluateSeries(allParamPoints, { levelsCount: isEasylite ? 2 : 1 });
-      
-      const finalRecords = recordsToSave.map(r => ({
-        ...r,
-        overall_status: evaluation.statusByRun[`${r.tanggal}_${r.alat}_${r.analis}`] || 'ok'
-      }));
-
-      await Promise.all(finalRecords.map(r => addRecord(r)));
+      // Per-parameter status is already on each record; the per-run verdict is
+      // derived from it by the readers (getOverallStatus), so there is nothing
+      // extra to store — qc_records has no overall_status column.
+      await Promise.all(recordsToSave.map((r) => addRecord(r)));
       navigate('/qc');
     } catch {
       toast.error('Gagal menyimpan data');

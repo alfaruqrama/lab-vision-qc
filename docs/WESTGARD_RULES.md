@@ -285,11 +285,11 @@ Menggabungkan ketiganya: OOS + `systematic` → "hentikan pelaporan hasil pasien
 
 ## 4. Inkonsistensi yang ditemukan (audit 2026-11-15)
 
-Belum diperbaiki. Masing-masing mengubah verdict klinis.
+Masing-masing mengubah verdict klinis. Status per item tercatat di judulnya.
 
-### 4.1 Status per parameter tidak pernah dihitung saat disimpan
+### 4.1 Status per parameter tidak pernah dihitung saat disimpan — SUDAH DIPERBAIKI
 
-`src/pages/InputQC/StepForm.tsx:271` menulis `statuses[p] = 'ok'` untuk **setiap** nilai:
+Dulu `src/pages/InputQC/StepForm.tsx:271` menulis `statuses[p] = 'ok'` untuk **setiap** nilai:
 
 ```ts
 if (!isNaN(num)) {
@@ -300,7 +300,7 @@ if (!isNaN(num)) {
 
 `overall_status` dihitung di `:336-341` lewat `evaluateSeries`, tapi
 `src/features/qc/hooks/useQCRecords.ts:73-85` tidak menyertakannya di `insert`, dan kolom
-`overall_status` memang tidak ada di tabel `qc_records`.
+`overall_status` memang tidak ada di tabel `qc_records` — jadi perhitungan itu terbuang.
 
 Akibatnya Dashboard (`src/pages/Dashboard.tsx:91,101`), PortalHome
 (`src/pages/PortalHome.tsx:37`), dan Laporan Bulanan (`src/pages/MonthlyReport.tsx:135`)
@@ -311,6 +311,22 @@ Pengukuran terhadap database 2026: **14 nilai** tersimpan `ok` padahal seharusny
 `warning` — 13 di CLEVER1/CLEVER2 GDA (z antara −2.10 dan −3.00) dan 1 di EASYLITE
 (2026-03-31, Cl z = 2.08). Semuanya ditulis `scripts/import_clever_2026.py:122`
 sebagai `{"GDA": "ok"}`.
+
+**Perbaikannya.** Penghitungan status dipindah ke satu fungsi murni,
+`parseParamValues()` di `src/lib/param-parse.ts`, yang dipanggil form input saat
+menyimpan. Tiap nilai dievaluasi terhadap target lot yang dipilih operator — lot yang
+sama yang nanti dipakai `computeZScores` — dengan aturan titik tunggal yang sama
+(`evaluateWestgard`: 1-3s → `oos`, 1-2s → `warning`). Jadi Dashboard dan grafik kini
+membaca angka yang identik. Nilai tanpa target lot (mean/SD 0) tetap `ok`, sama seperti
+grafik yang membuang titik itu.
+
+`overall_status` yang terbuang dihapus dari form; status per-run diturunkan pembaca lewat
+`getOverallStatus()` dari status per-parameter, jadi tidak ada kolom baru yang dibutuhkan.
+
+Data lama dikoreksi lewat `scripts/fix-param-status.cjs` (dry-run default, `--apply` untuk
+menulis), yang menghitung ulang dengan aturan yang sama dan hanya menulis record yang
+berbeda. Dijalankan 2026-11-15: **14 record** diperbarui, dan audit ulang menghasilkan 0
+selisih. Test regresi: `src/lib/__tests__/param-parse.test.ts`.
 
 ### 4.2 Severity 4-1s berbeda — SUDAH DIPERBAIKI
 
@@ -415,14 +431,13 @@ benar bersamaan dengan `status === 'warning'` — blok ini tidak pernah tampil.
 
 ```
 Input QC (StepForm)
-  └─ parseParams: statuses[p] = 'ok'  ← tidak divalidasi
-  └─ evaluateSeries (westgard-engine) → overall_status → DIBUANG (tidak tersimpan)
+  └─ parseParamValues (param-parse.ts) → status per param, target lot yang dipilih
                                         ↓
-                               qc_records.status = 'ok' selalu
+                               qc_records.status = 'ok' / 'warning' / 'oos'
                                         ↓
-Dashboard / PortalHome / MonthlyReport  ← membaca status mentah ini
+Dashboard / PortalHome / MonthlyReport  ← membaca status ini (getOverallStatus)
                                         ↓
-                                Laporan bisa tampak 100% in-control
+                                Sama dengan verdict grafik L-J
 
 Grafik L-J (LeveyJennings)
   └─ computeZScores (zscore.ts) → evaluateWestgard (1-3s/1-2s)
@@ -432,8 +447,10 @@ Grafik L-J (LeveyJennings)
                                (tidak pernah membaca qc_records.status)
 ```
 
-Dua jalur ini tidak pernah bertemu. Grafik menghitung ulang, laporan mempercayai data
-tersimpan. Selama `parseParams` menulis `'ok'`, keduanya akan terus berbeda.
+Kedua jalur tetap terpisah — grafik menghitung ulang, laporan mempercayai data tersimpan —
+tetapi sejak 4.1 diperbaiki keduanya memakai target lot dan aturan titik tunggal yang sama,
+jadi verdictnya tidak lagi berbeda. Kalau aturan titik tunggal di `westgard.ts` berubah,
+`param-parse.ts` ikut berubah karena memanggilnya, bukan menyalinnya.
 
 ---
 
