@@ -44,7 +44,7 @@ per-run di grafik.
 | 3 | **2-2s** | 2 titik berturut, \|z\| > 2, **searah** | reject | Systematic error (kalibrasi, reagen, suhu) |
 | 4 | **4-1s** | 4 titik berturut, \|z\| > 1, searah | **reject** | Shift sistematik kecil. Dulu `warning` di panel grafik; diseragamkan 2026-11-15 — lihat §2 |
 | 5 | **10x** | 10 titik berturut di satu sisi mean | reject | Bias sistematis |
-| 6 | **R-4s** | Selisih z dua level di run yang sama > 4 | reject | Random error antar level (salah handling satu level) |
+| 6 | **R-4s** | 1 level > +2s **dan** level lain < −2s di run yang sama | reject | Random error antar level (salah handling satu level) |
 
 Aturan standar yang **tidak** diimplementasikan: **7T** (7 titik monoton naik/turun) dan
 **3-1s**. Trend 7 titik muncul sebagai *pola*, bukan sebagai aturan penolak.
@@ -83,9 +83,18 @@ if (Math.sign(scores[i]) === Math.sign(scores[i-1]) && scores[i] !== 0)
 Hanya sisi (positif/negatif) yang dihitung, besar z tidak dipedulikan. z = +0.05 sepuluh
 kali tetap 10x.
 
-**R-4s** — `src/lib/westgard-multi.ts:187-224`
+**R-4s** — `src/lib/westgard-rules.ts:violatesR4s()`, dipakai `westgard-engine.ts` dan
+`westgard-multi.ts` (diperbaiki 2026-11-15, lihat §2D)
 ```ts
-if (Math.abs(a.zScore - b.zScore) > 4) affectedDays.push(date);
+export function violatesR4s(zValues: readonly number[]): boolean {
+  let above = false, below = false;
+  for (const z of zValues) {
+    if (z > 2) above = true;
+    else if (z < -2) below = true;
+    if (above && below) return true;
+  }
+  return false;
+}
 ```
 Berbeda dari lima aturan lain: ini **antar level**, dan hanya untuk tanggal yang punya
 data di kedua level.
@@ -101,9 +110,8 @@ Ini sumber inkonsistensi utama. Tiga file, tiga set aturan, tiga definisi severi
 | Fungsi | Baris |
 |---|---|
 | `evaluateWestgard(value, config)` | `:9` |
-| `evaluateR4s(v1, c1, v2, c2)` | `:29` |
-| `getStatusLabel(status)` | `:38` |
-| `getOverallStatus(statuses)` | `:46` |
+| `getStatusLabel(status)` | `:30` |
+| `getOverallStatus(statuses)` | `:38` |
 
 Hanya **1-3s** dan **1-2s**. Dipakai oleh:
 
@@ -111,7 +119,9 @@ Hanya **1-3s** dan **1-2s**. Dipakai oleh:
 - `src/features/qc/components/ParamValueCard.tsx:30` — warning saat operator mengetik nilai
 - `src/lib/mock-data.ts` — data demo
 
-`evaluateR4s` **tidak dipanggil siapa pun** di kode aplikasi.
+`evaluateR4s` dulu ada di sini tanpa pemanggil, dan memakai rumusan "selisih ≥ 4s" yang
+berbeda dari kedua engine. Dihapus 2026-11-15; R-4s sekarang hanya ada di
+`src/lib/westgard-rules.ts`.
 
 ### B. `src/lib/westgard-engine.ts` — evaluasi per batch input
 
@@ -123,7 +133,7 @@ Hanya **1-3s** dan **1-2s**. Dipakai oleh:
 | 2-2s | `:82-92` |
 | 4-1s | `:94-105` |
 | 10x | `:107-129` |
-| "R-4s" | `:141-152` |
+| "R-4s" | `:142-152` |
 | "2-2s" cross-level | `:154-163` |
 
 Enam aturan, dan **mengelompokkan per lot lebih dulu** (`:51` `lots.forEach(...)`), jadi
@@ -138,7 +148,7 @@ Dipakai hanya di `src/pages/InputQC/StepForm.tsx:336`, dan hasilnya menghitung
 |---|---|
 | `analyzeMultiLevel(levelPoints)` | `:48` |
 | `scanRules()` | `:90` |
-| `detectR4s()` | `:187` |
+| `detectR4s()` | `:188` |
 | `detectPatterns()` | `:227` |
 | `analyzeCrossLevel()` | `:316` |
 | `generateRecommendation()` | `:414` |
@@ -170,20 +180,43 @@ Catatan bias: banyak dari grup itu memang bias nyata (EASYLITE NORMAL K: mean z 
 46% run memicu 4-1s). Jadi kenaikan ini menyingkap masalah yang sebelumnya tersembunyi,
 bukan menciptakan masalah baru.
 
-### Dua rumusan R-4s di `westgard-engine.ts` vs `westgard-multi.ts`
+### Dua rumusan R-4s — SUDAH DISERAGAMKAN 2026-11-15
 
-Bukan bug penamaan — keduanya rumusan R-4s yang **sama-sama sah** di literatur, tapi
-aplikasi memakai keduanya sekaligus sehingga hasilnya bisa berbeda:
+Dulu tiap engine memakai rumusan berbeda:
 
-| Sumber | Rumusan | Dipakai di |
+| Sumber | Rumusan | Dulu dipakai di |
 |---|---|---|
-| Westgard QC | 1 titik > +2s **dan** titik lain < −2s dalam run yang sama | `westgard-engine.ts:141-152` |
-| Carroll 2003 / Tech Networks | Selisih nilai terbesar & terkecil dalam satu run > 4s | `westgard-multi.ts:187-224` |
+| Westgard QC | 1 titik > +2s **dan** titik lain < −2s dalam run yang sama | `westgard-engine.ts:142-152` |
+| WHO / Tech Networks | Selisih nilai terbesar & terkecil dalam satu run > 4s | `westgard-multi.ts:188-225` |
 
-Perbedaannya nyata pada data: run dengan z = +5.0 dan −1.1 punya selisih 6.1 (> 4s) tapi
-tidak memenuhi "+2 dan −2". Pada data 2026, `westgard-multi` memicu R-4s di **3 run**,
-`westgard-engine` di **1 run**, dan **3 run itu tidak beririsan** dengan cara yang sama —
-keduanya melaporkan R-4s dengan ambang berbeda.
+Yang dipilih: **rumusan Westgard QC**. Bukan karena nama, tapi karena itu definisi resmi
+Westgard (<https://www.westgard.com/westgard-rules>):
+
+> R 4s - reject when 1 control measurement in a group exceeds the mean plus 2s and another
+> exceeds the mean minus 2s. Please note: this rule should only be interpreted within-run,
+> not between-run.
+
+Rumusan "selisih > 4s" adalah **penyederhanaan**, bukan aturan yang setara. Kalau satu titik
+> +2s dan satu titik < −2s, selisihnya pasti > 4s — jadi setiap pelanggaran R-4s Westgard
+> otomatis juga memenuhi "selisih > 4s", tapi **tidak sebaliknya**. Contoh: z = +5.0 dan −1.1
+> punya selisih 6.1 (> 4s) padahal titik kedua masih di dalam ±2s. Itu peristiwa **1-3s**,
+> bukan R-4s.
+
+Data 2026 membuktikannya. Dengan rumusan "selisih > 4s", `westgard-multi` memicu R-4s di **3
+run**; dengan rumusan Westgard, **0 run**:
+
+| Tanggal | z yang bertabrakan | Sebenarnya |
+|---|---|---|
+| 2026-02-16 | NORMAL −1.1 vs HIGH **+5.0** | 1-3s pada HIGH |
+| 2026-02-27 | NORMAL **+6.6** vs HIGH −1.1 | 1-3s pada NORMAL |
+| 2026-03-04 | NORMAL −1.7 vs HIGH **−7.0** | 1-3s pada HIGH |
+
+Ketiganya sudah ditolak 1-3s dan bukan random error antar level, jadi tidak ada verdict yang
+hilang. Yang hilang hanyalah **salah label** pada tiga run itu.
+
+Ketiga engine kini memanggil `violatesR4s()` dari `src/lib/westgard-rules.ts`; `evaluateR4s`
+yang mati di `westgard.ts` sudah dihapus. Test regresi:
+`src/lib/__tests__/westgard-rules.test.ts` — "R-4s uses the Westgard formulation".
 
 Blok `:154-163` di `westgard-engine.ts` dilabeli `2-2s` dengan `level: 'cross'` — dua level
 di sisi yang sama melewati ±2SD. Ini aplikasi 2-2s lintas material, bukan R-4s, dan
@@ -282,11 +315,12 @@ sebagai `{"GDA": "ok"}`.
 (menyimpang). Kini keduanya lewat `src/lib/westgard-rules.ts`. Dampak: 347 titik
 berubah dari kuning ke merah pada data 2026.
 
-### 4.3 Dua rumusan R-4s berbeda ambang
+### 4.3 Dua rumusan R-4s berbeda ambang — SUDAH DIPERBAIKI
 
-Lihat §2. `westgard-engine.ts:141-152` memakai "+2 dan −2"; `westgard-multi.ts:187-224`
-memakai "selisih > 4s". Pada data 2026 keduanya memberi hasil berbeda (3 run vs 1 run).
-Perlu dipilih satu rumusan sebagai standar lab.
+Dulu `westgard-engine.ts:142-152` memakai "+2 dan −2" sedangkan `westgard-multi.ts:188-225`
+memakai "selisih > 4s"; pada data 2026 keduanya memberi hasil berbeda (3 run vs 1 run).
+Kini keduanya memakai `violatesR4s()` dari `src/lib/westgard-rules.ts` dengan rumusan
+Westgard, dan `evaluateR4s` yang mati di `westgard.ts` sudah dihapus. Rinciannya di §2D.
 
 ### 4.4 Batas lot dihitung berbeda
 
@@ -394,8 +428,8 @@ Aturan asli Westgard (1981) dan varian yang lazim dipakai:
 - **1-3s**: penolakan. Benar.
 - **2-2s**: penolakan. Benar.
 - **R-4s**: penolakan; dalam **satu run**, satu titik > +2SD dan titik lain < −2SD
-  (Westgard QC). Varian lain merumuskannya sebagai selisih > 4SD. Keduanya ada di
-  aplikasi ini — perlu dipilih satu.
+  (Westgard QC). Varian "selisih > 4SD" yang lebih longgar sudah dibuang dari aplikasi
+  ini — lihat §2D.
 - **4-1s**: **penolakan**. Kedua engine kini konsisten (lihat §2). Catatan: pada multirule
   klasik, 4-1s baru diperiksa **setelah** ada pelanggaran 1-2s; pada versi "modern" tidak
   perlu didahului. Aplikasi ini memakai versi modern.

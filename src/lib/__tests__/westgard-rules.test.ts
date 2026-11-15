@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ruleStatus, ruleSeverity, isRejectionRule } from '../westgard-rules';
+import { ruleStatus, ruleSeverity, isRejectionRule, violatesR4s } from '../westgard-rules';
 import { evaluateWestgard } from '../westgard';
 import { evaluateSeries } from '../westgard-engine';
 import { analyzeMultiLevel } from '../westgard-multi';
@@ -37,6 +37,63 @@ describe('westgard rule severity is defined once', () => {
   it('keeps 1-2s as the only warning rule', () => {
     for (const rule of ['1-3s', '1-2s', '2-2s', '4-1s', '10x', 'R-4s'] as const) {
       expect(isRejectionRule(rule)).toBe(rule !== '1-2s');
+    }
+  });
+});
+
+/** One run holding both control levels, so R-4s can be evaluated. */
+function runWithLevels(normalZ: number, highZ: number): ZPoint[] {
+  return [
+    { runKey: 'run1', timestamp: '2026-01-01T00:00:00Z', date: '2026-01-01', level: 'NORMAL', lot: 'LOT1', z: normalZ },
+    { runKey: 'run1', timestamp: '2026-01-01T00:00:00Z', date: '2026-01-01', level: 'HIGH', lot: 'LOT1', z: highZ },
+  ];
+}
+
+function r4sFromEngine(points: ZPoint[]): boolean {
+  const result = evaluateSeries(points, { levelsCount: 2 });
+  return result.violations.some((v) => v.rule === 'R-4s');
+}
+
+function r4sFromMulti(normalZ: number, highZ: number): boolean {
+  const result = analyzeMultiLevel({
+    NORMAL: asZScorePoints(runWithLevels(normalZ, highZ).filter((p) => p.level === 'NORMAL')),
+    HIGH: asZScorePoints(runWithLevels(normalZ, highZ).filter((p) => p.level === 'HIGH')),
+  } as never);
+  return result.rules.some((r) => r.rule === 'R-4s');
+}
+
+describe('R-4s uses the Westgard formulation', () => {
+  it('fires when one level is above +2s and the other below −2s', () => {
+    expect(violatesR4s([2.5, -2.1])).toBe(true);
+    expect(violatesR4s([-2.5, 2.1])).toBe(true);
+  });
+
+  it('does not fire on a wide spread that never crosses −2s', () => {
+    // Range is 6.1s, so a "difference > 4s" check would fire; Westgard's rule
+    // does not, because the second point is inside ±2s. This is a 1-3s event.
+    expect(violatesR4s([5.0, -1.1])).toBe(false);
+    expect(violatesR4s([6.6, 0.2])).toBe(false);
+  });
+
+  it('does not fire when points are above +2s on both levels', () => {
+    expect(violatesR4s([2.5, 3.5])).toBe(false);
+  });
+
+  it('needs to strictly exceed the limits, not land on them', () => {
+    expect(violatesR4s([2, -2])).toBe(false);
+  });
+
+  it('engine and multi-level panel reach the same verdict', () => {
+    const cases: Array<[number, number, boolean]> = [
+      [2.5, -2.1, true],
+      [-2.5, 2.1, true],
+      [5.0, -1.1, false],
+      [6.6, 0.2, false],
+      [2.5, 3.5, false],
+    ];
+    for (const [normalZ, highZ, expected] of cases) {
+      expect(r4sFromEngine(runWithLevels(normalZ, highZ))).toBe(expected);
+      expect(r4sFromMulti(normalZ, highZ)).toBe(expected);
     }
   });
 });

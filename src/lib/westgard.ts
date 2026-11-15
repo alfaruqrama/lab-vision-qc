@@ -27,15 +27,6 @@ export function evaluateWestgard(value: number, config: ParamConfig): WestgardRe
   return { status, zScore, rules };
 }
 
-export function evaluateR4s(
-  value1: number, config1: ParamConfig,
-  value2: number, config2: ParamConfig
-): boolean {
-  const z1 = (value1 - config1.mean) / config1.sd;
-  const z2 = (value2 - config2.mean) / config2.sd;
-  return Math.abs(z1 - z2) >= 4;
-}
-
 export function getStatusLabel(status: WestgardStatus): string {
   switch (status) {
     case 'ok': return 'OK';

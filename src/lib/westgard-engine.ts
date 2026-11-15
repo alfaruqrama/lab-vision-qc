@@ -1,6 +1,6 @@
 
 import { ControlLevel, WestgardStatus } from './types';
-import { ruleSeverity, ruleStatus } from './westgard-rules';
+import { ruleSeverity, ruleStatus, violatesR4s } from './westgard-rules';
 
 export type RuleId = '1-2s' | '1-3s' | '2-2s' | 'R-4s' | '4-1s' | '10x' | 'shift' | 'trend' | 'bias';
 export type Severity = 'warning' | 'reject' | 'advisory';
@@ -141,14 +141,13 @@ export function evaluateSeries(
 
       runMap.forEach((runPoints, runKey) => {
         const zs_in_run = runPoints.map(p => p.z);
-        const hasHigh = zs_in_run.some(z => z > 2);
-        const hasLow = zs_in_run.some(z => z < -2);
-        if (hasHigh && hasLow) {
+        if (violatesR4s(zs_in_run)) {
           statusByRun[runKey] = ruleStatus('R-4s');
           violations.push({
             rule: 'R-4s', severity: ruleSeverity('R-4s'), level: 'cross', triggeredAt: runKey,
             involved: [runKey], zValues: zs_in_run,
-            message: 'Selisih antar level melampaui 4SD', action: 'Random error besar antar level'
+            message: 'Satu level > +2SD dan level lain < −2SD dalam run yang sama',
+            action: 'Random error besar antar level'
           });
         }
 

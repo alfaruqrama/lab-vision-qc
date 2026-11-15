@@ -1,6 +1,6 @@
 import type { ZScorePoint } from './zscore';
 import type { ControlLevel } from './types';
-import { ruleStatus } from './westgard-rules';
+import { ruleStatus, violatesR4s } from './westgard-rules';
 
 
 export type RuleStatus = 'ok' | 'warning' | 'oos';
@@ -203,8 +203,10 @@ export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): Rul
       for (const date of commonDates) {
         const a = mapA.get(date)!;
         const b = mapB.get(date)!;
-        // R-4s: difference in Z-scores between levels > 4
-        if (Math.abs(a.zScore - b.zScore) > 4) {
+        // R-4s (Westgard): one level > +2s, the other < −2s, same run.
+        // A plain |difference| > 4 check is a different, wider rule — see
+        // violatesR4s() for why the two are not interchangeable.
+        if (violatesR4s([a.zScore, b.zScore])) {
           affectedDays.push(date);
         }
       }
@@ -215,7 +217,7 @@ export function detectR4s(levelPoints: Record<ControlLevel, ZScorePoint[]>): Rul
           level: `${levelA}-${levelB}`,
           status: ruleStatus('R-4s'),
           affectedDays,
-          description: `Selisih Z-score ${levelA} vs ${levelB} > 4 — perbedaan signifikan antar level`,
+          description: `${levelA} dan ${levelB} berlawanan arah di luar ±2SD — random error antar level`,
         });
       }
     }
