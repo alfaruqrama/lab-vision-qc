@@ -6,8 +6,9 @@ import {
 import { RefreshCw, AlertTriangle, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow,
-  normalizeMonthKeys, sortMonths, pickDefaultMonth, fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER, getPayerValue
+  type KunjunganData, type OmzetRow, type KunjunganRow, type McuRow, type MonthTabKey,
+  normalizeMonthKeys, sortMonths, resolveTabMonths, monthTabKey,
+  fmtRp, fmtRpFull, badgeClass, PAYERS, BULAN_ORDER, getPayerValue
 } from '@/lib/kunjungan-types';
 import { useKunjunganData, type ConnectionStatus } from '@/hooks/use-kunjungan-data';
 import { useAuth } from '@/hooks/use-auth';
@@ -447,13 +448,15 @@ export default function KunjunganDashboard() {
   const [tab, setTab] = useState<TabType>('omzet');
   const [refreshing, setRefreshing] = useState(false);
 
-  const [month, setMonth] = useState(CURRENT_MONTH_NAME);
-  const [mcuMonth, setMcuMonth] = useState(CURRENT_MONTH_NAME);
-
-  // Bulan default hanya diarahkan sekali, dan tidak pernah menimpa pilihan pengguna:
-  // utamakan bulan dari GAS, lalu bulan terakhir yang benar-benar berisi rows,
-  // baru bulan kalender lokal sebagai fallback terakhir.
-  const monthTouched = useRef(false);
+  // Bulandefault diarahkan per tab: tiap tab punya sheet sendiri, jadi bulan
+  // defaultnya bisa berbeda. Tab yang sudah disentuh user tidak pernah
+  // ditimpa, dan pilihan di satu tab tidak memengaruhi tab lain.
+  const [months, setMonths] = useState<Record<MonthTabKey, string>>({
+    omzet: CURRENT_MONTH_NAME,
+    kunjungan: CURRENT_MONTH_NAME,
+    mcu: CURRENT_MONTH_NAME,
+  });
+  const touchedMonths = useRef(new Set<MonthTabKey>());
   const activeMonthsList = useMemo(() => {
     const months = availableMonths(tab === 'mcu' ? 'mcu' : tab === 'kunjungan' ? 'kunjungan' : 'omzet');
     if (!months.includes(CURRENT_MONTH_NAME)) {
@@ -463,18 +466,17 @@ export default function KunjunganDashboard() {
   }, [tab, availableMonths]);
 
   useEffect(() => {
-    if (monthTouched.current || status === 'loading') return;
-    const src = tab === 'mcu' ? data.mcu : tab === 'kunjungan' ? data.kunjungan : data.omzet;
-    const pick = pickDefaultMonth(src, currentMonth);
-    if (tab === 'mcu') setMcuMonth(prev => (prev === pick ? prev : pick));
-    else setMonth(prev => (prev === pick ? prev : pick));
+    if (status === 'loading') return;
+    const key = monthTabKey(tab);
+    const src = key === 'mcu' ? data.mcu : key === 'kunjungan' ? data.kunjungan : data.omzet;
+    setMonths(prev => resolveTabMonths(prev, touchedMonths.current, key, src, currentMonth));
   }, [tab, status, currentMonth, data]);
 
-  const activeMonth = tab === 'mcu' ? mcuMonth : month;
+  const activeMonth = months[monthTabKey(tab)];
   const setActiveMonth = (m: string) => {
-    monthTouched.current = true;
-    if (tab === 'mcu') setMcuMonth(m);
-    else setMonth(m);
+    const key = monthTabKey(tab);
+    touchedMonths.current.add(key);
+    setMonths(prev => ({ ...prev, [key]: m }));
   };
 
   const handleRefresh = useCallback(async () => {
