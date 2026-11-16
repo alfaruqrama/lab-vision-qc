@@ -3,6 +3,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Activity, AlertTriangle, XCircle, TrendingUp, TrendingDown, ArrowRightLeft, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { levelLabel } from '@/lib/types';
 import type { MultiLevelAnalysis } from '@/lib/westgard-multi';
 
 export function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysis }) {
@@ -36,7 +37,7 @@ export function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysi
                 )}
                 <div className="space-y-0.5">
                   <p className="font-semibold">
-                    {r.rule} — {r.level}
+                    {r.rule} — {levelLabel(r.level)}
                   </p>
                   <p className="text-muted-foreground">{r.description}</p>
                   <p className="text-[10px] font-mono-data text-muted-foreground">
@@ -60,7 +61,7 @@ export function WestgardAnalysisCard({ analysis }: { analysis: MultiLevelAnalysi
                 {(p.type === 'bias_high' || p.type === 'bias_low') && <Activity size={14} className="text-primary shrink-0 mt-0.5" />}
                 {p.type === 'random_error' && <AlertTriangle size={14} className="text-muted-foreground shrink-0 mt-0.5" />}
                 <div>
-                  <p className="font-semibold">{p.level} — {p.type.replace('_', ' ')}</p>
+                  <p className="font-semibold">{levelLabel(p.level)} — {p.type.replace('_', ' ')}</p>
                   <p className="text-muted-foreground">{p.description}</p>
                 </div>
               </div>

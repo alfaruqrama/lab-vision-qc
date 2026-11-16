@@ -3,6 +3,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { levelLabel } from '@/lib/types';
 import { RuleViolation } from '@/lib/westgard-engine';
 
 interface WestgardEvaluationPanelProps {
@@ -31,7 +32,7 @@ export function WestgardEvaluationPanel({ violations, onExclude }: WestgardEvalu
           <div key={i} className="p-3 rounded-md bg-muted text-xs space-y-2 border-l-4 border-destructive">
             <div className="flex justify-between items-start">
               <span className="font-bold text-destructive">{v.rule} - {v.severity.toUpperCase()}</span>
-              <span className="text-muted-foreground">{v.level}</span>
+              <span className="text-muted-foreground">{levelLabel(v.level)}</span>
             </div>
             <p>{v.message}</p>
             <div className="flex justify-between items-center pt-2 border-t">

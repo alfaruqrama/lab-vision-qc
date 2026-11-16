@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { formatExpiryMessage, type LotExpiryInfo } from '@/lib/lot-expiry';
+import { levelLabel } from '@/lib/types';
 
 interface LotExpiryBannerProps {
   expiredLots: LotExpiryInfo[];
@@ -95,7 +96,7 @@ export function LotExpiryBanner({ expiredLots, expiringSoonLots, onDismiss }: Lo
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs font-semibold truncate">{lot.lotNumber}</span>
                   <span className="text-[10px] text-muted-foreground shrink-0">
-                    {INSTRUMENT_LABELS[lot.instrument]}{lot.level ? ` ${lot.level}` : ''}
+                    {INSTRUMENT_LABELS[lot.instrument]}{lot.level ? ` ${levelLabel(lot.level)}` : ''}
                   </span>
                 </div>
                 <span

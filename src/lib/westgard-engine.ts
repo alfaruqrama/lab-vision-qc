@@ -1,5 +1,6 @@
 
 import { ControlLevel, WestgardStatus } from './types';
+import { ruleSeverity, ruleStatus, violatesR4s } from './westgard-rules';
 
 export type RuleId = '1-2s' | '1-3s' | '2-2s' | 'R-4s' | '4-1s' | '10x' | 'shift' | 'trend' | 'bias';
 export type Severity = 'warning' | 'reject' | 'advisory';
@@ -58,11 +59,11 @@ export function evaluateSeries(
       levelPoints.forEach((p, i) => {
         if (Math.abs(zs[i]) > 3) {
           violations.push({
-            rule: '1-3s', severity: 'reject', level, triggeredAt: p.runKey,
+            rule: '1-3s', severity: ruleSeverity('1-3s'), level, triggeredAt: p.runKey,
             involved: [p.runKey], zValues: [zs[i]],
             message: 'Satu titik melampaui ±3SD', action: 'Investigasi segera'
           });
-          statusByRun[p.runKey] = 'oos';
+          statusByRun[p.runKey] = ruleStatus('1-3s');
         }
       });
 
@@ -72,7 +73,7 @@ export function evaluateSeries(
             statusByRun[p.runKey] = 'warning';
           }
           violations.push({
-            rule: '1-2s', severity: 'warning', level, triggeredAt: p.runKey,
+            rule: '1-2s', severity: ruleSeverity('1-2s'), level, triggeredAt: p.runKey,
             involved: [p.runKey], zValues: [zs[i]],
             message: 'Satu titik melampaui ±2SD', action: 'Pantau ketat'
           });
@@ -82,9 +83,9 @@ export function evaluateSeries(
       for (let i = 1; i < zs.length; i++) {
         if ((zs[i] > 2 && zs[i-1] > 2) || (zs[i] < -2 && zs[i-1] < -2)) {
           const p = levelPoints[i];
-          statusByRun[p.runKey] = 'oos';
+          statusByRun[p.runKey] = ruleStatus('2-2s');
           violations.push({
-            rule: '2-2s', severity: 'reject', level, triggeredAt: p.runKey,
+            rule: '2-2s', severity: ruleSeverity('2-2s'), level, triggeredAt: p.runKey,
             involved: [levelPoints[i-1].runKey, p.runKey], zValues: [zs[i-1], zs[i]],
             message: 'Dua titik berurutan melampaui ±2SD di sisi yang sama', action: 'Indikasi error sistematik'
           });
@@ -95,9 +96,9 @@ export function evaluateSeries(
         const window = zs.slice(i-3, i+1);
         if ((window.every(z => z > 1) || window.every(z => z < -1))) {
           const p = levelPoints[i];
-          statusByRun[p.runKey] = 'oos';
+          statusByRun[p.runKey] = ruleStatus('4-1s');
           violations.push({
-            rule: '4-1s', severity: 'reject', level, triggeredAt: p.runKey,
+            rule: '4-1s', severity: ruleSeverity('4-1s'), level, triggeredAt: p.runKey,
             involved: levelPoints.slice(i-3, i+1).map(x => x.runKey), zValues: window,
             message: 'Empat titik berurutan melampaui ±1SD', action: 'Indikasi shift sistematik'
           });
@@ -119,9 +120,9 @@ export function evaluateSeries(
         streakStart = i - sideStreak + 1;
         if (sideStreak >= 10) {
           const p = levelPoints[i];
-          statusByRun[p.runKey] = 'oos';
+          statusByRun[p.runKey] = ruleStatus('10x');
           violations.push({
-            rule: '10x', severity: 'reject', level, triggeredAt: p.runKey,
+            rule: '10x', severity: ruleSeverity('10x'), level, triggeredAt: p.runKey,
             involved: levelPoints.slice(streakStart, i+1).map(x => x.runKey), zValues: zs.slice(streakStart, i+1),
             message: 'Sepuluh titik berurutan di satu sisi mean', action: 'Indikasi bias sistematik'
           });
@@ -140,23 +141,22 @@ export function evaluateSeries(
 
       runMap.forEach((runPoints, runKey) => {
         const zs_in_run = runPoints.map(p => p.z);
-        const hasHigh = zs_in_run.some(z => z > 2);
-        const hasLow = zs_in_run.some(z => z < -2);
-        if (hasHigh && hasLow) {
-          statusByRun[runKey] = 'oos';
+        if (violatesR4s(zs_in_run)) {
+          statusByRun[runKey] = ruleStatus('R-4s');
           violations.push({
-            rule: 'R-4s', severity: 'reject', level: 'cross', triggeredAt: runKey,
+            rule: 'R-4s', severity: ruleSeverity('R-4s'), level: 'cross', triggeredAt: runKey,
             involved: [runKey], zValues: zs_in_run,
-            message: 'Selisih antar level melampaui 4SD', action: 'Random error besar antar level'
+            message: 'Satu level > +2SD dan level lain < −2SD dalam run yang sama',
+            action: 'Random error besar antar level'
           });
         }
 
         const highCount = zs_in_run.filter(z => z > 2).length;
         const lowCount = zs_in_run.filter(z => z < -2).length;
         if (highCount >= 2 || lowCount >= 2) {
-          statusByRun[runKey] = 'oos';
+          statusByRun[runKey] = ruleStatus('2-2s');
           violations.push({
-            rule: '2-2s', severity: 'reject', level: 'cross', triggeredAt: runKey,
+            rule: '2-2s', severity: ruleSeverity('2-2s'), level: 'cross', triggeredAt: runKey,
             involved: [runKey], zValues: zs_in_run,
             message: 'Dua level melampaui ±2SD di sisi yang sama', action: 'Indikasi error sistematik'
           });

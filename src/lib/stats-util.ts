@@ -1,6 +1,14 @@
-
 import { QCRecord, ParamConfig } from './types';
+import { sampleStats } from './stats';
 
+/**
+ * Mean/SD of a parameter's results, for the "hitung dari data lab" button on
+ * the configuration page.
+ *
+ * Uses the app-wide sample SD (`sampleStats`) so a target derived here matches
+ * the "SD Terukur" shown on the L-J page and in the monthly report for the same
+ * set of runs.
+ */
 export function calculateStatsFromRecords(records: QCRecord[], paramName: string): ParamConfig {
   const values = records
     .filter(r => !r.excluded && r.params[paramName] !== undefined)
@@ -10,10 +18,7 @@ export function calculateStatsFromRecords(records: QCRecord[], paramName: string
     return { mean: 0, sd: 0, rangeMin: 0, rangeMax: 0 };
   }
 
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  
-  const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
-  const sd = Math.sqrt(variance);
+  const { mean, sd } = sampleStats(values);
 
   // Standard range is typically Mean +/- 3SD
   return {

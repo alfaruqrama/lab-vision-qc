@@ -1,10 +1,10 @@
 
-import React, { useState, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react';
 import { lazy } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Filter, 
+import {
+  Filter,
   AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -12,9 +12,21 @@ import { cn } from '@/lib/utils';
 
 import { useQCRecords } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig } from '@/features/qc/hooks/useQCConfig';
-import { computeZScores } from '@/lib/zscore';
+import { useAuth } from '@/hooks/use-auth';
+import { computeZScores, getParamTarget } from '@/lib/zscore';
+import { sampleStats } from '@/lib/stats';
 import { analyzeMultiLevel } from '@/lib/westgard-multi';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, INSTRUMENTS, levelsForInstrument, levelLabel } from '@/lib/types';
+import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
+import {
+  KA_LAB_NAME,
+  PARAM_LABELS,
+  SERIES_COLORS,
+  monthDateRange,
+  type PrintSeries,
+  type LJChartPrintOptions,
+} from '@/features/qc/lib/lj-print';
 
 // Modular Components
 import { LJSummary } from '@/features/qc/components/lj/LJSummary';
@@ -26,21 +38,52 @@ import { LJExportControls } from '@/features/qc/components/lj/LJExport';
 const LJChart = lazy(() => import('@/features/qc/components/lj/LJChart').then(mod => ({ default: mod.LJChart })));
 
 export default function LeveyJennings() {
-  const { records, loading: recordsLoading } = useQCRecords();
-  const { config, loading: configLoading } = useQCConfig();
+  const { data: records = [], isLoading: recordsLoading } = useQCRecords();
+  const { data: config, isLoading: configLoading } = useQCConfig();
+  const { user } = useAuth();
 
   // State
   const [selectedAlat, setSelectedAlat] = useState<InstrumentType>('CA660');
-  const [selectedParam, setSelectedParam] = useState<ParamName>('PT');
+  const [selectedParam, setSelectedParam] = useState<ParamName>(getParamsForInstrument('CA660')[0]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [mode, setMode] = useState<'single' | 'multi'>('single');
-  
+
   // Export state
   const chartRef = useRef<HTMLDivElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Parameters offered by the selected instrument. Switching instrument must
+  // move the selection along, otherwise CA-660's PT stays picked while ONCALL
+  // is shown — a combination that has no data and no config.
+  const availableParams = useMemo(() => getParamsForInstrument(selectedAlat), [selectedAlat]);
+
+  useEffect(() => {
+    if (!availableParams.includes(selectedParam)) {
+      setSelectedParam(availableParams[0]);
+    }
+  }, [availableParams, selectedParam]);
+
+  const levels = useMemo(() => levelsForInstrument(selectedAlat), [selectedAlat]);
+
+  // Multi runs overlay the instrument's control levels on one chart, so it only
+  // makes sense where a run actually carries several of them. CA-660 and CLEVER
+  // store a single flat control (`Kontrol`); EASYLITE has NORMAL/HIGH and ONCALL
+  // has CTRL0/1/2.
+  const supportsMulti = levels.length > 1;
+
+  const [selectedLevel, setSelectedLevel] = useState<ControlLevel>(levelsForInstrument('CA660')[0]);
+
+  useEffect(() => {
+    if (!levels.includes(selectedLevel)) {
+      setSelectedLevel(levels[0]);
+    }
+  }, [levels, selectedLevel]);
+
+  // Never leave the page in multi mode for an instrument that has no levels to
+  // overlay — otherwise the chart renders a single flat line with no legend.
+  useEffect(() => {
+    if (!supportsMulti && mode === 'multi') setMode('single');
+  }, [supportsMulti, mode]);
 
   // Derived Data
   const filteredRecords = useMemo(() => {
@@ -49,66 +92,168 @@ export default function LeveyJennings() {
 
   const { chartData, stats, multiLevels } = useMemo(() => {
     if (!config || filteredRecords.length === 0) return { chartData: [], stats: null, multiLevels: [] };
-    
-    // FIX: Correct arguments for computeZScores (records, config, alat, param, levels)
-    const levels: ControlLevel[] = selectedAlat === 'EASYLITE' ? ['NORMAL', 'HIGH'] : ['CTRL0', 'CTRL1', 'CTRL2'];
+
     const zScoresRecord = computeZScores(filteredRecords, config, selectedAlat, selectedParam, levels);
-    
+
     if (mode === 'single') {
-      const primaryLevel = levels[0];
-      const points = zScoresRecord[primaryLevel] || [];
-      
-      const data = points.map((p, idx) => ({
-        run: idx + 1,
-        date: p.tanggal,
-        value: p.zScore,
-        status: p.status,
-        analis: filteredRecords.find(r => r.tanggal === p.tanggal)?.analis || '',
-        catatan: filteredRecords.find(r => r.tanggal === p.tanggal)?.catatan || '',
-      }));
-      
-      const vals = data.map(d => d.value);
-      const mean = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      const sd = vals.length > 0 
-        ? Math.sqrt(vals.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / vals.length) 
-        : 1;
-      
-      const inControl = data.filter((d: any) => d.overall_status !== 'oos').length;
-      
-      return { 
-        chartData: data, 
-        stats: { total: data.length, inControl, outOfControl: data.length - inControl, inControlPct: data.length > 0 ? (inControl/data.length)*100 : 0 },
-        multiLevels: []
-      };
-    } else {
-      const data = filteredRecords.map(r => {
-        const obj: any = { date: r.tanggal };
-        levels.forEach(lvl => {
-          const points = zScoresRecord[lvl];
-          const p = points?.find(pt => pt.tanggal === r.tanggal);
-          if (p) {
-            obj[lvl.toLowerCase()] = p.zScore;
-            obj[`${lvl.toLowerCase()}Status`] = p.status;
-            obj[`${lvl.toLowerCase()}Raw`] = r.params[selectedParam] || 0;
-          }
-        });
-        return obj;
+      // Single mode plots one level. Use the level the user picked; fall back to
+      // the instrument's first level when the pick belongs to another instrument.
+      const level = levels.includes(selectedLevel) ? selectedLevel : levels[0];
+      const points = zScoresRecord[level] || [];
+
+      const data = points.map((p, idx) => {
+        const rec = filteredRecords.find(r => r.tanggal === p.tanggal && r.level === level);
+        return {
+          run: idx + 1,
+          date: p.tanggal,
+          value: p.zScore,
+          rawValue: p.rawValue,
+          level,
+          status: p.status,
+          analis: rec?.analis || '',
+          catatan: rec?.catatan || '',
+        };
       });
-      
-      return { 
-        chartData: data, 
-        stats: null, 
-        multiLevels: levels 
+
+      const inControl = data.filter(d => d.status !== 'oos').length;
+
+      const raws = data.map(d => d.rawValue).filter((v): v is number => typeof v === 'number');
+      // SD/CV of the observed values — the "Sum" column in analyser software,
+      // shown next to the "Set" (target) column so drift is visible at a glance.
+      // Uses the app-wide sample SD so it matches the printed sheet and the
+      // target computed from the same data on the configuration page.
+      const measured = sampleStats(raws);
+      const meanActual = measured.n > 0 ? measured.mean : undefined;
+      const sdActual = measured.n > 1 ? measured.sd : undefined;
+      const last = data[data.length - 1];
+
+      // Mean/SD shown in the resume panel are the control targets actually used
+      // for this level, not the spread of the plotted Z-scores (which is ~0/1
+      // by construction and would tell the operator nothing).
+      const cfg = getParamTarget(config, selectedAlat, level, selectedParam);
+
+      return {
+        chartData: data,
+        stats: {
+          total: data.length,
+          inControl,
+          outOfControl: data.length - inControl,
+          inControlPct: data.length > 0 ? (inControl / data.length) * 100 : 0,
+          meanTarget: cfg?.mean,
+          meanActual,
+          sdTarget: cfg?.sd,
+          sdActual,
+          cvTarget: cfg && cfg.mean ? (cfg.sd / cfg.mean) * 100 : undefined,
+          cvActual: meanActual && sdActual !== undefined ? (sdActual / meanActual) * 100 : undefined,
+          sumN: raws.length,
+          lastValue: typeof last?.rawValue === 'number' ? last.rawValue : undefined,
+          lastDate: last?.date,
+          lastStatus: last?.status,
+          // Raw level identifier: the analysis panel matches rule violations
+          // against it, and every display site runs it through levelLabel().
+          levelLabel: level,
+        },
+        multiLevels: [],
       };
     }
-  }, [filteredRecords, config, selectedAlat, selectedParam, mode]);
+
+    // Multi mode: one x point per (date, level) run, so two controls on the same
+    // day each keep their own point instead of overwriting each other.
+    const rows: any[] = [];
+    const indexByKey = new Map<string, number>();
+    for (const lvl of levels) {
+      for (const p of zScoresRecord[lvl] || []) {
+        const key = `${p.tanggal}|${lvl}`;
+        let idx = indexByKey.get(key);
+        if (idx === undefined) {
+          idx = rows.length;
+          indexByKey.set(key, idx);
+          rows.push({ date: p.tanggal, _levels: {} });
+        }
+        const k = lvl.toLowerCase();
+        rows[idx][k] = p.zScore;
+        rows[idx][`${k}Status`] = p.status;
+        rows[idx][`${k}Raw`] = p.rawValue;
+        rows[idx]._levels[lvl] = true;
+      }
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    return { chartData: rows, stats: null, multiLevels: levels };
+  }, [filteredRecords, config, selectedAlat, selectedParam, mode, levels, selectedLevel]);
 
   const analysis = useMemo(() => {
     if (!config || filteredRecords.length === 0) return null;
-    const levels: ControlLevel[] = selectedAlat === 'EASYLITE' ? ['NORMAL', 'HIGH'] : ['CTRL0', 'CTRL1', 'CTRL2'];
     const zScoresRecord = computeZScores(filteredRecords, config, selectedAlat, selectedParam, levels);
     return analyzeMultiLevel(zScoresRecord);
-  }, [filteredRecords, config, selectedAlat, selectedParam]);
+  }, [filteredRecords, config, selectedAlat, selectedParam, levels]);
+
+  /**
+   * Everything the printed sheet shows.
+   *
+   * Built from the same `computeZScores` output the chart draws, so the paper and
+   * the screen can never disagree. In single mode only the selected level is
+   * printed; in multi mode every level is overlaid on one figure.
+   */
+  const printDoc = useMemo<Omit<LJChartPrintOptions, 'printedAt'>>(() => {
+    const shownLevels = mode === 'single'
+      ? [levels.includes(selectedLevel) ? selectedLevel : levels[0]]
+      : levels;
+
+    let series: PrintSeries[] = [];
+    if (config && filteredRecords.length > 0) {
+      const zs = computeZScores(filteredRecords, config, selectedAlat, selectedParam, shownLevels);
+      series = shownLevels
+        .map((lvl) => ({
+          label: lvl,
+          color: SERIES_COLORS[lvl] || 'hsl(220,79%,48%)',
+          points: (zs[lvl] || []).map((p) => ({ date: p.tanggal, value: p.rawValue, z: p.zScore })),
+        }))
+        .filter((s) => s.points.length > 0);
+    }
+
+    const pointCount = series.reduce((n, s) => n + s.points.length, 0);
+    const oosCount = series.reduce(
+      (n, s) => n + s.points.filter((p) => Math.abs(p.z) > 3).length,
+      0,
+    );
+    const inControlPct = pointCount > 0 ? ((pointCount - oosCount) / pointCount) * 100 : 0;
+    const singleStats = mode === 'single' ? stats : null;
+
+    const lines: { label: string; value: string }[] = [
+      { label: 'Total Run', value: String(pointCount) },
+      {
+        label: 'In-Control',
+        value: `${pointCount - oosCount} (${inControlPct.toFixed(0)}%)`,
+      },
+      {
+        label: 'Out-of-Control',
+        value: `${oosCount} (${pointCount > 0 ? ((oosCount / pointCount) * 100).toFixed(0) : 0}%)`,
+      },
+    ];
+    if (singleStats) {
+      if (singleStats.meanTarget !== undefined) lines.push({ label: 'Set Mean / SD', value: `${singleStats.meanTarget.toFixed(2)} / ${singleStats.sdTarget?.toFixed(3) ?? '-'}` });
+      if (singleStats.meanActual !== undefined) lines.push({ label: 'Mean Terukur', value: singleStats.meanActual.toFixed(2) });
+      if (singleStats.sdActual !== undefined) lines.push({ label: 'SD / CV% Terukur', value: `${singleStats.sdActual.toFixed(3)} / ${singleStats.cvActual?.toFixed(2) ?? '-'}` });
+    }
+
+    return {
+      title: `LJ ${INSTRUMENT_LABELS[selectedAlat]} ${selectedParam}`,
+      instrumentLabel: INSTRUMENT_LABELS[selectedAlat],
+      paramLabel: PARAM_LABELS[selectedParam],
+      levelLabel:
+        mode === 'single'
+          ? levelLabel(shownLevels[0])
+          : `Multi (${shownLevels.map(levelLabel).join(' / ')})`,
+      periodLabel: format(new Date(selectedMonth + '-01'), 'MMMM yyyy'),
+      dateRange: monthDateRange(selectedMonth),
+      unit: PARAM_UNITS[selectedParam],
+      series,
+      lines,
+      picName: user?.nama || '',
+      kaLabName: KA_LAB_NAME,
+    };
+  }, [config, filteredRecords, selectedAlat, selectedParam, selectedMonth, levels, selectedLevel, mode, stats, user]);
 
   if (recordsLoading || configLoading) {
     return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary" /> Loading...</div>;
@@ -123,19 +268,12 @@ export default function LeveyJennings() {
         </div>
         
         <div className="flex items-center gap-2">
-          <LJExportControls 
-            chartRef={chartRef} 
-            previewRef={previewRef} 
-            previewImage={previewImage}
+          <LJExportControls
+            chartRef={chartRef}
             downloading={downloading}
             setDownloading={setDownloading}
-            setPreviewImage={setPreviewImage}
-            setPreviewOpen={setPreviewOpen}
             selected={{ alat: selectedAlat, name: selectedParam, month: selectedMonth }}
-            user={{ nama: 'Admin' }}
-            controlSummary={stats}
-            displayLevel={mode === 'single' ? 'Default' : 'Multi'}
-            formatMonthLabel={() => format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}
+            printDoc={printDoc}
           />
         </div>
       </div>
@@ -150,28 +288,39 @@ export default function LeveyJennings() {
                 value={selectedAlat}
                 onChange={(e) => setSelectedAlat(e.target.value as InstrumentType)}
               >
-                <option value="CA660">CA660</option>
-                <option value="EASYLITE">EASYLITE</option>
-                <option value="ONCALL1">ONCALL 1</option>
-                <option value="ONCALL2">ONCALL 2</option>
+                {INSTRUMENTS.map((i) => (
+                  <option key={i.value} value={i.value}>{i.label}</option>
+                ))}
               </select>
             </div>
             
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Parameter</label>
-              <select 
+              <select
                 className="w-full p-2 rounded-md border bg-background text-sm"
                 value={selectedParam}
                 onChange={(e) => setSelectedParam(e.target.value as ParamName)}
               >
-                <option value="PT">PT</option>
-                <option value="APTT">APTT</option>
-                <option value="INR">INR</option>
-                <option value="Na">Sodium</option>
-                <option value="K">Potassium</option>
-                <option value="Cl">Chloride</option>
+                {availableParams.map((p) => (
+                  <option key={p} value={p}>{PARAM_LABELS[p]}</option>
+                ))}
               </select>
             </div>
+
+            {mode === 'single' && levels.length > 1 && (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Level Kontrol</label>
+                <select
+                  className="w-full p-2 rounded-md border bg-background text-sm"
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value as ControlLevel)}
+                >
+                  {levels.map((lvl) => (
+                    <option key={lvl} value={lvl}>{levelLabel(lvl)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 block">Bulan</label>
@@ -188,21 +337,28 @@ export default function LeveyJennings() {
             <div className="pt-4 border-t">
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-2 block">Mode Visualisasi</label>
               <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  variant={mode === 'single' ? 'default' : 'outline'} 
-                  size="sm" 
+                <Button
+                  variant={mode === 'single' ? 'default' : 'outline'}
+                  size="sm"
                   onClick={() => setMode('single')}
                 >
                   Single
                 </Button>
-                <Button 
-                  variant={mode === 'multi' ? 'default' : 'outline'} 
-                  size="sm" 
+                <Button
+                  variant={mode === 'multi' ? 'default' : 'outline'}
+                  size="sm"
+                  disabled={!supportsMulti}
+                  title={supportsMulti ? undefined : 'Alat ini hanya punya satu level kontrol'}
                   onClick={() => setMode('multi')}
                 >
                   Multi
                 </Button>
               </div>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                {supportsMulti
+                  ? `Multi menampilkan ${levels.map(levelLabel).join(' / ')} dalam satu grafik.`
+                  : 'Multi hanya untuk alat dengan beberapa level kontrol (Easylite, ONCALL).'}
+              </p>
             </div>
           </div>
         </Card>
@@ -215,22 +371,71 @@ export default function LeveyJennings() {
                 Grafik Kontrol {selectedParam}
               </h3>
               {mode === 'single' && stats && (
-                <LJSummary 
-                  total={stats.total} 
-                  inControl={stats.inControl} 
-                  outOfControl={stats.outOfControl} 
-                  inControlPct={stats.inControlPct} 
+                <LJSummary
+                  total={stats.total}
+                  inControl={stats.inControl}
+                  outOfControl={stats.outOfControl}
+                  inControlPct={stats.inControlPct}
+                  levelLabel={stats.levelLabel}
+                  rejectionRules={analysis?.rules.filter(
+                    (r) => r.status === 'oos' && r.level === stats.levelLabel,
+                  )}
                 />
               )}
             </div>
             
+            {mode === 'single' && stats && (
+              <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                  <p className="text-xs font-semibold">
+                    {selectedParam} · {levelLabel(stats.levelLabel)} · titik terakhir {stats.lastDate ?? '-'}
+                  </p>
+                  {stats.lastValue !== undefined && (
+                    <p className={cn(
+                      'font-mono-data text-lg font-bold',
+                      stats.lastStatus === 'oos' ? 'text-destructive' : stats.lastStatus === 'warning' ? 'text-warning' : '',
+                    )}>
+                      {stats.lastValue} {PARAM_UNITS[selectedParam]}
+                    </p>
+                  )}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+                  <div>
+                    <p className="text-muted-foreground">Set Mean</p>
+                    <p className="font-mono-data font-semibold">{stats.meanTarget?.toFixed(2) ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Mean Terukur</p>
+                    <p className="font-mono-data font-semibold">{stats.meanActual?.toFixed(2) ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Set SD / CV%</p>
+                    <p className="font-mono-data font-semibold">
+                      {stats.sdTarget?.toFixed(3) ?? '-'} / {stats.cvTarget?.toFixed(2) ?? '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">SD / CV% Terukur</p>
+                    <p className="font-mono-data font-semibold">
+                      {stats.sdActual?.toFixed(3) ?? '-'} / {stats.cvActual?.toFixed(2) ?? '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Suspense fallback={<div className="h-[300px] flex items-center justify-center">Loading Chart...</div>}>
               <LJChart 
                 mode={mode} 
                 data={chartData} 
-                selected={{ alat: selectedAlat, name: selectedParam, levels: [] }} 
-                config={config} 
+                selected={{
+                  alat: selectedAlat,
+                  name: selectedParam,
+                  levels: [levels.includes(selectedLevel) ? selectedLevel : levels[0]],
+                }}
+                config={config}
                 multiLevels={multiLevels}
+                unit={availableParams.includes(selectedParam) ? PARAM_UNITS[selectedParam] : undefined}
               />
             </Suspense>
           </div>
@@ -247,25 +452,6 @@ export default function LeveyJennings() {
         </div>
       </div>
 
-      {previewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-full overflow-auto p-4 relative">
-            <Button 
-              variant="ghost" 
-              className="absolute top-2 right-2" 
-              onClick={() => setPreviewOpen(false)}
-            >
-              ✕
-            </Button>
-            <div ref={previewRef} className="p-4 bg-white">
-              <img src={previewImage || ''} className="w-full h-auto" alt="Preview" />
-            </div>
-            <div className="flex justify-center mt-4 gap-2">
-              <Button onClick={() => window.print()}>Cetak Sekarang</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -7,6 +7,14 @@ export interface ZScorePoint {
   zScore: number;
   rawValue: number;
   status: 'ok' | 'warning' | 'oos';
+  /**
+   * Control lot whose target produced this z-score.
+   *
+   * Sequence rules (2-2s, 4-1s, 10x) count consecutive runs measured against
+   * one reference line; a new lot brings a new mean and SD, so those rules must
+   * restart at the lot boundary. This carries the identity of that line.
+   */
+  lot: string;
 }
 
 /**
@@ -36,7 +44,9 @@ export function computeZScores(
     }
 
     const points = records
-      .filter((r) => r.level === level)
+      // Skip records flagged as excluded (gross error) — consistent with
+      // stats-util.ts and westgard-engine.ts. Older rows have no flag.
+      .filter((r) => r.level === level && !r.excluded)
       .map((r) => {
         const rawValue = r.params[param];
         if (rawValue == null) return null;
@@ -57,6 +67,7 @@ export function computeZScores(
           zScore: Math.round(zScore * 100) / 100,
           rawValue,
           status,
+          lot: lot.lot,
         };
       })
       .filter(Boolean) as ZScorePoint[];
@@ -69,6 +80,31 @@ export function computeZScores(
   return result;
 }
 
+
+/**
+ * Target (mean/SD) the lab is controlling against for a given instrument,
+ * level and parameter — resolved through the same lot lookup the Z-scores use,
+ * so the summary panel and the chart can never disagree.
+ *
+ * Pass the record date/lot to get the value actually in force for that run;
+ * omit them to get the most recent lot's target.
+ */
+export function getParamTarget(
+  config: LotConfig,
+  alat: InstrumentType,
+  level: ControlLevel,
+  param: ParamName,
+  recordDate?: string,
+  recordLot?: string,
+): ParamConfig | null {
+  const lots = getLotArrayForLevel(config, alat, level);
+  if (!lots || lots.length === 0) return null;
+  const lot = recordDate
+    ? findActiveLot(lots, recordDate, recordLot)
+    : [...lots].sort((a, b) => b.exp.localeCompare(a.exp))[0] ?? null;
+  if (!lot) return null;
+  return getParamConfigFromLot(lot, alat, level, param);
+}
 
 interface LotLike {
   lot: string;

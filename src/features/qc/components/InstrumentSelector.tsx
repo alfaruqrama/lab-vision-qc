@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { InstrumentType } from '@/lib/types';
+import { ALL_INSTRUMENTS } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import {
   INSTRUMENT_LABELS,
@@ -15,8 +16,6 @@ interface InstrumentSelectorProps {
   instruments?: InstrumentType[];
   className?: string;
 }
-
-const ALL_INSTRUMENTS: InstrumentType[] = ['CA660', 'EASYLITE', 'ONCALL1', 'ONCALL2', 'CLEVER1', 'CLEVER2'];
 
 export function InstrumentSelector({
   onSelect,

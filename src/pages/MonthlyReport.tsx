@@ -1,7 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { ParamName, WestgardStatus, InstrumentType } from '@/lib/types';
-import { getEasyliteLots, getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, levelLabel } from '@/lib/types';
+import { getParamTarget } from '@/lib/zscore';
+import { sampleStats } from '@/lib/stats';
 import { getOverallStatus } from '@/lib/westgard';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -15,7 +17,9 @@ import { LogSheetView } from '@/features/qc/components/LogSheetView';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { useAuth } from '@/hooks/use-auth';
 import { FileText, Printer, Download, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { buildLJReportHtml } from '@/features/qc/lib/lj-print';
+import { buildReportPages } from '@/features/qc/lib/lj-report-pages';
+import { openPrintWindow, monthDateRange } from '@/features/qc/lib/lj-print';
 import {
   ResponsiveContainer,
   LineChart,
@@ -97,26 +101,10 @@ export default function MonthlyReport() {
         if (r.params[p] == null) return;
         const key = `${r.alat}-${r.level}-${p}`;
         if (!groups[key]) {
-          let meanTarget = 0;
-          if (r.alat === 'CA660') {
-            const lot = config.CA660.find((l) => l.lot === r.lot);
-            meanTarget = lot?.Kontrol?.[p as 'PT' | 'APTT' | 'INR']?.mean || 0;
-          } else if (r.alat === 'CLEVER1') {
-            const lot = config.CLEVER1.find((l) => l.lot === r.lot);
-            meanTarget = lot?.Kontrol?.GDA?.mean || 0;
-          } else if (r.alat === 'CLEVER2') {
-            const lot = config.CLEVER2.find((l) => l.lot === r.lot);
-            meanTarget = lot?.Kontrol?.GDA?.mean || 0;
-          } else if (r.alat === 'ONCALL1') {
-            const lot = config.ONCALL1.find((l) => l.lot === r.lot);
-            meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
-          } else if (r.alat === 'ONCALL2') {
-            const lot = config.ONCALL2.find((l) => l.lot === r.lot);
-            meanTarget = (lot as any)?.[r.level]?.GDA?.mean || 0;
-          } else {
-            const lot = getEasyliteLots(config, r.level).find((l) => l.lot === r.lot);
-            meanTarget = lot?.params?.[p as 'Na' | 'K' | 'Cl']?.mean || 0;
-          }
+          // Same lookup the L-J chart uses, so the target printed here is the
+          // one the run was actually judged against.
+          const meanTarget =
+            getParamTarget(config, r.alat, r.level, p, r.tanggal, r.lot)?.mean ?? 0;
           const alatLabel = INSTRUMENT_LABELS[r.alat] || r.alat;
           groups[key] = { param: p, alat: alatLabel, level: r.level, values: [], statuses: [], meanTarget };
         }
@@ -126,10 +114,7 @@ export default function MonthlyReport() {
     });
 
     return Object.values(groups).map((g) => {
-      const n = g.values.length;
-      const mean = g.values.reduce((a, b) => a + b, 0) / n;
-      const sd = n > 1 ? Math.sqrt(g.values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : 0;
-      const cv = mean !== 0 ? (sd / mean) * 100 : 0;
+      const { n, mean, sd, cv } = sampleStats(g.values);
       const status = getOverallStatus(g.statuses);
       return { param: g.param, alat: g.alat, level: g.level, n, meanTarget: g.meanTarget, meanActual: mean, sd, cv, status };
     });
@@ -172,11 +157,7 @@ export default function MonthlyReport() {
 
         if (points.length < 2) return;
 
-        const values = points.map((p) => p.value!);
-        const mean = values.reduce((a, b) => a + b, 0) / values.length;
-        const sd = values.length > 1
-          ? Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / (values.length - 1))
-          : 0;
+        const { mean, sd } = sampleStats(points.map((p) => p.value!));
 
         groups[alatLabel].push({
           alat: alatLabel,
@@ -195,42 +176,28 @@ export default function MonthlyReport() {
 
   const [printing, setPrinting] = useState(false);
 
+  /**
+   * Print the analyser-style Levey-Jennings sheets: one page per
+   * (instrument, control level, parameter), the layout the lab already files.
+   *
+   * The summary table above stays as the on-screen overview; this is the
+   * document that goes into the QC binder.
+   */
   async function handlePrint() {
-    if (!reportRef.current) return;
     setPrinting(true);
     try {
-      const dataUrl = await toPng(reportRef.current, { quality: 0.95, pixelRatio: 2, skipFonts: true });
+      const pages = buildReportPages({
+        records,
+        config,
+        month,
+        instrument,
+        dateRangeLabel: monthDateRange(month),
+      });
 
-      const monthLabel = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]) - 1, 1)
-        .toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
-
-      const printWin = window.open('', '_blank', 'width=800,height=600');
-      if (!printWin) return;
-
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Laporan QC — ${monthLabel}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; padding: 16px 20px; }
-    .report img { width: 100%; display: block; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-  </style>
-</head>
-<body>
-  <div class="report">
-    <img src="${dataUrl}" alt="Laporan QC" />
-  </div>
-  <script>window.onload = function() { window.print(); }</script>
-</body>
-</html>`;
-
-      printWin.document.write(html);
-      printWin.document.close();
+      const html = buildLJReportHtml(pages, { printedAt: new Date() });
+      if (!openPrintWindow(html, `Levey-Jennings Chart ${month}`)) {
+        console.error('Print window blocked');
+      }
     } catch (err) {
       console.error('Failed to print report:', err);
     } finally {
@@ -431,7 +398,7 @@ export default function MonthlyReport() {
                         <TableRow key={i}>
                           <TableCell className="px-2 py-2 text-xs font-semibold">{row.param}</TableCell>
                           <TableCell className="px-2 py-2 text-xs">{row.alat}</TableCell>
-                          <TableCell className="px-2 py-2 text-xs">{row.level}</TableCell>
+                          <TableCell className="px-2 py-2 text-xs">{levelLabel(row.level)}</TableCell>
                           <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.n}</TableCell>
                           <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanTarget.toFixed(2)}</TableCell>
                           <TableCell className="px-2 py-2 text-xs text-center font-mono-data">{row.meanActual.toFixed(2)}</TableCell>
@@ -456,7 +423,7 @@ export default function MonthlyReport() {
                             <div key={`${s.level}-${s.param}`} className="space-y-1">
                               <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                                 <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
-                                {s.level} — {s.param} ({PARAM_UNITS[s.param]})
+                                {levelLabel(s.level)} — {s.param} ({PARAM_UNITS[s.param]})
                                 <span className="text-muted-foreground/60">n={s.data.length} μ={s.mean.toFixed(1)} σ={s.sd.toFixed(1)}</span>
                               </div>
                               <div className="h-[120px]">
