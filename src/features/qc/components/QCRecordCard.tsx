@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { QCRecord, ParamName, WestgardStatus } from '@/lib/types';
+import { levelLabel } from '@/lib/types';
 import { getOverallStatus } from '@/lib/westgard';
 import { canModifyRecords } from '@/lib/auth-types';
 import { Card } from '@/components/ui/card';
@@ -78,7 +79,7 @@ export function QCRecordCard({ record, compact = false, onClick, className, onDe
             </div>
             <div>
               <p className="text-sm font-semibold leading-tight">{label}</p>
-              <p className="text-[11px] text-muted-foreground">{record.level}</p>
+              <p className="text-[11px] text-muted-foreground">{levelLabel(record.level)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

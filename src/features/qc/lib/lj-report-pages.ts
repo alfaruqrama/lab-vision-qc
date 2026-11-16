@@ -7,8 +7,8 @@
  * tested without touching markup.
  */
 
-import type { InstrumentType, LotConfig, QCRecord, ControlLevel } from '@/lib/types';
-import { getParamsForInstrument } from '@/lib/types';
+import type { InstrumentType, LotConfig, QCRecord } from '@/lib/types';
+import { getParamsForInstrument, levelsForInstrument, levelLabel } from '@/lib/types';
 import { computeZScores, getParamTarget } from '@/lib/zscore';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import {
@@ -18,17 +18,6 @@ import {
   SERIES_COLORS,
   type LJPrintPage,
 } from './lj-print';
-
-/**
- * Control levels an instrument actually records. Mirrors the L-J page — CA-660
- * and CLEVER store one flat `Kontrol` run, EASYLITE two pack levels, ONCALL
- * three separate controls.
- */
-export function levelsForInstrument(alat: InstrumentType): ControlLevel[] {
-  if (alat === 'EASYLITE') return ['NORMAL', 'HIGH'];
-  if (alat === 'ONCALL1' || alat === 'ONCALL2') return ['CTRL0', 'CTRL1', 'CTRL2'];
-  return ['Kontrol'];
-}
 
 interface BuildOptions {
   records: QCRecord[];
@@ -94,7 +83,7 @@ export function buildReportPages({
           if (!operatorByDate.has(r.tanggal) && r.analis) operatorByDate.set(r.tanggal, r.analis);
         }
 
-        const seriesLabel = levels.length > 1 ? `${param} · ${level}` : param;
+        const seriesLabel = levels.length > 1 ? `${param} · ${levelLabel(level)}` : param;
         const oosCount = scored.filter((p) => Math.abs(p.zScore) > 3).length;
         const inControlPct = ((scored.length - oosCount) / scored.length) * 100;
         // A single run beyond ±3SD is a 1-3s rejection under Westgard, no matter
@@ -107,7 +96,7 @@ export function buildReportPages({
           fullName: `${INSTRUMENT_LABELS[alat]} — ${paramLabel(param)}`,
           dateRange: dateRangeLabel,
           unit: paramUnit(param),
-          control: levels.length > 1 ? `${level}` : 'Kontrol',
+          control: levelLabel(level),
           lotNo,
           setMean: target?.mean ?? 0,
           setSd: target?.sd ?? 0,

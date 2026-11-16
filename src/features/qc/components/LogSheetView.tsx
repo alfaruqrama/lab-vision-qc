@@ -1,20 +1,11 @@
 import type { QCRecord, ControlLevel, InstrumentType, ParamName } from '@/lib/types';
-import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, levelLabel } from '@/lib/types';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import { LogSheetTable } from './LogSheetTable';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FileSpreadsheet } from 'lucide-react';
-
-const LEVEL_LABELS: Record<ControlLevel, string> = {
-  Kontrol: 'Control',
-  NORMAL: 'Normal',
-  HIGH: 'High',
-  CTRL0: 'CTRL 0',
-  CTRL1: 'CTRL 1',
-  CTRL2: 'CTRL 2',
-};
 
 interface LogSheetViewProps {
   records: QCRecord[];
@@ -66,7 +57,7 @@ export function LogSheetView({
   groups.push(
     ...Array.from(groupMap.values()).map((g) => ({
       ...g,
-      title: `${INSTRUMENT_LABELS[g.alat] || g.alat} — ${LEVEL_LABELS[g.level] || g.level}`,
+      title: `${INSTRUMENT_LABELS[g.alat] || g.alat} — ${levelLabel(g.level)}`,
     })),
   );
 

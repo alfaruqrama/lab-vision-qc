@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQCStore } from '@/hooks/use-qc-store';
 import type { LotConfig, ParamConfig, InstrumentType, QCRecord, ParamName, ControlLevel } from '@/lib/types';
+import { levelLabel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { calculateStatsFromRecords } from '@/lib/stats-util';
@@ -577,9 +578,9 @@ export default function LotConfigPage() {
           (['NORMAL', 'HIGH'] as const).map((level) => (
             <div key={level} className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">EasyLite {level === 'NORMAL' ? 'Normal' : 'High'}</h2>
+                <h2 className="text-sm font-semibold">EasyLite {levelLabel(level)}</h2>
                 <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => addEasyliteLevelLot(level)}>
-                  <Plus size={14} /> Tambah {level === 'NORMAL' ? 'Normal' : 'High'}
+                  <Plus size={14} /> Tambah {levelLabel(level)}
                 </Button>
               </div>
               {localConfig.EASYLITE[level].map((lot, i) => (
@@ -593,7 +594,7 @@ export default function LotConfigPage() {
                   onExpChange={(v) => updateEasyliteLot(level, i, { ...lot, exp: v })}
                   onDelete={() => deleteEasyliteLot(level, i)}
                 >
-                  <ParamTable label={level}>
+                  <ParamTable label={levelLabel(level)}>
                     {(['Na', 'K', 'Cl'] as const).map((p) => (
                       <ParamRow
                         key={p}

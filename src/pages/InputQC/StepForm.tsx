@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { InstrumentType, ControlLevel, ParamName, ParamConfig, QCRecord } from '@/lib/types';
-import { getParamsForInstrument, PARAM_UNITS } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, levelLabel } from '@/lib/types';
 import { parseParamValues } from '@/lib/param-parse';
 import * as api from '@/lib/api';
 import { useQCStore } from '@/features/qc/hooks/useQCStore';
@@ -324,7 +324,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
       <div>
         <h1 className="text-xl font-bold">Input QC — {INSTRUMENT_LABELS[instrument]}</h1>
         <p className="text-sm text-muted-foreground">
-          Level: {isEasylite ? 'Normal & High' : level}
+          Level: {isEasylite ? 'Normal & High' : levelLabel(level)}
         </p>
       </div>
 
@@ -438,8 +438,8 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
         <div className="space-y-3">
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_1fr] gap-3">
-            <h3 className="text-sm font-semibold">NORMAL</h3>
-            <h3 className="text-sm font-semibold">HIGH</h3>
+            <h3 className="text-sm font-semibold">{levelLabel('NORMAL')}</h3>
+            <h3 className="text-sm font-semibold">{levelLabel('HIGH')}</h3>
           </div>
           {/* One row per parameter — keeps NORMAL & HIGH cards aligned */}
           {params.map((param) => (
@@ -485,7 +485,7 @@ export function StepForm({ instrument, level, onBack }: StepFormProps) {
             <br />
             {duplicateRecords.map((r) => (
               <span key={r.id} className="text-xs">
-                {r.alat} — Level: {r.level} — {r.tanggal} (oleh {r.analis || '?'})
+                {r.alat} — Level: {levelLabel(r.level)} — {r.tanggal} (oleh {r.analis || '?'})
               </span>
             ))}
             <br />

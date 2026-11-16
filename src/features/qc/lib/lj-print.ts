@@ -17,6 +17,7 @@
 
 import { PARAM_UNITS } from '@/lib/types';
 import type { ParamName } from '@/lib/types';
+import { sampleStats } from '@/lib/stats';
 
 export interface PrintPoint {
   date: string;
@@ -122,16 +123,14 @@ export function monthDateRange(month: string): string {
   return `01/${p(m)}/${y} - ${p(last)}/${p(m)}/${y}`;
 }
 
-/** Population SD of a series — what "Measured SD" means on the sheet. */
-export function measuredStats(values: number[]) {
-  const n = values.length;
-  if (n === 0) return { n: 0, mean: 0, sd: 0, cv: 0 };
-  const mean = values.reduce((a, b) => a + b, 0) / n;
-  const sd =
-    n > 1 ? Math.sqrt(values.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (n - 1)) : 0;
-  const cv = mean !== 0 ? (sd / mean) * 100 : 0;
-  return { n, mean, sd, cv };
-}
+/**
+ * Sample SD of a series — what "Measured SD" means on the sheet.
+ *
+ * Kept as a named export for the print pages; the arithmetic lives in
+ * `src/lib/stats.ts` so the sheet, the L-J page and the monthly report cannot
+ * drift apart again.
+ */
+export const measuredStats = sampleStats;
 
 export function paramLabel(param: ParamName): string {
   return PARAM_LABELS[param] ?? param;

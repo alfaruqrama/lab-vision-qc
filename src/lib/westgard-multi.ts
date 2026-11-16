@@ -13,6 +13,7 @@ function startsNewLot(points: ZScorePoint[], i: number): boolean {
 }
 import type { ControlLevel } from './types';
 import { ruleStatus, violatesR4s } from './westgard-rules';
+import { levelLabel } from './types';
 
 
 export type RuleStatus = 'ok' | 'warning' | 'oos';
@@ -415,12 +416,12 @@ function analyzeCrossLevel(
     summary = 'Systematic Error — multiple level menunjukkan pola serupa';
     details.push(`Korelasi arah pergerakan: ${Math.round(correlation * 100)}%`);
     for (const d of levelData) {
-      details.push(`${d.name}: ${d.oosCount} oos, ${d.warnCount} warning (avg Z=${d.avgZ.toFixed(2)})`);
+      details.push(`${levelLabel(d.name)}: ${d.oosCount} oos, ${d.warnCount} warning (avg Z=${d.avgZ.toFixed(2)})`);
     }
     details.push('Kemungkinan penyebab: degradasi reagen, masalah kalibrasi, atau suhu penyimpanan');
   } else if (levelsWithIssues.length === 1 && totalOos + totalWarn > 3) {
     type = 'specific';
-    const problemLevel = levelsWithIssues[0].name;
+    const problemLevel = levelLabel(levelsWithIssues[0].name);
     summary = `Masalah Spesifik — hanya level ${problemLevel} yang bermasalah`;
     details.push(`Level ${problemLevel} menunjukkan penyimpangan tanpa diikuti level lainnya`);
     details.push('Kemungkinan: lot kontrol rusak, kontaminasi spesifik, atau kesalahan preparasi');
@@ -432,7 +433,7 @@ function analyzeCrossLevel(
       details.push('Semua level dekat dengan mean (bias minimal)');
     }
     for (const d of levelData) {
-      details.push(`Rata-rata Z ${d.name}: ${d.avgZ.toFixed(2)}`);
+      details.push(`Rata-rata Z ${levelLabel(d.name)}: ${d.avgZ.toFixed(2)}`);
     }
     details.push(`Korelasi pergerakan: ${Math.round(correlation * 100)}%`);
   }

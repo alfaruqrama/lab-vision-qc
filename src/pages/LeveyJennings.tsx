@@ -14,9 +14,10 @@ import { useQCRecords } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig } from '@/features/qc/hooks/useQCConfig';
 import { useAuth } from '@/hooks/use-auth';
 import { computeZScores, getParamTarget } from '@/lib/zscore';
+import { sampleStats } from '@/lib/stats';
 import { analyzeMultiLevel } from '@/lib/westgard-multi';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
-import { getParamsForInstrument, PARAM_UNITS, INSTRUMENTS } from '@/lib/types';
+import { getParamsForInstrument, PARAM_UNITS, INSTRUMENTS, levelsForInstrument, levelLabel } from '@/lib/types';
 import { INSTRUMENT_LABELS } from '@/features/qc/lib/constants';
 import {
   KA_LAB_NAME,
@@ -26,20 +27,6 @@ import {
   type PrintSeries,
   type LJChartPrintOptions,
 } from '@/features/qc/lib/lj-print';
-
-/**
- * Control level(s) each instrument actually records.
- *
- * CA-660 and CLEVER store a single flat run under the level `Kontrol`; ONCALL
- * stores three separate controls; EASYLITE stores its two pack levels. Using
- * CTRL0/1/2 for CA-660 (as this page used to) matches no record at all and the
- * chart comes out empty.
- */
-function getLevelsForInstrument(alat: InstrumentType): ControlLevel[] {
-  if (alat === 'EASYLITE') return ['NORMAL', 'HIGH'];
-  if (alat === 'ONCALL1' || alat === 'ONCALL2') return ['CTRL0', 'CTRL1', 'CTRL2'];
-  return ['Kontrol'];
-}
 
 // Modular Components
 import { LJSummary } from '@/features/qc/components/lj/LJSummary';
@@ -76,7 +63,7 @@ export default function LeveyJennings() {
     }
   }, [availableParams, selectedParam]);
 
-  const levels = useMemo(() => getLevelsForInstrument(selectedAlat), [selectedAlat]);
+  const levels = useMemo(() => levelsForInstrument(selectedAlat), [selectedAlat]);
 
   // Multi runs overlay the instrument's control levels on one chart, so it only
   // makes sense where a run actually carries several of them. CA-660 and CLEVER
@@ -84,7 +71,7 @@ export default function LeveyJennings() {
   // has CTRL0/1/2.
   const supportsMulti = levels.length > 1;
 
-  const [selectedLevel, setSelectedLevel] = useState<ControlLevel>(getLevelsForInstrument('CA660')[0]);
+  const [selectedLevel, setSelectedLevel] = useState<ControlLevel>(levelsForInstrument('CA660')[0]);
 
   useEffect(() => {
     if (!levels.includes(selectedLevel)) {
@@ -131,12 +118,13 @@ export default function LeveyJennings() {
       const inControl = data.filter(d => d.status !== 'oos').length;
 
       const raws = data.map(d => d.rawValue).filter((v): v is number => typeof v === 'number');
-      const meanActual = raws.length > 0 ? raws.reduce((a, b) => a + b, 0) / raws.length : undefined;
       // SD/CV of the observed values — the "Sum" column in analyser software,
       // shown next to the "Set" (target) column so drift is visible at a glance.
-      const sdActual = raws.length > 1 && meanActual !== undefined
-        ? Math.sqrt(raws.reduce((a, b) => a + Math.pow(b - meanActual, 2), 0) / (raws.length - 1))
-        : undefined;
+      // Uses the app-wide sample SD so it matches the printed sheet and the
+      // target computed from the same data on the configuration page.
+      const measured = sampleStats(raws);
+      const meanActual = measured.n > 0 ? measured.mean : undefined;
+      const sdActual = measured.n > 1 ? measured.sd : undefined;
       const last = data[data.length - 1];
 
       // Mean/SD shown in the resume panel are the control targets actually used
@@ -161,6 +149,8 @@ export default function LeveyJennings() {
           lastValue: typeof last?.rawValue === 'number' ? last.rawValue : undefined,
           lastDate: last?.date,
           lastStatus: last?.status,
+          // Raw level identifier: the analysis panel matches rule violations
+          // against it, and every display site runs it through levelLabel().
           levelLabel: level,
         },
         multiLevels: [],
@@ -251,7 +241,10 @@ export default function LeveyJennings() {
       title: `LJ ${INSTRUMENT_LABELS[selectedAlat]} ${selectedParam}`,
       instrumentLabel: INSTRUMENT_LABELS[selectedAlat],
       paramLabel: PARAM_LABELS[selectedParam],
-      levelLabel: mode === 'single' ? shownLevels[0] : `Multi (${shownLevels.join(' / ')})`,
+      levelLabel:
+        mode === 'single'
+          ? levelLabel(shownLevels[0])
+          : `Multi (${shownLevels.map(levelLabel).join(' / ')})`,
       periodLabel: format(new Date(selectedMonth + '-01'), 'MMMM yyyy'),
       dateRange: monthDateRange(selectedMonth),
       unit: PARAM_UNITS[selectedParam],
@@ -323,7 +316,7 @@ export default function LeveyJennings() {
                   onChange={(e) => setSelectedLevel(e.target.value as ControlLevel)}
                 >
                   {levels.map((lvl) => (
-                    <option key={lvl} value={lvl}>{lvl}</option>
+                    <option key={lvl} value={lvl}>{levelLabel(lvl)}</option>
                   ))}
                 </select>
               </div>
@@ -363,7 +356,7 @@ export default function LeveyJennings() {
               </div>
               <p className="mt-1.5 text-[10px] text-muted-foreground">
                 {supportsMulti
-                  ? `Multi menampilkan ${levels.join(' / ')} dalam satu grafik.`
+                  ? `Multi menampilkan ${levels.map(levelLabel).join(' / ')} dalam satu grafik.`
                   : 'Multi hanya untuk alat dengan beberapa level kontrol (Easylite, ONCALL).'}
               </p>
             </div>
@@ -395,7 +388,7 @@ export default function LeveyJennings() {
               <div className="mb-4 rounded-lg border bg-muted/30 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
                   <p className="text-xs font-semibold">
-                    {selectedParam} · {stats.levelLabel} · titik terakhir {stats.lastDate ?? '-'}
+                    {selectedParam} · {levelLabel(stats.levelLabel)} · titik terakhir {stats.lastDate ?? '-'}
                   </p>
                   {stats.lastValue !== undefined && (
                     <p className={cn(

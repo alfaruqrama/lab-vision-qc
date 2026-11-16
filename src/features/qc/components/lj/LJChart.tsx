@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import type { ParamName, InstrumentType, ControlLevel } from '@/lib/types';
-import { PARAM_UNITS } from '@/lib/types';
+import { PARAM_UNITS, levelLabel } from '@/lib/types';
 
 const NORMAL_COLOR = 'hsl(220,79%,48%)';
 const HIGH_COLOR = 'hsl(142,69%,40%)';
@@ -128,7 +128,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
           <span className="flex items-center gap-1.5 text-xs">
             <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: NORMAL_COLOR }} />
             {selected.levels.length === 1
-              ? selected.levels[0]
+              ? levelLabel(selected.levels[0])
               : 'Selected Level'}
           </span>
         </div>
@@ -164,7 +164,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                 const isWarning = item.status === 'warning';
                 return (
                   <div className="p-2.5 space-y-1 text-xs">
-                    <p className="font-semibold">Run #{item.run} — {item.date}{item.level ? ` · ${item.level}` : ''}</p>
+                    <p className="font-semibold">Run #{item.run} — {item.date}{item.level ? ` · ${levelLabel(item.level)}` : ''}</p>
                     <p className="text-muted-foreground">Analis: {item.analis}</p>
                     <p className={cn('font-mono-data font-bold text-sm', isOoc ? 'text-destructive' : isWarning ? 'text-warning' : '')}>
                       {selected.name}: {item.rawValue ?? '-'} {unit ?? ''}
@@ -207,7 +207,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
         {multiLevels?.map((lvl) => (
           <span key={lvl} className="flex items-center gap-1.5 text-xs">
             <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: MULTI_LEVEL_COLORS[lvl] || 'hsl(var(--foreground))' }} />
-            {lvl}
+            {levelLabel(lvl)}
           </span>
         ))}
         <span className="ml-auto text-[10px] text-muted-foreground">Skala tetap ±3SD</span>
@@ -256,7 +256,7 @@ export function LJChart({ mode, data, selected, config, multiLevels, mean = 0, s
                     return (
                       <div key={lvl} className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                        <span className="text-muted-foreground">{lvl}</span>
+                        <span className="text-muted-foreground">{levelLabel(lvl)}</span>
                         <span className={cn('font-mono-data font-bold', status === 'oos' ? 'text-destructive' : status === 'warning' ? 'text-warning' : '')}>
                           Z={zVal}
                           {typeof zVal === 'number' && Math.abs(zVal) > Z_MAX ? '*' : ''} ({selected.name}: {raw})

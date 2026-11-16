@@ -2,6 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { levelLabel as formatLevel } from '@/lib/types';
 import type { RuleViolation } from '@/lib/westgard-multi';
 
 interface ControlSummaryProps {
@@ -35,7 +36,7 @@ export function ControlSummary({ total, inControl, outOfControl, inControlPct, m
           <XCircle size={16} className="text-destructive" />
         )}
         <h3 className="text-sm font-bold">
-          Resume Kontrol{levelLabel ? ` (${levelLabel})` : ''}
+          Resume Kontrol{levelLabel ? ` (${formatLevel(levelLabel)})` : ''}
         </h3>
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs mb-3">

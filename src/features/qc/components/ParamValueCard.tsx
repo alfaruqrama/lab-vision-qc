@@ -67,19 +67,13 @@ export function ParamValueCard({ param, value, onChange, config, className }: Pa
           aria-label={`Nilai ${param}`}
         />
 
-        {/* Westgard rule violations */}
+        {/* Westgard rule violations. A warning always carries its 1-2s chip:
+            evaluateWestgard pushes '1-2s' exactly when the status is warning. */}
         {violatedRules.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {violatedRules.map((rule) => (
               <WestgardRuleChip key={rule} rule={rule} status={status} />
             ))}
-          </div>
-        )}
-
-        {/* Warning badge for 1-2s (not in violatedRules but status is warning) */}
-        {hasValue && status === 'warning' && violatedRules.length === 0 && (
-          <div className="flex gap-1">
-            <WestgardRuleChip rule="1-2s" status="warning" />
           </div>
         )}
       </div>

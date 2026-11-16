@@ -116,6 +116,40 @@ export const INSTRUMENTS: { value: InstrumentType; label: string }[] = [
   { value: 'CLEVER2', label: 'CLEVER 2' },
 ];
 
+/**
+ * Every instrument, in display order — derived from `INSTRUMENTS` so a new
+ * analyser only has to be added in one place.
+ */
+export const ALL_INSTRUMENTS: InstrumentType[] = INSTRUMENTS.map((i) => i.value);
+
+/**
+ * Control levels each instrument actually records.
+ *
+ * CA-660 and CLEVER store a single flat run under the level `Kontrol`; ONCALL
+ * stores three separate controls; EASYLITE stores its two pack levels. Using
+ * CTRL0/1/2 for CA-660 (as the L-J page once did) matches no record at all and
+ * the chart comes out empty.
+ */
+export function levelsForInstrument(alat: InstrumentType): ControlLevel[] {
+  if (alat === 'EASYLITE') return ['NORMAL', 'HIGH'];
+  if (alat === 'ONCALL1' || alat === 'ONCALL2') return ['CTRL0', 'CTRL1', 'CTRL2'];
+  return ['Kontrol'];
+}
+
+/** Display label for a control level (the stored identifier never changes). */
+export const LEVEL_LABELS: Record<ControlLevel, string> = {
+  Kontrol: 'Kontrol',
+  NORMAL: 'Normal',
+  HIGH: 'High',
+  CTRL0: 'CTRL 0',
+  CTRL1: 'CTRL 1',
+  CTRL2: 'CTRL 2',
+};
+
+export function levelLabel(level: ControlLevel | string): string {
+  return LEVEL_LABELS[level as ControlLevel] ?? level;
+}
+
 export const PARAM_UNITS: Record<ParamName, string> = {
   PT: 'detik',
   APTT: 'detik',
@@ -141,4 +175,24 @@ export function getEasyliteLots(
 ): EasyliteLotConfig[] {
   if (level === 'HIGH') return config.EASYLITE.HIGH;
   return config.EASYLITE.NORMAL;
+}
+
+/**
+ * A configuration with no lots at all.
+ *
+ * Used when the database has no saved configuration (or nobody is signed in):
+ * every instrument shows an empty list and the configuration page invites the
+ * operator to add a real lot. It must never carry demo lots — a fabricated lot
+ * that reaches the input form records runs against a target the lab never set
+ * (see finding 4.7 in docs/WESTGARD_RULES.md).
+ */
+export function emptyLotConfig(): LotConfig {
+  return {
+    CA660: [],
+    EASYLITE: { NORMAL: [], HIGH: [] },
+    ONCALL1: [],
+    ONCALL2: [],
+    CLEVER1: [],
+    CLEVER2: [],
+  };
 }

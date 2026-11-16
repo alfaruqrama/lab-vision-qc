@@ -380,7 +380,7 @@ Yang menurun adalah **streak fiktif** — barisan titik yang tampak berurutan pa
 garis targetnya berganti di tengahnya. Catatan: hitungan 2026 penuh jauh lebih besar dari
 audit sebulan yang lama karena sekarang menghitung semua bulan sekaligus.
 
-### 4.5 Konvensi SD terbelah dua
+### 4.5 Konvensi SD terbelah dua — SUDAH DIPERBAIKI
 
 | File | Pembagi | Dipakai di |
 |---|---|---|
@@ -392,7 +392,15 @@ audit sebulan yang lama karena sekarang menghitung semua bulan sekaligus.
 Satu set data menghasilkan dua angka SD berbeda. Target yang dihitung lewat LotConfig
 tidak akan cocok dengan SD terukur di halaman L-J.
 
-### 4.6 Duplikasi definisi
+**Perbaikannya.** Satu fungsi `sampleStats()` di `src/lib/stats.ts` (SD sampel, pembagi
+n − 1) kini menjadi satu-satunya sumber di keempat titik: `stats-util.ts` untuk "hitung
+dari data lab" di LotConfig, `lj-print.ts` untuk print (alias `measuredStats`), halaman
+L-J untuk "SD Terukur", dan Laporan Bulanan (ringkasan + grafik). Konvensi sampel dipilih
+karena sudah dipakai 3 dari 4 titik dan sesuai konvensi analiser ("Measured SD") serta
+CLSI C24. Test regresi: `src/lib/__tests__/stats-and-definitions.test.ts` (SD n − 1,
+n = 1, kosong, CV, kesepakatan config-page/L-J lewat `calculateStatsFromRecords`).
+
+### 4.6 Duplikasi definisi — SUDAH DIPERBAIKI
 
 | Yang diduplikasi | Lokasi |
 |---|---|
@@ -401,7 +409,20 @@ tidak akan cocok dengan SD terukur di halaman L-J.
 | Label level | `LogSheetView.tsx:10` (`Kontrol`→"Control"), `StepLevel.tsx:23` ("CTRL 0"), label mentah `NORMAL`/`HIGH` di L-J dan print |
 | Pencarian target | `src/pages/MonthlyReport.tsx:102-123` menulis ulang if/else per alat, melewati `getParamTarget` |
 
-### 4.7 Bahaya config demo masih ada
+**Perbaikannya.** Setiap definisi kini punya satu sumber di `src/lib/types.ts`:
+`ALL_INSTRUMENTS` (diturunkan dari `INSTRUMENTS`, dipakai `lot-expiry.ts` dan
+`InstrumentSelector.tsx`), `levelsForInstrument()` (dipakai halaman L-J, `lj-report-pages`,
+dan `StepLevel.tsx`), dan `levelLabel()`/`LEVEL_LABELS` (dipakai semua situs tampilan:
+L-J dropdown/legend/tooltip/print, LogSheetView, StepLevel, StepForm (header kolom dan
+peringatan duplikat), LotConfig (header seksi EasyLite), LotExpiryBanner, QCRecordCard,
+westgard-multi (detail cross-level), LJChart, LJSummary,
+LJAnalysis, WestgardEvaluationPanel, MonthlyReport). Identitas level tetap disimpan mentah
+(`Kontrol`, `NORMAL`, `HIGH`, `CTRL0/1/2`) — pembandingan internal dan filter aturan
+penolakan tetap memakai nilai mentah; `levelLabel()` hanya di lapisan tampilan. Pencarian
+target di Laporan Bulanan kini lewat `getParamTarget()` yang sama dengan grafik, sehingga
+"Mean Target" yang dicetak identik dengan target yang dipakai untuk menilai run.
+
+### 4.7 Bahaya config demo masih ada — SUDAH DIPERBAIKI
 
 `src/features/qc/hooks/useQCConfig.ts:38-43` — `normalizeLotConfig` menyuntik
 `DEFAULT_LOT_CONFIG` ke setiap instrumen yang kosong:
@@ -415,7 +436,16 @@ insiden OOS palsu: lot demo muncul di halaman Konfigurasi Lot, ikut tersimpan, l
 otomatis oleh form input. `src/lib/lot-target.ts` sudah dibuat untuk mendeteksi lot
 bertarget nol, tapi baris `:38-43` sendiri tidak diubah.
 
-### 4.8 Cabang mati di `ParamValueCard`
+**Perbaikannya.** `normalizeLotConfig()` di `src/features/qc/hooks/useQCConfig.ts` kini
+memakai fallback `emptyLotConfig()` (array kosong, tanpa lot demo), bukan
+`DEFAULT_LOT_CONFIG`, untuk semua jalur online — instrumen yang hilang, tanpa autentikasi,
+error, maupun baris config yang tidak ada. Lot demo hanya muncul di mode offline/demo,
+tempat mock record memang dibuat darinya. `use-qc-store.tsx` ikut memakai
+`emptyLotConfig()` sebagai nilai awal. Config produksi (id 14, 2026-11-15) terverifikasi
+punya keenam instrumen terisi dan non-kosong, jadi fallback kosong tidak pernah menyala
+pada data nyata.
+
+### 4.8 Cabang mati di `ParamValueCard` — SUDAH DIPERBAIKI
 
 `src/features/qc/components/ParamValueCard.tsx:80`:
 ```tsx
@@ -424,6 +454,11 @@ bertarget nol, tapi baris `:38-43` sendiri tidak diubah.
 `violatedRules` diisi dari `evaluateWestgard(...).rules`, dan `evaluateWestgard` menambahkan
 `'1-2s'` tepat ketika `status === 'warning'`. Jadi `violatedRules.length === 0` tidak pernah
 benar bersamaan dengan `status === 'warning'` — blok ini tidak pernah tampil.
+
+**Perbaikannya.** Cabang mati dihapus dari `src/features/qc/components/ParamValueCard.tsx`;
+render `violatedRules` tetap seperti sebelumnya, dengan komentar yang mencatat jaminan
+`evaluateWestgard` (1-2s muncul tepat saat status warning) supaya blok serupa tidak
+dibuat lagi.
 
 ---
 

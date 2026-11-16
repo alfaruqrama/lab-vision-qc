@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { InstrumentType, ControlLevel } from '@/lib/types';
+import { levelsForInstrument, levelLabel } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -17,18 +18,21 @@ interface LevelChoice {
   description?: string;
 }
 
+/** Level descriptions are about position in the range, not the level name. */
+const LEVEL_DESCRIPTIONS: Partial<Record<ControlLevel, string>> = {
+  CTRL0: 'Level rendah',
+  CTRL1: 'Level normal',
+  CTRL2: 'Level tinggi',
+  NORMAL: 'Rentang normal',
+  HIGH: 'Rentang tinggi',
+};
+
 function getLevelChoices(instrument: InstrumentType): LevelChoice[] {
-  if (instrument === 'ONCALL1' || instrument === 'ONCALL2') {
-    return [
-      { level: 'CTRL0', label: 'CTRL 0', description: 'Level rendah' },
-      { level: 'CTRL1', label: 'CTRL 1', description: 'Level normal' },
-      { level: 'CTRL2', label: 'CTRL 2', description: 'Level tinggi' },
-    ];
-  }
-  return [
-    { level: 'NORMAL', label: 'Normal', description: 'Rentang normal' },
-    { level: 'HIGH', label: 'High', description: 'Rentang tinggi' },
-  ];
+  return levelsForInstrument(instrument).map((level) => ({
+    level,
+    label: levelLabel(level),
+    description: LEVEL_DESCRIPTIONS[level],
+  }));
 }
 
 export function StepLevel({ instrument, onSelect, onBack }: StepLevelProps) {

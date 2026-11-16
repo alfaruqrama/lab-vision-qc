@@ -1,10 +1,12 @@
 import React, { createContext, useContext } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { LotConfig, QCRecord } from '@/lib/types';
-import { DEFAULT_LOT_CONFIG } from '@/lib/mock-data';
+import { emptyLotConfig } from '@/lib/types';
 import * as api from '@/lib/api';
 import { useQCRecords, useAddQCRecord, useDeleteQCRecord, qcRecordKeys } from '@/features/qc/hooks/useQCRecords';
 import { useQCConfig, useUpdateQCConfig, qcConfigKeys } from '@/features/qc/hooks/useQCConfig';
+
+const EMPTY_CONFIG = emptyLotConfig();
 
 interface QCStore {
   records: QCRecord[];
@@ -28,7 +30,9 @@ export function QCProvider({ children }: { children: React.ReactNode }) {
   const connected = api.isConnected();
 
   const { data: records = [], isLoading: recordsLoading } = useQCRecords();
-  const { data: config = DEFAULT_LOT_CONFIG, isLoading: configLoading } = useQCConfig();
+  // While the real config loads, show nothing rather than demo lots — those
+  // carry a fabricated target that must never reach a run (finding 4.7).
+  const { data: config = EMPTY_CONFIG, isLoading: configLoading } = useQCConfig();
 
   const addRecordMutation = useAddQCRecord();
   const deleteRecordMutation = useDeleteQCRecord();
